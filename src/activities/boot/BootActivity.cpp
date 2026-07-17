@@ -84,10 +84,9 @@ void BootActivity::onEnter() {
 
   if (hasFullArt) {
     // boot.bmp is now exactly screen-sized (792x528) so it renders edge-to-edge with no blank
-    // letterboxing margin — the bottom third is the dark e-waste pile in the art itself, so these
-    // two lines are drawn white (false) rather than the plain black used everywhere else, or
-    // they'd be unreadable against it.
-    renderer.drawCenteredText(FONT_SMALL_ID, pageHeight - 72, "passive RF analyzer", false);
+    // letterboxing margin — the bottom third is the dark e-waste pile in the art itself, so this
+    // line is drawn white (false) rather than the plain black used everywhere else, or it'd be
+    // unreadable against it.
     renderer.drawCenteredText(FONT_SMALL_ID, pageHeight - 50, "listening...", false);
   } else {
     // No boot art at all (e.g. the generator never ran) — the small procedural portrait this
@@ -96,9 +95,7 @@ void BootActivity::onEnter() {
     const int portraitX = (pageWidth - kPortraitSize) / 2;
     const int portraitY = pageHeight / 2 - kPortraitSize - 30;
     RubySpriteRenderer::drawPortrait(renderer, portraitX, portraitY, kPortraitSize);
-    const int textTop = portraitY + kPortraitSize + 24;
-    renderer.drawCenteredText(FONT_UI_10_ID, textTop, "passive RF analyzer");
-    renderer.drawCenteredText(FONT_SMALL_ID, textTop + 26, "listening...");
+    renderer.drawCenteredText(FONT_SMALL_ID, portraitY + kPortraitSize + 24, "listening...");
   }
 
   // "Ruby" / version sit directly on whatever's underneath rather than an opaque band. With
@@ -112,10 +109,10 @@ void BootActivity::onEnter() {
   renderer.drawText(FONT_UI_12_ID, pageWidth - kTitleMarginX - versionW, kTitleMarginY, versionLabel, true,
                     EpdFontFamily::BOLD);
 
-  // Full build string (includes branch/dev suffix, e.g. "0.1.0-dev+branch-name") — distinct from
-  // the clean "vX.Y.Z" above, useful for identifying exactly which build is flashed. White over
-  // the art's dark bottom third, black over the fallback layout's plain white background.
-  renderer.drawCenteredText(FONT_SMALL_ID, pageHeight - 24, RUBY_VERSION, !hasFullArt);
+  // "passive RF analyzer" centered under the Ruby/version row — same open top margin (verified
+  // clear via pixel sampling down to y=40 before the character's hair/horns start), so plain
+  // black text reads fine here in both branches.
+  renderer.drawCenteredText(FONT_SMALL_ID, kTitleMarginY + 22, "passive RF analyzer");
 
   renderer.displayBuffer();
 }
