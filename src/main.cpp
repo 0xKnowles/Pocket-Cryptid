@@ -21,17 +21,17 @@
 
 #include "AppVersion.h"
 #include "BleScanner.h"
-#include "CryptidAppState.h"
-#include "CryptidSettings.h"
 #include "EncryptedLog.h"
 #include "MappedInputManager.h"
 #include "RecentSightings.h"
 #include "SignalCatalog.h"
+#include "SkinwalkerAppState.h"
+#include "SkinwalkerSettings.h"
 #include "WifiSniffer.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
-#include "cryptid/CryptidManager.h"
 #include "fontIds.h"
+#include "skinwalker/SkinwalkerManager.h"
 
 MappedInputManager mappedInputManager(gpio);
 GfxRenderer renderer(display);
@@ -111,7 +111,7 @@ void enterDeepSleep() {
   APP_STATE.totalCaptureSeconds += (millis() - bootMillis) / 1000;
   APP_STATE.saveToFile();
   SIGNAL_CATALOG.saveToFile();
-  CRYPTID.tick();
+  SKINWALKER.tick();
 
   activityManager.goToSleep(false);
   delay(400);  // let the sleep screen's refresh physically finish before cutting power to radios/CPU
@@ -215,7 +215,7 @@ void setup() {
     gpio.verifyPowerButtonWakeup(POWER_BUTTON_WAKE_DEBOUNCE_MS, /*shortPressAllowed=*/true);
   }
 
-  LOG_DBG("MAIN", "Starting Pocket Cryptid " POCKET_CRYPTID_VERSION);
+  LOG_DBG("MAIN", "Starting Skinwalker " SKINWALKER_VERSION);
 
   setupDisplayAndFonts();
 
@@ -224,7 +224,7 @@ void setup() {
   }
 
   SIGNAL_CATALOG.loadFromFile();
-  CRYPTID.begin();
+  SKINWALKER.begin();
   if (!encryptedLog.begin()) {
     LOG_ERR("MAIN", "Encrypted log failed to initialize — captures will not be persisted to disk");
   }
@@ -240,7 +240,7 @@ void setup() {
     SIGNAL_CATALOG.observeBle(obs);
     recentSightings.recordBle(obs);
   });
-  SIGNAL_CATALOG.setNewUniqueCallback([](RfEventType type) { CRYPTID.onSignalEvent(type); });
+  SIGNAL_CATALOG.setNewUniqueCallback([](RfEventType type) { SKINWALKER.onSignalEvent(type); });
 
   startCaptureIfEnabled();
 
@@ -267,7 +267,7 @@ void loop() {
   wifiSniffer.tick();
   bleScanner.tick();
   SIGNAL_CATALOG.tick();
-  CRYPTID.tick();
+  SKINWALKER.tick();
   encryptedLog.tick();
 
   if (Serial && millis() - lastMemPrint >= 15000) {

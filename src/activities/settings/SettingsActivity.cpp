@@ -8,8 +8,8 @@
 #include <cstring>
 
 #include "BleScanner.h"
-#include "CryptidSettings.h"
 #include "EncryptedLog.h"
+#include "SkinwalkerSettings.h"
 #include "WifiSniffer.h"
 #include "fontIds.h"
 #include "ui/Chrome.h"

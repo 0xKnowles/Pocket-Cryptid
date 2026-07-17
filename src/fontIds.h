@@ -1,6 +1,6 @@
 #pragma once
 
-// Font IDs registered with GfxRenderer::insertFont() in main.cpp. Pocket Cryptid only ships the
+// Font IDs registered with GfxRenderer::insertFont() in main.cpp. Skinwalker only ships the
 // Space Mono UI family (see lib/EpdFont/builtinFonts/all.h) — there is no reading surface, so
 // unlike upstream CrossPlant these don't need to be content-hashed against a large generated font
 // set; three stable small constants are enough.

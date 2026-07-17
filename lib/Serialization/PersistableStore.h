@@ -19,7 +19,7 @@ class PersistableStoreBase {
   PersistableStoreBase() = default;
   ~PersistableStoreBase() = default;
 
-  // Serializes doc and writes it to path (ensures /.pocketcryptid exists). Logs on failure.
+  // Serializes doc and writes it to path (ensures /.skinwalker exists). Logs on failure.
   static bool writeDocToFile(const char* path, const JsonDocument& doc);
 
   // Reads path and parses it into doc. Returns false silently when the file

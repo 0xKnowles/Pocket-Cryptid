@@ -5,9 +5,8 @@
 #include <cstdio>
 
 #include "SignalCatalog.h"
-#include "cryptid/CryptidManager.h"
-#include "cryptid/CryptidSpriteRenderer.h"
 #include "fontIds.h"
+#include "skinwalker/SkinwalkerSpriteRenderer.h"
 #include "ui/Chrome.h"
 
 void SleepActivity::onEnter() {
@@ -20,7 +19,7 @@ void SleepActivity::onEnter() {
   constexpr int kPortraitSize = 96;
   const int portraitX = (pageWidth - kPortraitSize) / 2;
   const int portraitY = 60;
-  CryptidSpriteRenderer::drawPortrait(renderer, portraitX, portraitY, kPortraitSize, CRYPTID.getState().stage);
+  SkinwalkerSpriteRenderer::drawPortrait(renderer, portraitX, portraitY, kPortraitSize);
 
   const int textTop = portraitY + kPortraitSize + 20;
   renderer.drawCenteredText(FONT_UI_12_ID, textTop, "GONE QUIET", true, EpdFontFamily::BOLD);

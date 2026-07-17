@@ -1,6 +1,6 @@
 #pragma once
 
-// Pocket Cryptid ships Space Mono (SIL OFL 1.1, Google Fonts) as its only UI font family —
+// Skinwalker ships Space Mono (SIL OFL 1.1, Google Fonts) as its only UI font family —
 // dashboard chrome + stat text. A monospace terminal-style face reads as "instrument readout"
 // rather than "app UI," which fits a device whose whole job is displaying raw RF telemetry. There
 // is no book-reading surface, so the Lexend Deca / Bitter / Charein reading-typography families

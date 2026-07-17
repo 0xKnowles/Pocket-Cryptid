@@ -8,21 +8,21 @@
 #include <cstdio>
 
 #include "BleScanner.h"
-#include "CryptidAppState.h"
-#include "CryptidSettings.h"
 #include "EncryptedLog.h"
 #include "SignalCatalog.h"
+#include "SkinwalkerAppState.h"
+#include "SkinwalkerSettings.h"
 #include "WifiSniffer.h"
-#include "cryptid/CryptidEvolution.h"
-#include "cryptid/CryptidManager.h"
-#include "cryptid/CryptidSpriteRenderer.h"
 #include "fontIds.h"
+#include "skinwalker/SkinwalkerBehavior.h"
+#include "skinwalker/SkinwalkerManager.h"
+#include "skinwalker/SkinwalkerSpriteRenderer.h"
 #include "ui/Chrome.h"
 
 namespace {
 constexpr unsigned long kFullRedrawIntervalMs = 5000;
 constexpr unsigned long kPetRedrawIntervalMs = 1200;
-constexpr unsigned long kEvolutionBannerMs = 4000;
+constexpr unsigned long kHandshakeBannerMs = 4000;
 
 void formatUptime(unsigned long ms, char* out, size_t outSize) {
   const unsigned long totalSec = ms / 1000;
@@ -74,12 +74,12 @@ void DashboardActivity::onEnter() {
   Activity::onEnter();
 
   // Portrait layout: the creature gets a prominent "specimen card" box centered at the top of
-  // the screen, with its name/stage/mood/XP bar directly beneath it, then the RF stats fill the
+  // the screen, with its name/expression line directly beneath it, then the RF stats fill the
   // rest of the tall screen full-width below that. See DashboardActivity.h for why this is
   // portrait and not landscape — the physical buttons are laid out for this orientation.
-  cryptidBoxSize = 200;
-  cryptidBoxX = (renderer.getScreenWidth() - cryptidBoxSize) / 2;
-  cryptidBoxY = Chrome::contentTop();
+  skinwalkerBoxSize = 200;
+  skinwalkerBoxX = (renderer.getScreenWidth() - skinwalkerBoxSize) / 2;
+  skinwalkerBoxY = Chrome::contentTop();
 
   pendingRenderKind = RenderKind::Full;
   lastFullRenderMs = 0;
@@ -115,15 +115,15 @@ void DashboardActivity::loop() {
     return;
   }
 
-  if (CRYPTID.consumeJustEvolved()) {
-    evolutionBannerActive = true;
-    evolutionBannerUntilMs = millis() + kEvolutionBannerMs;
+  if (SKINWALKER.consumeJustCapturedHandshake()) {
+    handshakeBannerActive = true;
+    handshakeBannerUntilMs = millis() + kHandshakeBannerMs;
     pendingRenderKind = RenderKind::Full;
     requestUpdate();
     return;
   }
-  if (evolutionBannerActive && millis() >= evolutionBannerUntilMs) {
-    evolutionBannerActive = false;
+  if (handshakeBannerActive && millis() >= handshakeBannerUntilMs) {
+    handshakeBannerActive = false;
     pendingRenderKind = RenderKind::Full;
     requestUpdate();
     return;
@@ -133,23 +133,23 @@ void DashboardActivity::loop() {
   if (now - lastFullRenderMs >= kFullRedrawIntervalMs) {
     pendingRenderKind = RenderKind::Full;
     requestUpdate();
-  } else if (now - lastPetRenderMs >= kPetRedrawIntervalMs && CRYPTID.animFrame() != lastAnimFrameRendered) {
-    pendingRenderKind = RenderKind::CryptidOnly;
+  } else if (now - lastPetRenderMs >= kPetRedrawIntervalMs && SKINWALKER.animFrame() != lastAnimFrameRendered) {
+    pendingRenderKind = RenderKind::SkinwalkerOnly;
     requestUpdate();
   }
 }
 
-void DashboardActivity::drawCryptidPanel(bool withNoise) {
-  const CryptidMood mood = CRYPTID.currentMood(false);
-  const uint8_t frame = CRYPTID.animFrame();
-  CryptidSpriteRenderer::draw(renderer, cryptidBoxX, cryptidBoxY, cryptidBoxSize, CRYPTID.getState().stage,
-                             withNoise ? mood : CryptidMood::ASLEEP, frame);
+void DashboardActivity::drawSkinwalkerPanel(bool withNoise) {
+  const SkinwalkerExpression expression = SKINWALKER.currentExpression(false);
+  const uint8_t frame = SKINWALKER.animFrame();
+  SkinwalkerSpriteRenderer::draw(renderer, skinwalkerBoxX, skinwalkerBoxY, skinwalkerBoxSize,
+                                 withNoise ? expression : SkinwalkerExpression::SLEEPING, frame);
   lastAnimFrameRendered = frame;
   lastPetRenderMs = millis();
 }
 
-void DashboardActivity::renderCryptidBoxOnly() {
-  drawCryptidPanel(true);
+void DashboardActivity::renderSkinwalkerBoxOnly() {
+  drawSkinwalkerPanel(true);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
@@ -157,35 +157,22 @@ void DashboardActivity::renderFull() {
   renderer.clearScreen();
 
   const int battery = powerManager.getBatteryPercentage();
-  Chrome::drawHeader(renderer, "POCKET CRYPTID", battery);
+  Chrome::drawHeader(renderer, "SKINWALKER", battery);
 
-  // Specimen card: box, then name/stage/mood/XP bar centered directly beneath it.
-  const CryptidState& state = CRYPTID.getState();
-  const CryptidMood mood = CRYPTID.currentMood(false);
-  int y = cryptidBoxY + cryptidBoxSize + 14;
+  // Specimen card: box, then name/expression directly beneath it.
+  const SkinwalkerState& state = SKINWALKER.getState();
+  const SkinwalkerExpression expression = SKINWALKER.currentExpression(false);
+  int y = skinwalkerBoxY + skinwalkerBoxSize + 14;
   renderer.drawCenteredText(FONT_UI_12_ID, y, state.designation, true, EpdFontFamily::BOLD);
   y += 22;
-  // Plain ASCII hyphen, not an em dash: no guarantee the Space Mono subset baked into
-  // builtinFonts covers U+2014, and this isn't worth risking a missing-glyph fallback over.
-  char stageMood[48];
-  snprintf(stageMood, sizeof(stageMood), "%s - %s", CryptidEvolution::stageName(state.stage),
-           CryptidEvolution::moodLabel(mood));
-  renderer.drawCenteredText(FONT_SMALL_ID, y, stageMood);
-  y += 20;
+  renderer.drawCenteredText(FONT_SMALL_ID, y, SkinwalkerBehavior::expressionLabel(expression));
+  y += 24;
 
-  const uint32_t need = CryptidEvolution::xpNeededForNextStage(state.xp);
-  constexpr int barW = 240;
-  constexpr int barH = 8;
-  const int barX = (renderer.getScreenWidth() - barW) / 2;
-  renderer.drawRect(barX, y, barW, barH, true);
-  if (need > 0) {
-    const uint32_t into = CryptidEvolution::xpIntoCurrentStage(state.xp);
-    const int fillW = static_cast<int>((static_cast<uint64_t>(into) * (barW - 2)) / need);
-    if (fillW > 0) renderer.fillRect(barX + 1, y + 1, fillW, barH - 2, true);
-  } else {
-    renderer.fillRect(barX + 1, y + 1, barW - 2, barH - 2, true);  // APEX: full bar
-  }
-  y += barH + 22;
+  const size_t loreTotal = SkinwalkerManager::loreEntryCount();
+  char loreBuf[32];
+  snprintf(loreBuf, sizeof(loreBuf), "%u/%zu lore entries unlocked", state.unlockedLoreCount, loreTotal);
+  renderer.drawCenteredText(FONT_SMALL_ID, y, loreBuf);
+  y += 24;
 
   int cardTop = y;
   y = beginStatCard(renderer, y, "SIGNALS");
@@ -234,17 +221,15 @@ void DashboardActivity::renderFull() {
 
   renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Up: recent devices    Down: decrypt log");
 
-  drawCryptidPanel(true);
+  drawSkinwalkerPanel(true);
 
-  if (evolutionBannerActive) {
+  if (handshakeBannerActive) {
     constexpr int kBannerH = 28;
     const int bannerY = (renderer.getScreenHeight() - kBannerH) / 2;
     renderer.fillRect(0, bannerY, renderer.getScreenWidth(), kBannerH, true);
-    char evoBuf[48];
-    snprintf(evoBuf, sizeof(evoBuf), "IT HAS CHANGED: %s", CryptidEvolution::stageName(state.stage));
     const int textY = bannerY + (kBannerH - renderer.getLineHeight(FONT_UI_10_ID)) / 2;
     // Text drawn white-on-black by inverting: draw as non-ink over the filled band.
-    renderer.drawCenteredText(FONT_UI_10_ID, textY, evoBuf, false, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(FONT_UI_10_ID, textY, "HANDSHAKE CAPTURED", false, EpdFontFamily::BOLD);
   }
 
   Chrome::drawFooterHints(renderer, "Refresh", "Settings", "Lore", "Export");
@@ -263,6 +248,6 @@ void DashboardActivity::render(RenderLock&&) {
   if (pendingRenderKind == RenderKind::Full) {
     renderFull();
   } else {
-    renderCryptidBoxOnly();
+    renderSkinwalkerBoxOnly();
   }
 }

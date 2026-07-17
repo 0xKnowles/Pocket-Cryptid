@@ -116,7 +116,7 @@ std::string getPanicInfo(bool full) {
   } else {
     std::string info;
 
-    info += "Pocket Cryptid version: " POCKET_CRYPTID_VERSION;
+    info += "Skinwalker version: " SKINWALKER_VERSION;
     info += "\n\nPanic reason: " + std::string(panicMessage);
     info += "\n\nLast logs:\n" + getLastLogs();
     info += "\n\nStack memory:\n";

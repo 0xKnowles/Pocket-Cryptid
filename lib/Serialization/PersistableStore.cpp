@@ -4,7 +4,7 @@
 #include <Logging.h>
 
 namespace {
-constexpr char kDataDir[] = "/.pocketcryptid";
+constexpr char kDataDir[] = "/.skinwalker";
 }
 
 bool PersistableStoreBase::writeDocToFile(const char* path, const JsonDocument& doc) {

@@ -1,6 +1,6 @@
-#include "CryptidSettings.h"
+#include "SkinwalkerSettings.h"
 
-void CryptidSettings::toJson(JsonDocument& doc) const {
+void SkinwalkerSettings::toJson(JsonDocument& doc) const {
   doc["wifiSniffEnabled"] = wifiSniffEnabled;
   doc["bleSniffEnabled"] = bleSniffEnabled;
   doc["wifiChannelDwellMs"] = wifiChannelDwellMs;
@@ -8,7 +8,7 @@ void CryptidSettings::toJson(JsonDocument& doc) const {
   doc["fullRefreshIntervalMin"] = fullRefreshIntervalMin;
 }
 
-bool CryptidSettings::fromJson(JsonVariantConst doc) {
+bool SkinwalkerSettings::fromJson(JsonVariantConst doc) {
   wifiSniffEnabled = doc["wifiSniffEnabled"] | true;
   bleSniffEnabled = doc["bleSniffEnabled"] | true;
   wifiChannelDwellMs = doc["wifiChannelDwellMs"] | 300;

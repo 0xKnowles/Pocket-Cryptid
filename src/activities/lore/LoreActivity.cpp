@@ -4,13 +4,13 @@
 
 #include <cstdio>
 
-#include "cryptid/CryptidManager.h"
 #include "fontIds.h"
+#include "skinwalker/SkinwalkerManager.h"
 #include "ui/Chrome.h"
 
 void LoreActivity::onEnter() {
   Activity::onEnter();
-  index = CRYPTID.getState().unlockedLoreCount > 0 ? CRYPTID.getState().unlockedLoreCount - 1 : 0;
+  index = SKINWALKER.getState().unlockedLoreCount > 0 ? SKINWALKER.getState().unlockedLoreCount - 1 : 0;
   requestUpdate();
 }
 
@@ -19,7 +19,7 @@ void LoreActivity::loop() {
     onGoHome();
     return;
   }
-  const uint16_t unlocked = CRYPTID.getState().unlockedLoreCount;
+  const uint16_t unlocked = SKINWALKER.getState().unlockedLoreCount;
   if (unlocked == 0) return;
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Up) ||
@@ -40,7 +40,7 @@ void LoreActivity::render(RenderLock&&) {
   renderer.clearScreen();
   Chrome::drawHeader(renderer, "LORE");
 
-  const uint16_t unlocked = CRYPTID.getState().unlockedLoreCount;
+  const uint16_t unlocked = SKINWALKER.getState().unlockedLoreCount;
   const int contentWidth = Chrome::contentRight(renderer) - Chrome::contentLeft();
   int y = Chrome::contentTop() + 20;
 
@@ -52,7 +52,7 @@ void LoreActivity::render(RenderLock&&) {
     snprintf(counter, sizeof(counter), "%zu / %u", index + 1, unlocked);
     renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), Chrome::contentTop(), counter);
 
-    const char* entry = CRYPTID.loreEntry(index);
+    const char* entry = SKINWALKER.loreEntry(index);
     if (entry != nullptr) {
       const auto lines = renderer.wrappedText(FONT_UI_12_ID, entry, contentWidth, 8);
       const int lineHeight = renderer.getLineHeight(FONT_UI_12_ID);

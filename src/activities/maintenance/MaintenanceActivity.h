@@ -3,7 +3,7 @@
 #include "activities/Activity.h"
 
 // Export/maintenance screen. There is deliberately no USB/WiFi transfer protocol here — the
-// encrypted log lives on the removable SD card as plain files (/.pocketcryptid/log/*.pclog), so
+// encrypted log lives on the removable SD card as plain files (/.skinwalker/log/*.pclog), so
 // "exporting" it is just pulling the card and copying files on a PC. This screen shows what's
 // there and reminds the owner how to read it back (scripts/decrypt_log.py + the key from
 // Settings). Keeping export card-based instead of a bespoke wire protocol is also the more
