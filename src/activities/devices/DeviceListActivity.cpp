@@ -7,6 +7,7 @@
 #include <cstdio>
 
 #include "RecentSightings.h"
+#include "VendorOui.h"
 #include "fontIds.h"
 #include "ui/Chrome.h"
 
@@ -67,8 +68,15 @@ void DeviceListActivity::render(RenderLock&&) {
       renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line1);
       y += lineHeight + 2;
 
-      char line2[56];
-      snprintf(line2, sizeof(line2), "  %s - %s", entry.label[0] ? entry.label : "(no name)", agoBuf);
+      // Fall back to a vendor-name lookup (see VendorOui.h — opt-in, needs /.ruby/oui.txt on the
+      // SD card) when there's no advertised label at all, rather than just "(no name)".
+      const char* label = entry.label;
+      char vendorBuf[32];
+      if (!label[0] && lookupVendorOui(entry.mac, vendorBuf, sizeof(vendorBuf))) {
+        label = vendorBuf;
+      }
+      char line2[64];
+      snprintf(line2, sizeof(line2), "  %s - %s", label[0] ? label : "(no name)", agoBuf);
       renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line2);
       y += lineHeight + 6;
     }

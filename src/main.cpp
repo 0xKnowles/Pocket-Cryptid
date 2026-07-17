@@ -21,9 +21,11 @@
 #include <sys/time.h>  // struct timeval / settimeofday() — not part of <ctime>
 
 #include "AppVersion.h"
+#include "ApHistory.h"
 #include "ApScanCache.h"
 #include "BleScanner.h"
 #include "CaptureControl.h"
+#include "DeauthDetector.h"
 #include "DeauthEngine.h"
 #include "EncryptedLog.h"
 #include "MappedInputManager.h"
@@ -34,6 +36,7 @@
 #include "Screenshot.h"
 #include "SignalCatalog.h"
 #include "TargetList.h"
+#include "TrackerDetector.h"
 #include "WifiSniffer.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
@@ -278,14 +281,26 @@ void setup() {
   }
   targetList.begin();
   deauthEngine.begin();
+  apHistory.begin();
 
   wifiSniffer.setObservationCallback([](const WifiObservation& obs) {
+    if (obs.kind == WifiFrameKind::Deauth || obs.kind == WifiFrameKind::Disassoc) {
+      // Not a device sighting — someone else's deauth/disassoc activity in the air (a
+      // half-duplex radio can't hear its own transmission, so this is never DeauthEngine's own
+      // burst — see DeauthDetector.h). Feeds DeauthDetector only: the encrypted log/Recent
+      // Devices/SignalCatalog paths don't have a meaningful record type or dedup bucket for "this
+      // BSSID was targeted by a deauth frame" and would otherwise show it mislabeled as an
+      // ordinary AP sighting via mapWifiKindToLogType()'s fallback.
+      deauthDetector.onObservation(obs);
+      return;
+    }
     const LogRecordType type = mapWifiKindToLogType(obs.kind);
     encryptedLog.appendWifi(obs, type);
     SIGNAL_CATALOG.observeWifi(obs);
     recentSightings.recordWifi(obs, type);
     deauthEngine.onObservation(obs);
     apScanCache.observe(obs);
+    apHistory.observe(obs);
   });
   wifiSniffer.setRawFrameCallback(
       [](const RawFrameCapture* frames, size_t count) { pcapWriter.writeFrames(frames, count); });
@@ -293,6 +308,7 @@ void setup() {
     encryptedLog.appendBle(obs);
     SIGNAL_CATALOG.observeBle(obs);
     recentSightings.recordBle(obs);
+    trackerDetector.observe(obs);
   });
   SIGNAL_CATALOG.setNewUniqueCallback([](RfEventType type) { RUBY.onSignalEvent(type); });
 
@@ -324,6 +340,7 @@ void loop() {
   RUBY.tick();
   encryptedLog.tick();
   pcapWriter.tick();
+  apHistory.tick();
 
   if (Serial && millis() - lastMemPrint >= 15000) {
     LOG_INF("MEM", "Free: %d bytes, MinFree: %d bytes | WiFi frames dropped: %lu", ESP.getFreeHeap(),

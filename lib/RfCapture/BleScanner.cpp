@@ -44,6 +44,12 @@ class ObservationForwarder : public NimBLEScanCallbacks {
       obs.manufacturerDataLen = static_cast<uint8_t>(mfg.size());
       if (mfg.size() >= 2) {
         obs.manufacturerId = static_cast<uint8_t>(mfg[0]) | (static_cast<uint8_t>(mfg[1]) << 8);
+        const size_t payloadLen = mfg.size() - 2;
+        const size_t copyLen = payloadLen > BleObservation::kManufacturerPayloadCap
+                                    ? BleObservation::kManufacturerPayloadCap
+                                    : payloadLen;
+        memcpy(obs.manufacturerPayload, mfg.data() + 2, copyLen);
+        obs.manufacturerPayloadLen = static_cast<uint8_t>(copyLen);
       }
     }
 

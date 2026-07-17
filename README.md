@@ -53,6 +53,10 @@ mood faces than to a pet that eats XP to level up.
 - **On-device management:** a live network-scan picker to build the whitelist/blacklist without a
   PC, a Power-button action you can set to Screenshot/Pause/Refresh, and a Settings screen for
   every capture toggle.
+- **Passive awareness, always on, no setting to flip:** a deauth/disassoc detector (flags nearby
+  attack activity that isn't necessarily this device's own), a BLE tracker detector (Apple Find
+  My/AirTag, Samsung SmartTag, Tile), persistent all-time AP history browsable from Settings, and
+  optional vendor-name lookup for unlabeled devices — see [Passive awareness features](#passive-awareness-features).
 - **License:** MIT. Single PlatformIO environment (`default`), built and static-analyzed on every
   push via GitHub Actions.
 
@@ -150,28 +154,33 @@ When the device is asleep, it shows a different, much larger piece of art instea
 
 - **Dashboard** (home) — the creature, its current Mood (or "-- PAUSED --" while capture is
   paused), whether handshake capture/deauth are switched on, unique AP/client/BLE/handshake
-  counts, capture status, log size, and session uptime. `Confirm` → Settings, `Left` → toggle
-  Pause (same button pauses and resumes WiFi/BLE capture — no screen change, and it stops
-  `DeauthEngine` too since that only ever fires from the observation stream capture produces),
-  `Right` → Export/Maintenance, `Up` → Recent Devices, `Down` → Log Viewer, `Back` → force a full
-  ghost-clearing refresh.
+  counts, capture status, log size, and session uptime. A transient banner surfaces the most
+  urgent passive-awareness event since the last redraw (tracker sighting, then a deauth/disassoc
+  spike, then a handshake capture — see [Passive awareness features](#passive-awareness-features)
+  for what triggers each). `Confirm` → Settings, `Left` → toggle Pause (same button pauses and
+  resumes WiFi/BLE capture — no screen change, and it stops `DeauthEngine` too since that only
+  ever fires from the observation stream capture produces), `Right` → Export/Maintenance,
+  `Up` → Recent Devices, `Down` → Log Viewer, `Back` → force a full ghost-clearing refresh.
 - **Settings** — toggle WiFi/BLE capture, adjust WiFi channel dwell time, set the ghost-clear
   refresh interval, choose what a short Power-button tap does (Refresh / Screenshot / Pause — a
   long hold is always Sleep, not configurable), turn on
   [raw handshake capture](#raw-handshake-capture-crackable-pcap-export) or
   [active deauth](#active-deauth) (both off by default), manage the whitelist/blacklist (opens
-  a live network scan to add/remove targets — see [Active deauth](#active-deauth)), reveal the
-  log's AES key, wipe the log.
+  a live network scan to add/remove targets — see [Active deauth](#active-deauth)), browse
+  persistent [AP History](#passive-awareness-features), reveal the log's AES key, wipe the log.
 - **Export/Maintenance** — how to pull captures off the SD card, plus the current session's
-  record count and (when any exist) raw-capture file stats, a PMKID-capable-capture count, and
-  deauth burst/frame counters.
+  record count and (when any exist) raw-capture file stats, a PMKID-capable-capture count, deauth
+  burst/frame counters, and an always-on "Nearby threats" card (deauth/disassoc frames heard, BLE
+  trackers seen — see [Passive awareness features](#passive-awareness-features)).
 - **Recent Devices** — a live, RAM-only feed of the last 16 WiFi/BLE observations (type, MAC,
-  RSSI, SSID/name, time since seen), newest first, read-only. This is separate from both
-  `SignalCatalog` (which deliberately never retains which specific MACs it has seen — only dedup
-  counts) and the encrypted log (which retains everything, but only ever encrypted at rest).
-  Nothing shown here is persisted; it's lost on reboot along with the rest of RAM. To manage the
-  active-deauth target lists, use Settings' Whitelist/Blacklist rows instead (a dedicated live
-  network scan — see [Active deauth](#active-deauth)).
+  RSSI, SSID/name, time since seen), newest first, read-only, falling back to a vendor-name
+  lookup (see [Passive awareness features](#passive-awareness-features)) for entries with no
+  SSID/name of their own. This is separate from both `SignalCatalog` (which deliberately never
+  retains which specific MACs it has seen — only dedup counts) and the encrypted log (which
+  retains everything, but only ever encrypted at rest). Nothing shown here is persisted; it's
+  lost on reboot along with the rest of RAM. To manage the active-deauth target lists, use
+  Settings' Whitelist/Blacklist rows instead (a dedicated live network scan — see
+  [Active deauth](#active-deauth)).
 - **Log Viewer** — browses the encrypted capture log *on the device itself*, no PC required. See
   [On-device log decryption](#on-device-log-decryption) below for how that's possible without any
   key-entry UI. `Left`/`Right` switch between daily log files, `Up`/`Down` page through records
@@ -255,6 +264,44 @@ jurisdictions, regardless of how small the transmitting device is. Only enable t
 networks you own or are explicitly authorized to audit — the both-lists-empty default exists so
 that flipping the setting on can never itself put you outside that boundary; you have to
 deliberately add a target first.
+
+## Passive awareness features
+
+Four capabilities that watch what's already flowing through the existing WiFi/BLE capture
+pipeline — none of them transmit anything themselves, and none have an on/off setting; they're
+always running whenever WiFi/BLE capture itself is on.
+
+- **Deauth/disassoc detector.** Every 802.11 deauthentication and disassociation frame Ruby's own
+  radio overhears — from *any* source, not just its own `DeauthEngine` — is counted. A radio
+  physically can't receive on the same antenna it's transmitting from, so Ruby's own deauth
+  bursts (if active deauth is on) are invisible to this counter by construction, not by filtering:
+  what it counts is always someone else's activity in range. A short burst of 5+ frames within a
+  5-second window raises a 15-second Dashboard banner; running totals show up on the Export
+  screen's "Nearby threats" card. Purely informational — this exists to tell you when a deauth
+  attack (yours or anyone else's) is actually happening nearby, not to do anything about it.
+- **BLE tracker detector.** Flags BLE advertisements matching known Bluetooth tracker-network
+  protocols: Apple Find My (the protocol AirTags and other Find-My-enabled Apple accessories both
+  use — matched via the Continuity protocol's Find My type byte, not just Apple's company ID
+  alone, so it's fairly specific to the protocol itself), Samsung SmartTag, and Tile. The latter
+  two are matched on Bluetooth SIG company ID alone, which is a coarser signal — Samsung and Tile
+  both ship plenty of BLE hardware that isn't a tracker — so treat those two as "possible," not
+  confirmed, sightings. A brand-new tracker-looking address raises a Dashboard banner (highest
+  priority of the three); a running count shows on the Export screen's "Nearby threats" card.
+  Purely passive — nothing here ever transmits, regardless of what it classifies.
+- **Persistent AP history.** Every access point Ruby has ever seen (BSSID, SSID, first/last-seen
+  timestamps, sighting count) is kept in a small SD-backed table at `/.ruby/ap_history.txt`,
+  independent of the RAM-only Recent Devices feed and the encrypted log — it survives reboots and
+  is meant to answer "have I seen this network before, and when." Browse it from
+  `Settings → AP History`, newest-seen first, paged with `Up`/`Down`. Saved in batches (at most
+  once a minute) rather than on every beacon, to keep SD writes bounded.
+- **Vendor OUI lookup (optional).** Recent Devices falls back to a vendor-name lookup, by MAC
+  address prefix, for entries that don't already have an SSID or advertised name. This needs a
+  user-supplied file at `/.ruby/oui.txt` — not shipped with the firmware — one `AABBCC<TAB>Vendor
+  Name` entry per line, the same format IEEE's public OUI registry export or Wireshark's `manuf`
+  file already use. Without that file present, unlabeled entries just show "(no name)" as before.
+  A full ~50,000-entry registry gets scanned from scratch on every visible row on every redraw, so
+  a curated subset (common consumer/IoT vendors, say) will feel a lot snappier than the full
+  registry.
 
 ## Hardware
 
@@ -363,6 +410,13 @@ to a computer:
 - **Screenshots** (only present if you used them) — `/.ruby/screenshots/*.bmp`, plain
   uncompressed 1-bit bitmaps. Set **Settings → Power button (tap) → Screenshot** to save one with
   a short tap of the Power button.
+- **AP history** — `/.ruby/ap_history.txt`, plaintext, tab-delimited. Every access point ever
+  seen with first/last-seen times and a sighting count — see
+  [Passive awareness features](#passive-awareness-features).
+
+`/.ruby/oui.txt` (vendor OUI lookup, see [Passive awareness features](#passive-awareness-features))
+goes the other direction — it's a file you supply yourself, not one Ruby writes, so there's
+nothing to export for it.
 
 ## What "encrypted" means here
 

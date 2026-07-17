@@ -34,6 +34,8 @@ enum class WifiFrameKind : uint8_t {
   ProbeRequest,
   ProbeResponse,
   EapolHandshake,
+  Deauth,     // someone's deauthentication frame — not necessarily this device's own DeauthEngine
+  Disassoc,   // same as above, disassociation subtype
   Other,
 };
 
@@ -55,8 +57,14 @@ struct BleObservation {
   bool connectable = false;
   char name[32] = {};   // empty if the device didn't advertise a name
   uint8_t nameLen = 0;
-  uint8_t manufacturerDataLen = 0;   // length only is recorded, never the payload bytes
+  uint8_t manufacturerDataLen = 0;   // total length of the manufacturer-specific AD structure
   uint16_t manufacturerId = 0;       // 0xFFFF if none present
+  // Bytes after the 2-byte company ID, capped — just enough for TrackerDetector to recognize
+  // known tracker-network protocols (e.g. Apple Find My's type-0x12 continuity frames) without
+  // needing to retain an entire advertisement's payload.
+  static constexpr uint8_t kManufacturerPayloadCap = 24;
+  uint8_t manufacturerPayload[kManufacturerPayloadCap] = {};
+  uint8_t manufacturerPayloadLen = 0;
 };
 
 // Bound on raw frame bytes preserved for .pcap export. EAPOL key frames run well under this;

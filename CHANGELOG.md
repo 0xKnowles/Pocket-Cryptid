@@ -7,6 +7,36 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
+- **Passive deauth/disassoc detector** (`DeauthDetector`, new WifiSniffer-classified frame kinds
+  `WifiFrameKind::Deauth`/`Disassoc`). Purely passive — this never transmits anything, just counts
+  deauth/disassoc management frames already flowing through the observation stream (frame
+  subtypes WifiSniffer didn't classify at all before) and flags a spike (5+ within 5s) as evidence
+  that *something* — not necessarily this device — is actively attacking a nearby network right
+  now. Surfaces as a "DEAUTH ACTIVITY NEARBY" one-shot banner on the Dashboard and a running
+  lifetime count on the Export screen's new "NEARBY THREATS" card. Deauth/disassoc frames are
+  deliberately kept out of the encrypted log and Recent Devices feed — those don't have a
+  meaningful record type for "this BSSID was targeted", and showing one there would look like an
+  ordinary device sighting.
+- **BLE tracker detector** (`TrackerDetector`, `BleObservation` now retains up to 24 bytes of
+  manufacturer-specific payload past the company ID, not just its length). Flags BLE
+  advertisements matching known tracker-network protocols — Apple Find My (the protocol AirTags
+  and Find-My-enabled accessories both use, via its documented Continuity type 0x12), Samsung
+  SmartTag, and Tile — by manufacturer data. Purely passive and purely informational: BleScanner
+  never transmits regardless. A new tracker address triggers a one-shot "TRACKER DETECTED NEARBY"
+  Dashboard banner (highest priority of the three banner types, since a tracker is the most
+  time-sensitive privacy concern); a running count of currently-tracked addresses shows on the
+  Export screen's "NEARBY THREATS" card.
+- **Persistent AP history** (`ApHistory`, `/.ruby/ap_history.txt`) — every WiFi AP this device has
+  ever seen, with first-seen/last-seen timestamps and a sighting count, surviving reboots (unlike
+  RecentSightings' RAM-only 16-entry ring, or SignalCatalog's dedup-only counters). Backed by a
+  small human-readable tab-delimited file, saved at most once a minute regardless of capture
+  density. Browse it from **Settings → AP History** (a new push/pop sub-screen, `ApHistoryActivity`,
+  paged newest-first).
+- **Vendor OUI lookup** (`lookupVendorOui`, optional `/.ruby/oui.txt` on the SD card) — an entry
+  formatted like IEEE's own public OUI registry export or Wireshark's `manuf` file (one
+  `AABBCC<TAB>Vendor Name` per line). No database ships in firmware; costs nothing when the file
+  isn't present. Recent Devices now shows the matched vendor name instead of "(no name)" for
+  entries with no advertised label.
 - **Active deauth: transmit capability re-enabled behind a transient WIFI_MODE_STA switch,
   pending real-hardware confirmation.** `DeauthEngine::sendDeauthBurst()` now switches the radio
   to `WIFI_MODE_STA` only for the duration of one burst (a handful of milliseconds), sends, then
