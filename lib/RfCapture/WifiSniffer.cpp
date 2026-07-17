@@ -123,13 +123,17 @@ bool WifiSniffer::begin() {
   // joins anything, so there's nothing worth surviving a reboot, and it avoids flash wear from a
   // radio that's expected to run for most of the device's on-time.
   esp_wifi_set_storage(WIFI_STORAGE_RAM);
-  // STA rather than NULL: esp_wifi_80211_tx() (DeauthEngine's raw-TX primitive) requires the
-  // interface matching its wifi_interface_t argument to be up, even though nothing here ever
-  // calls esp_wifi_connect() — bringing the STA interface up is not the same as joining a
-  // network. Promiscuous/monitor-mode capture works identically to before; this only changes
-  // whether raw TX is possible, and DeauthEngine still requires its own separate opt-in
-  // (RubySettings::activeDeauthEnabled, off by default) before it ever calls it.
-  esp_wifi_set_mode(WIFI_MODE_STA);
+  // WIFI_MODE_NULL, not STA. STA was tried (to give esp_wifi_80211_tx, DeauthEngine's raw-TX
+  // primitive, an interface to transmit on) and reverted after real X3 hardware testing: bringing
+  // the STA interface up starves the interrupt matrix badly enough that esp-aes can't allocate
+  // its own interrupt at all ("intr_alloc: No free interrupt inputs for AES interrupt" ->
+  // immediate abort()), and independently pre-fragments/exhausts the DMA-capable heap pool within
+  // milliseconds of boot — every single boot, not just when active deauth is used, since this
+  // ran unconditionally in begin(). See CHANGELOG. DeauthEngine's transmit calls will now fail
+  // harmlessly (esp_wifi_80211_tx returns an error with no STA interface up, it does not crash)
+  // rather than actually transmitting — active deauth is effectively non-functional until a safe
+  // way to get TX capability on this hardware is found.
+  esp_wifi_set_mode(WIFI_MODE_NULL);
   err = esp_wifi_start();
   if (err != ESP_OK) {
     LOG_ERR("RFSNIFF", "esp_wifi_start failed: %d", err);

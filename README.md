@@ -166,6 +166,13 @@ real limitation: catching a full 4-way handshake by chance while hopping across 
 
 ## Active deauth
 
+> **Status: currently non-functional.** The first attempt at this (WIFI_MODE_STA to get a
+> TX-capable interface) crashed the device on every boot on real X3 hardware — see
+> [CHANGELOG](CHANGELOG.md) for the root cause. Reverted to the working WIFI_MODE_NULL baseline;
+> the toggle and target list below still work, but deauth frames don't actually transmit right
+> now. Left documented here as the intended behavior once a safe way to get TX capability on this
+> hardware is found.
+
 Passive capture alone often isn't enough to actually catch a handshake — a real 4-way handshake
 completes in well under a second, and the radio has to already be parked on the right channel
 when it happens. **Active deauth** closes that gap by transmitting real 802.11 deauthentication

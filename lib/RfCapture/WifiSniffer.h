@@ -22,12 +22,13 @@
 //     EAPOL handshake bytes (ANonce/SNonce/MIC included) plus the SSID-bearing beacon for each
 //     BSSID, for export as a standard .pcap that offline tools like hashcat/hcxpcapngtool can
 //     attempt to crack. See PcapWriter and SettingsActivity.
-//   - Active deauth (see DeauthEngine, RubySettings::activeDeauthEnabled) transmits real
-//     802.11 deauthentication frames to force a handshake instead of waiting for one — the one
-//     thing that makes this class's radio initialization use WIFI_MODE_STA (interface up,
-//     never associated) instead of WIFI_MODE_NULL; see WifiSniffer::begin(). This is real RF
-//     interference against whatever it targets and is gated by TargetList in addition to its
-//     own setting — see DeauthEngine's class comment before enabling it.
+//   - Active deauth (see DeauthEngine, RubySettings::activeDeauthEnabled) is meant to transmit
+//     real 802.11 deauthentication frames to force a handshake instead of waiting for one, gated
+//     by TargetList in addition to its own setting. **Currently non-functional**: it needs the
+//     radio in WIFI_MODE_STA to get a TX-capable interface, but real X3 hardware testing showed
+//     that mode starves the interrupt matrix badly enough to crash esp-aes (hardware crypto) on
+//     every boot — see WifiSniffer::begin() and CHANGELOG. Reverted to WIFI_MODE_NULL; the code
+//     path is left in place (it fails harmlessly with no interface up) pending a safe fix.
 // Both exist for auditing the strength of networks the device's owner controls or is
 // explicitly authorized to test.
 //

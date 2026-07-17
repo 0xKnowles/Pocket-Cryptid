@@ -22,11 +22,20 @@
 // Frame transmission uses esp_wifi_80211_tx(), the same raw-TX primitive essentially every
 // community ESP32 deauther project uses. ESP-IDF's own doxygen comment for that function lists
 // "beacon/probe request/probe response/action and non-QoS data frame" as supported — deauth
-// (a different management subtype) is not on that list. It works in practice on real hardware
-// across many published projects, but it is a widely used technique rather than an officially
-// documented one, and — like the rest of this active-mode path — could not be verified against
-// real hardware from here. Test it deliberately before relying on it, especially for unattended
-// overnight use.
+// (a different management subtype) is not on that list.
+//
+// **Currently non-functional on real hardware.** esp_wifi_80211_tx(WIFI_IF_STA, ...) needs the
+// radio in WIFI_MODE_STA, but real X3 hardware testing showed that mode starves the interrupt
+// matrix badly enough that esp-aes (hardware crypto, needed for EncryptedLog's every write)
+// can't allocate its own interrupt and aborts on every boot — a crash loop, not a targeted
+// failure, since WifiSniffer brought the radio up in STA mode unconditionally rather than only
+// while this was armed. Reverted WifiSniffer back to WIFI_MODE_NULL (see its class comment), so
+// sendDeauthBurst() below now calls esp_wifi_80211_tx() with no STA interface up — it fails and
+// logs an error instead of transmitting, which is safe but means this class currently does
+// nothing even when enabled. Left in place, not deleted, pending a way to get TX capability on
+// this hardware without breaking crypto — a transient, carefully-scoped mode switch only for the
+// duration of a burst is the most likely path, but that needs real hardware iteration this
+// environment can't do.
 class DeauthEngine {
  public:
   bool begin();

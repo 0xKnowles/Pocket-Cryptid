@@ -5,6 +5,31 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Real field crash: `WIFI_MODE_STA` (added for active deauth's raw TX) crash-loops X3 hardware
+  on every single boot — reverted to `WIFI_MODE_NULL`.** Confirmed via a hardware serial log
+  within hours of shipping the active-deauth capability below: the device fades to black and
+  restarts within ~700ms of every boot, looping forever. The log shows the actual failure —
+  `E intr_alloc: No free interrupt inputs for AES interrupt (flags 0xE)` /
+  `E esp-aes: Failed to allocate AES interrupt 261`, immediately followed by `abort()` — and, on
+  other boots, the heap-health circuit breaker (see below) firing before that abort even happens,
+  with the DMA-capable pool already down to ~2500-4100 bytes free within milliseconds of boot,
+  long before any real capture or logging activity. Root cause: bringing the WiFi interface up in
+  `WIFI_MODE_STA` (done unconditionally in `WifiSniffer::begin()`, needed so
+  `esp_wifi_80211_tx(WIFI_IF_STA, ...)` had an interface to transmit on) starves the ESP32-C3's
+  interrupt matrix badly enough — on the X3's already IMU/RTC-heavier interrupt budget — that
+  `esp-aes` (the hardware crypto engine `EncryptedLog`'s every write depends on) can't allocate
+  its own interrupt at all, and independently pre-fragments/exhausts the same small DMA pool.
+  This broke *every* boot, not just when active deauth was actually armed, since the mode change
+  ran regardless of whether `DeauthEngine` was enabled. Reverted `WifiSniffer::begin()` to
+  `WIFI_MODE_NULL` (the working baseline before active deauth). `esp_wifi_80211_tx()` now fails
+  harmlessly (returns an error, doesn't crash) with no STA interface up, so **active deauth is
+  currently non-functional** — the toggle, `TargetList`, and targeting logic are all still in
+  place and safe, but no deauth frames actually transmit until a way to get TX capability on this
+  hardware without breaking crypto is found (most likely a transient, tightly-scoped mode switch
+  only for the duration of a burst — untested, needs real hardware iteration).
+
 ### Added
 
 - **Active deauth capability** (`DeauthEngine`, `TargetList`) — off by default. A field capture
