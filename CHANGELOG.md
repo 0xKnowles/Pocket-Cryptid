@@ -30,6 +30,28 @@ All notable changes to this project are documented here. Format loosely follows
   hardware without breaking crypto is found (most likely a transient, tightly-scoped mode switch
   only for the duration of a burst — untested, needs real hardware iteration).
 
+- **Follow-up field report after the crash-loop fix above: device stable, but noticeably laggy
+  with active deauth on, and the same BSSID re-attacked every 20-150ms instead of respecting the
+  30-second cooldown.** Two separate bugs, both in `DeauthEngine`, confirmed via the same serial
+  log (an `E wifi:invalid interface 0` per failed `esp_wifi_80211_tx()` call, six per burst,
+  bursts logged tens of milliseconds apart for the same BSSID):
+  - `sendDeauthBurst()` still ran its full transmit attempt — `esp_wifi_set_channel()` plus 6x
+    `esp_wifi_80211_tx()` with a blocking `delay(2)` between each — even though every one of those
+    calls was guaranteed to fail with the radio back in `WIFI_MODE_NULL` (see above). That's 12ms+
+    of pure blocking wasted per burst, run synchronously inside
+    `WifiSniffer::tick()`'s main-loop queue drain, for zero benefit — with enough networks in
+    range this alone was enough to overflow the raw observation queue and visibly lag the device.
+    Gated the actual transmit code behind a `kTxCapable = false` constant (left in place for when
+    TX capability is restored) — `sendDeauthBurst()` now just counts the attempt and returns.
+  - `trackerFor()`'s eviction policy, once its 16-slot table filled up, always evicted whatever
+    was in *slot 0* rather than the actual least-recently-used entry — in a real dense RF
+    environment (confirmed: 10+ distinct BSSIDs cycling through in a few seconds, plausibly many
+    more), that constantly wiped out cooldown memory for whichever BSSID happened to be sitting
+    there, letting it burst again almost immediately instead of waiting out `kCooldownMs`. Fixed
+    to evict the entry with the oldest `lastBurstMs` (so untouched/never-fired entries, which
+    carry no cooldown state worth protecting, are evicted before anything with a live cooldown),
+    and bumped the table from 16 to 64 entries for real headroom.
+
 ### Added
 
 - **Active deauth capability** (`DeauthEngine`, `TargetList`) — off by default. A field capture

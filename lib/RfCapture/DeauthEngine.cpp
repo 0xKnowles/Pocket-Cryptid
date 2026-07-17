@@ -4,6 +4,7 @@
 #include <Logging.h>
 #include <esp_wifi.h>
 
+#include <climits>
 #include <cstring>
 
 #include "TargetList.h"
@@ -25,6 +26,14 @@ struct __attribute__((packed)) DeauthFrame {
 
 constexpr uint16_t kFrameControlDeauth = 0x00C0;
 constexpr uint16_t kReasonClass3FromNonassoc = 0x0007;
+
+// Flip once a safe way to get esp_wifi_80211_tx() working without breaking esp-aes is found (see
+// DeauthEngine.h's class comment on the WIFI_MODE_STA revert). Until then, sendDeauthBurst()
+// skips the transmit attempt entirely rather than making calls that are guaranteed to fail with
+// no STA interface up — field testing showed those calls (6x esp_wifi_80211_tx + delay(2) each,
+// run synchronously inside WifiSniffer::tick()'s main-loop queue drain) were enough blocking on
+// their own to overflow the raw observation queue and visibly lag the device.
+constexpr bool kTxCapable = false;
 }  // namespace
 
 bool DeauthEngine::begin() {
@@ -42,16 +51,33 @@ void DeauthEngine::setEnabled(bool value) {
 
 DeauthEngine::BssidTrack& DeauthEngine::trackerFor(uint32_t bssidHash) {
   int freeSlot = -1;
+  size_t lruSlot = 0;
+  unsigned long lruMs = ULONG_MAX;
   for (size_t i = 0; i < kTrackCapacity; i++) {
     if (trackers[i].inUse && trackers[i].bssidHash == bssidHash) return trackers[i];
-    if (freeSlot < 0 && !trackers[i].inUse) freeSlot = static_cast<int>(i);
+    if (!trackers[i].inUse) {
+      if (freeSlot < 0) freeSlot = static_cast<int>(i);
+    } else if (trackers[i].lastBurstMs < lruMs) {
+      // Least-recently-bursted in-use slot, tracked as the fallback eviction target once the
+      // table is full. Entries that never actually fired (lastBurstMs == 0) always sort first
+      // here, so they're evicted before anything with a real cooldown in progress — losing an
+      // untouched placeholder costs nothing, but wiping a live cooldown was the bug (see
+      // kTrackCapacity's comment: evicting a fixed slot 0 instead of the actual LRU entry let a
+      // BSSID's cooldown memory get wiped by unrelated new networks appearing, letting it burst
+      // again within milliseconds instead of respecting kCooldownMs).
+      lruMs = trackers[i].lastBurstMs;
+      lruSlot = i;
+    }
   }
-  const size_t slot = freeSlot >= 0 ? static_cast<size_t>(freeSlot) : 0;  // evict slot 0 if all in use
+  const size_t slot = freeSlot >= 0 ? static_cast<size_t>(freeSlot) : lruSlot;
   trackers[slot] = BssidTrack{bssidHash, 0, false, true};
   return trackers[slot];
 }
 
 bool DeauthEngine::sendDeauthBurst(const MacAddress& bssid, uint8_t channel) {
+  totalBursts++;
+  if (!kTxCapable) return false;  // see kTxCapable's comment — guaranteed to fail right now, so don't even try
+
   DeauthFrame frame{};
   frame.frameControl = kFrameControlDeauth;
   frame.durationId = 0;
@@ -71,7 +97,6 @@ bool DeauthEngine::sendDeauthBurst(const MacAddress& bssid, uint8_t channel) {
     totalFrames++;
     delay(2);
   }
-  totalBursts++;
   return !anyFailed;
 }
 

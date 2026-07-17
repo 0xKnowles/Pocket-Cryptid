@@ -29,13 +29,15 @@
 // matrix badly enough that esp-aes (hardware crypto, needed for EncryptedLog's every write)
 // can't allocate its own interrupt and aborts on every boot — a crash loop, not a targeted
 // failure, since WifiSniffer brought the radio up in STA mode unconditionally rather than only
-// while this was armed. Reverted WifiSniffer back to WIFI_MODE_NULL (see its class comment), so
-// sendDeauthBurst() below now calls esp_wifi_80211_tx() with no STA interface up — it fails and
-// logs an error instead of transmitting, which is safe but means this class currently does
-// nothing even when enabled. Left in place, not deleted, pending a way to get TX capability on
-// this hardware without breaking crypto — a transient, carefully-scoped mode switch only for the
-// duration of a burst is the most likely path, but that needs real hardware iteration this
-// environment can't do.
+// while this was armed. Reverted WifiSniffer back to WIFI_MODE_NULL (see its class comment).
+// sendDeauthBurst() no longer even attempts esp_wifi_80211_tx() while that's true — an earlier
+// version did, and field testing showed 6 calls x delay(2) per qualifying observation, run
+// synchronously inside WifiSniffer::tick()'s main-loop queue drain, was enough blocking to
+// overflow the raw observation queue and visibly lag the whole device in a dense RF environment,
+// for calls that were guaranteed to fail anyway with no STA interface up. It now just logs once
+// and returns. Left in place, not deleted, pending a way to get TX capability on this hardware
+// without breaking crypto — a transient, carefully-scoped mode switch only for the duration of a
+// burst is the most likely path, but that needs real hardware iteration this environment can't do.
 class DeauthEngine {
  public:
   bool begin();
@@ -63,7 +65,13 @@ class DeauthEngine {
   // Frames per burst: enough that a client reliably notices and re-associates even with the
   // occasional dropped frame, without turning this into a sustained flood.
   static constexpr uint8_t kFramesPerBurst = 6;
-  static constexpr size_t kTrackCapacity = 16;
+  // Field-tested: 16 was nowhere near enough in a real dense RF environment (a dozen-plus
+  // beaconing BSSIDs is normal even in a single apartment building). Once full, trackerFor()
+  // evicts the least-recently-bursted entry — with too small a table, that constantly evicted
+  // whatever BSSID's cooldown was closest to expiring, wiping its memory and letting it burst
+  // again within milliseconds instead of respecting kCooldownMs. 64 gives real headroom; each
+  // entry is small (~13 bytes), so the RAM cost is trivial.
+  static constexpr size_t kTrackCapacity = 64;
 
   struct BssidTrack {
     uint32_t bssidHash = 0;
