@@ -1,6 +1,7 @@
 #include "RubySpriteRenderer.h"
 
 #include <HalStorage.h>
+#include <Logging.h>
 
 #include <algorithm>
 #include <cmath>
@@ -36,13 +37,21 @@ const char* bmpPathFor(RubyExpression expression) {
 // the procedural silhouette.
 bool tryDrawBitmap(const GfxRenderer& renderer, int x, int y, int boxSize, RubyExpression expression) {
   const char* path = bmpPathFor(expression);
-  if (!Storage.exists(path)) return false;
+  if (!Storage.exists(path)) {
+    LOG_ERR("RUBYART", "%s not found on SD card, using procedural fallback", path);
+    return false;
+  }
 
   HalFile file = Storage.open(path);
-  if (!file) return false;
+  if (!file) {
+    LOG_ERR("RUBYART", "Failed to open %s", path);
+    return false;
+  }
 
-  Bitmap bitmap(file);
-  if (bitmap.parseHeaders() != BmpReaderError::Ok) {
+  Bitmap bitmap(file, /*dithering=*/true);
+  const BmpReaderError err = bitmap.parseHeaders();
+  if (err != BmpReaderError::Ok) {
+    LOG_ERR("RUBYART", "Failed to parse %s: %s", path, Bitmap::errorToString(err));
     file.close();
     return false;
   }
@@ -50,9 +59,11 @@ bool tryDrawBitmap(const GfxRenderer& renderer, int x, int y, int boxSize, RubyE
   const int bw = bitmap.getWidth();
   const int bh = bitmap.getHeight();
   if (bw <= 0 || bh <= 0) {
+    LOG_ERR("RUBYART", "%s parsed with bad dimensions %dx%d", path, bw, bh);
     file.close();
     return false;
   }
+  LOG_INF("RUBYART", "Drawing %s (%dx%d, %ubpp)", path, bw, bh, bitmap.getBpp());
 
   // Mirrors GfxRenderer::drawBitmap's own fit-to-box scale (shrink-only) so the centering offset
   // computed here lines up with what it will actually draw.

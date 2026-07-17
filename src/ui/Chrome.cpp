@@ -39,7 +39,7 @@ void drawFooterHints(const GfxRenderer& renderer, const char* back, const char* 
   const int screenH = renderer.getScreenHeight();
   const int barTop = screenH - kFooterHeight;
 
-  const char* labels[4] = {back, left, right, confirm};
+  const char* labels[4] = {back, confirm, left, right};
   constexpr int kCount = 4;
   const int totalGap = kFooterTabGap * (kCount - 1);
   const int slotW = (screenW - 2 * kMarginX - totalGap) / kCount;

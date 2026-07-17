@@ -64,7 +64,7 @@ constexpr int kCardOutsetX = 6;   // border stroke sits this far outside Chrome'
 constexpr int kCardTitleGap = 6;  // space between the title rule and the first row
 constexpr int kCardTopPad = 6;
 constexpr int kCardBottomPad = 8;
-constexpr int kCardGap = 14;  // vertical gap between stacked cards
+constexpr int kCardGap = 10;  // vertical gap between stacked cards
 
 // Draws a bold section caption + rule at `y`. Returns the y the first Chrome::drawStatRow() call
 // should land at. Pairs with endStatCard(), which closes the rounded outline once the caller
@@ -92,7 +92,7 @@ void DashboardActivity::onEnter() {
   // the screen, with its name/expression line directly beneath it, then the RF stats fill the
   // rest of the tall screen full-width below that. See DashboardActivity.h for why this is
   // portrait and not landscape — the physical buttons are laid out for this orientation.
-  rubyBoxSize = 200;
+  rubyBoxSize = 170;
   rubyBoxX = (renderer.getScreenWidth() - rubyBoxSize) / 2;
   rubyBoxY = Chrome::contentTop();
 
@@ -177,17 +177,17 @@ void DashboardActivity::renderFull() {
   // Specimen card: box, then name/expression directly beneath it.
   const RubyState& state = RUBY.getState();
   const RubyExpression expression = RUBY.currentExpression(false);
-  int y = rubyBoxY + rubyBoxSize + 14;
+  int y = rubyBoxY + rubyBoxSize + 10;
   renderer.drawCenteredText(FONT_UI_12_ID, y, state.designation, true, EpdFontFamily::BOLD);
-  y += 22;
+  y += 20;
   renderer.drawCenteredText(FONT_SMALL_ID, y, RubyBehavior::expressionLabel(expression));
-  y += 24;
+  y += 18;
 
   const size_t loreTotal = RubyManager::loreEntryCount();
   char loreBuf[32];
   snprintf(loreBuf, sizeof(loreBuf), "%u/%zu lore entries unlocked", state.unlockedLoreCount, loreTotal);
   renderer.drawCenteredText(FONT_SMALL_ID, y, loreBuf);
-  y += 24;
+  y += 18;
 
   int cardTop = y;
   y = beginStatCard(renderer, y, "SIGNALS");
@@ -229,13 +229,13 @@ void DashboardActivity::renderFull() {
   // feed is still one Up press away (DeviceListActivity), this is just "what just happened" at a
   // glance without leaving the dashboard.
   cardTop = y;
-  y = beginStatCard(renderer, y, "RECENT DEVICES");
+  y = beginStatCard(renderer, y, "RECENT DEVICES  (Up: more  Down: log)");
   const size_t liveCount = recentSightings.count();
   if (liveCount == 0) {
     renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Nothing heard yet.");
     y += renderer.getLineHeight(FONT_SMALL_ID) + 2;
   } else {
-    constexpr size_t kPreviewCount = 4;
+    constexpr size_t kPreviewCount = 3;
     const size_t shown = liveCount < kPreviewCount ? liveCount : kPreviewCount;
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (size_t i = 0; i < shown; i++) {
@@ -251,9 +251,6 @@ void DashboardActivity::renderFull() {
     }
   }
   endStatCard(renderer, cardTop, y);
-  y += kCardGap;
-
-  renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Up: full device list    Down: decrypt log");
 
   drawRubyPanel(true);
 

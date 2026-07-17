@@ -47,6 +47,33 @@ All notable changes to this project are documented here. Format loosely follows
   banner is now a "HANDSHAKE CAPTURED" flash instead. Lore entries still unlock progressively, now
   paced by lifetime capture count rather than XP (`RubyConfig::kCapturesPerLoreUnlock`).
 
+### Fixed
+
+- **Footer button-hint labels didn't match the button that actually fired**, root-caused from a
+  precise button-by-button report on real X3 hardware: the on-screen labels read
+  "Refresh - Lore - Export - Settings" left to right, but pressing those same four physical
+  positions actually opened "Refresh - Settings - Lore - Export" — a 3-way rotation, not the
+  simple swap suspected earlier. `Chrome::drawFooterHints()` built its 4-slot label array as
+  `{back, left, right, confirm}`, i.e. assuming the physical left-to-right button order is
+  Back-Left-Right-Confirm; it's actually Back-**Confirm**-**Left**-**Right**. Every screen's
+  button-to-label wiring (`Confirm`→Settings, `Left`→Lore, `Right`→Export, etc.) was already
+  correct — only the visual label position was wrong, confirming the earlier
+  `MappedInputManager::hardwareIndex()` revert was the right call and this was a separate bug.
+- **Dashboard text overlapped the bottom footer buttons** after the last round of changes added
+  the "RECENT DEVICES" card without trimming enough elsewhere. Tightened the vertical budget:
+  specimen box 200→170px, card gaps 14→10px, spacing under the name/mood/lore lines trimmed, the
+  "RECENT DEVICES" preview 4→3 entries, and the standalone "Up: full device list / Down: decrypt
+  log" hint line folded into that card's title instead of getting its own line.
+- **Uploaded `.bmp` art wasn't displaying** on the dashboard (procedural fallback kept showing
+  instead). The BMP parser looks correct for the uploaded files (32bpp `BI_BITFIELDS`,
+  `BITMAPV5HEADER`, no palette) by manual byte-level inspection, so the cause wasn't confirmed on
+  real hardware; added `LOG_ERR`/`LOG_INF` calls at every point
+  `RubySpriteRenderer::tryDrawBitmap()` can bail (file not found, open failed, specific
+  `BmpReaderError`, bad dimensions) so the next test run's serial log pinpoints exactly which step
+  fails instead of silently falling back. Also turned on Atkinson dithering for SD-card art (was
+  off by default), which should meaningfully improve how photographic/gradient art looks on the
+  4-level grayscale panel once loading is confirmed working.
+
 ### Added
 
 - `bmp/` — empty directory for manually-added bitmap image assets (not yet wired into the
