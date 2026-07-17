@@ -1,0 +1,12 @@
+.pio
+.idea
+.DS_Store
+.vscode
+.vs
+build
+**/__pycache__/
+/compile_commands.json
+/.cache
+.history/
+/.venv
+*.local*

@@ -1,0 +1,115 @@
+#pragma once
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <freertos/task.h>
+
+#include <atomic>
+#include <cassert>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "GfxRenderer.h"
+#include "MappedInputManager.h"
+
+#ifndef portMUX_INITIALIZER_UNLOCKED
+struct portMUX_TYPE {};
+#define portMUX_INITIALIZER_UNLOCKED \
+  {                                  \
+  }
+#endif
+
+class Activity;    // forward declaration
+class RenderLock;  // forward declaration
+
+enum class RequestUpdateResult { Rendered, Rejected };
+
+/**
+ * ActivityManager
+ *
+ * Mirrors the Activity concept from Android: each Activity is one screen. The manager owns a
+ * stack so an Activity can launch a sub-activity and get a result back (startActivityForResult),
+ * and it runs rendering on its own FreeRTOS task so the main loop (button polling, RF capture
+ * ticks) never blocks on an e-ink refresh.
+ */
+class ActivityManager {
+  friend class RenderLock;
+
+ protected:
+  GfxRenderer& renderer;
+  MappedInputManager& mappedInput;
+  std::vector<std::unique_ptr<Activity>> stackActivities;
+  std::unique_ptr<Activity> currentActivity;
+
+  void exitActivity(const RenderLock& lock);
+
+  // Pending activity to be launched on next loop iteration
+  std::unique_ptr<Activity> pendingActivity;
+  enum class PendingAction { None, Push, Pop, Replace };
+  PendingAction pendingAction = PendingAction::None;
+
+  // Task to render and display the activity
+  TaskHandle_t renderTaskHandle = nullptr;
+  static void renderTaskTrampoline(void* param);
+  [[noreturn]] virtual void renderTaskLoop();
+
+  // Set by requestUpdateAndWait(); read and cleared by the render task after render completes.
+  // Note: only one waiting task is supported at a time
+  TaskHandle_t waitingTaskHandle = nullptr;
+  portMUX_TYPE renderStateMux = portMUX_INITIALIZER_UNLOCKED;
+
+  // Mutex to protect rendering operations from race conditions
+  // Must only be used via RenderLock
+  SemaphoreHandle_t renderingMutex = nullptr;
+
+  // Whether to trigger a render after the current loop()
+  // This variable must only be set by the main loop, to avoid race conditions
+  std::atomic<bool> requestedUpdate{false};
+
+ public:
+  explicit ActivityManager(GfxRenderer& renderer, MappedInputManager& mappedInput)
+      : renderer(renderer), mappedInput(mappedInput), renderingMutex(xSemaphoreCreateMutex()) {
+    assert(renderingMutex != nullptr && "Failed to create rendering mutex");
+    stackActivities.reserve(6);
+  }
+  ~ActivityManager() { assert(false); /* should never be called */ };
+
+  void begin();
+  void loop();
+
+  // Will replace currentActivity and drop all activities on stack
+  void replaceActivity(std::unique_ptr<Activity>&& newActivity);
+
+  // goTo... functions are convenient wrappers for replaceActivity()
+  void goToSettings();
+  void goToLore();
+  void goToMaintenance();
+  void goToSleep(bool fromTimeout = false);
+  void goToBoot();
+  void goToFullScreenMessage(std::string message, EpdFontFamily::Style style = EpdFontFamily::REGULAR);
+  void goToCrashReport();
+  void goHome();
+
+  // This will move current activity to stack instead of deleting it
+  void pushActivity(std::unique_ptr<Activity>&& activity);
+
+  // Remove the currentActivity, returning the last one on stack
+  // Note: if popActivity() on last activity on the stack, we will goHome()
+  void popActivity();
+
+  bool preventAutoSleep() const;
+  bool isHomeActivity() const;
+  bool skipLoopDelay() const;
+
+  // If immediate is true, the update will be triggered immediately.
+  // Otherwise, it will be deferred until the end of the current loop iteration.
+  void requestUpdate(bool immediate = false);
+
+  // Trigger a render and block until it completes.
+  // Returns Rejected when a synchronous render would be unsafe, such as from the render task,
+  // while another task is already waiting, or while holding a RenderLock.
+  RequestUpdateResult requestUpdateAndWait();
+};
+
+extern ActivityManager activityManager;  // singleton, to be defined in main.cpp

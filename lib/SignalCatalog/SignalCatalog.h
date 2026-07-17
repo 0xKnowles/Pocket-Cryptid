@@ -1,0 +1,120 @@
+#pragma once
+
+#include <PersistableStore.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+
+#include "RfTypes.h"
+
+// What kind of "first time we've ever seen this" event just happened. CryptidManager listens
+// for these to decide how much the creature grows and to unlock lore entries.
+enum class RfEventType : uint8_t {
+  NewWifiAP,
+  NewWifiClient,
+  NewBleDevice,
+  HandshakeCaptured,
+};
+
+// Tracks how many *unique* WiFi access points, WiFi clients (from probe requests), BLE devices,
+// and WPA handshakes this device has observed, without ever storing which specific ones — that
+// detail lives only in EncryptedLog, at rest, encrypted. SignalCatalog's job is strictly
+// deduplication + counting: "have I seen this MAC before" and "how many distinct ones so far".
+//
+// Dedup state is bounded, in-RAM only (see kCapacity below) — it exists to avoid double-counting
+// and double-logging within a session, not as a permanent record. The lifetime counters below are
+// what's persisted to survive reboots and drive the cryptid's growth.
+class SignalCatalog : public PersistableStore<SignalCatalog> {
+  friend class PersistableStore<SignalCatalog>;
+
+ public:
+  using NewUniqueCallback = std::function<void(RfEventType type)>;
+
+  struct Stats {
+    uint32_t uniqueWifiAPs = 0;
+    uint32_t uniqueWifiClients = 0;
+    uint32_t uniqueBleDevices = 0;
+    uint32_t handshakesCaptured = 0;
+    uint32_t wifiFramesObserved = 0;
+    uint32_t bleAdvertisementsObserved = 0;
+  };
+
+  // Feed a raw observation in. Returns true if this specific record was novel (SignalCatalog
+  // hadn't seen this MAC/role before) and was therefore logged + counted.
+  bool observeWifi(const WifiObservation& obs);
+  bool observeBle(const BleObservation& obs);
+
+  const Stats& getStats() const { return stats; }
+  void setNewUniqueCallback(NewUniqueCallback cb) { onNewUnique = std::move(cb); }
+
+  // Debounced persistence — call periodically (e.g. once per second) from the main loop. Only
+  // actually writes to SD when the counters have changed and kSaveIntervalMs has elapsed, so a
+  // busy RF environment doesn't turn into a write-every-loop-iteration problem.
+  void tick();
+
+  static const char* getFilePath() { return kStatePath; }
+  void toJson(JsonDocument& doc) const;
+  bool fromJson(JsonVariantConst doc);
+
+ private:
+  SignalCatalog() = default;
+
+  static constexpr const char* kStatePath = "/.pocketcryptid/signal_catalog.json";
+  static constexpr uint32_t kSaveIntervalMs = 15000;
+  static constexpr size_t kApCapacity = 768;
+  static constexpr size_t kClientCapacity = 768;
+  static constexpr size_t kBleCapacity = 512;
+  static constexpr size_t kHandshakeTrackerCapacity = 32;
+
+  // Fixed-capacity ring of FNV hashes: membership test + insert-with-oldest-eviction. Once full,
+  // the oldest entry is overwritten, so a MAC that scrolled out of the ring can register as
+  // "new" again on rediscovery — an accepted tradeoff for keeping this RAM-bounded on a ~380 KB
+  // heap budget instead of growing unbounded over a multi-day capture session.
+  template <size_t Capacity>
+  struct HashRing {
+    uint32_t slots[Capacity] = {};
+    bool occupied[Capacity] = {};
+    size_t nextSlot = 0;
+    size_t count = 0;
+
+    bool contains(uint32_t hash) const {
+      for (size_t i = 0; i < Capacity; i++) {
+        if (occupied[i] && slots[i] == hash) return true;
+      }
+      return false;
+    }
+
+    // Returns true if this was a new insertion.
+    bool insert(uint32_t hash) {
+      if (contains(hash)) return false;
+      if (!occupied[nextSlot]) count++;
+      slots[nextSlot] = hash;
+      occupied[nextSlot] = true;
+      nextSlot = (nextSlot + 1) % Capacity;
+      return true;
+    }
+  };
+
+  struct HandshakeTracker {
+    uint32_t bssidHash = 0;
+    uint8_t messageMask = 0;   // bit (n-1) set for each EAPOL message n seen
+    bool counted = false;
+    unsigned long lastSeenMs = 0;
+    bool inUse = false;
+  };
+
+  HashRing<kApCapacity> apRing;
+  HashRing<kClientCapacity> clientRing;
+  HashRing<kBleCapacity> bleRing;
+  HandshakeTracker handshakeTrackers[kHandshakeTrackerCapacity];
+
+  Stats stats;
+  NewUniqueCallback onNewUnique;
+  bool dirty = false;
+  unsigned long lastSaveMs = 0;
+
+  HandshakeTracker& trackerFor(uint32_t bssidHash);
+};
+
+#define SIGNAL_CATALOG SignalCatalog::getInstance()
