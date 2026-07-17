@@ -7,6 +7,18 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **Sleep crash, take 3**: fresh serial logs from real hardware ruled out the previous theory —
+  this run had no `GFX !! Outside range` flood at all, just `esp-aes: Failed to allocate memory`
+  on a `GCM encrypt` call, seconds after a *fresh boot*, immediately followed by `abort()`. This
+  points to the hardware AES engine's small DMA-capable memory pool (distinct from, and much
+  smaller than, general heap) being exhausted almost immediately at startup — not something tied
+  to sleep specifically, just where it happens to get triggered. Added temporary diagnostics
+  (`ESP.getFreeHeap()` alongside `heap_caps_get_free_size`/`heap_caps_get_largest_free_block` for
+  `MALLOC_CAP_DMA`) right after capture starts and at the exact GCM failure point in
+  `EncryptedLog::writeEnvelope()`, since "plenty of free heap overall" and "DMA pool exhausted"
+  look identical from `ESP.getFreeHeap()` alone. Needed before attempting a real fix (most likely
+  disabling hardware AES acceleration in favor of software AES, or reducing what else competes for
+  that pool) rather than guessing again.
 - **Log Viewer showed "Could not decrypt this page."** Regression from keeping `EncryptedLog`'s
   file handle open across writes (see the responsiveness entry below): `LogViewerActivity` opens
   a *separate* read handle to the same file to decrypt it for viewing, and that concurrent-handle

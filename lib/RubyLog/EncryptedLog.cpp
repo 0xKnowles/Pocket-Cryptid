@@ -3,6 +3,7 @@
 #include <HalStorage.h>
 #include <Logging.h>
 #include <Preferences.h>
+#include <esp_heap_caps.h>
 #include <esp_mac.h>
 #include <esp_random.h>
 #include <mbedtls/gcm.h>
@@ -134,7 +135,13 @@ bool EncryptedLog::writeEnvelope(const LogRecordPlaintext& plaintext) {
   mbedtls_gcm_init(&gcm);
   if (mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, aesKey, 256) != 0) {
     mbedtls_gcm_free(&gcm);
-    LOG_ERR("ENCLOG", "GCM setkey failed");
+    // Temporary diagnostic while tracking down an "esp-aes: Failed to allocate memory" abort —
+    // the hardware AES engine allocates from a small DMA-capable pool, distinct from (and much
+    // smaller than) general heap, so seeing both numbers at the exact failure point matters.
+    // Remove once diagnosed.
+    LOG_ERR("ENCLOG", "GCM setkey failed; heap free=%u dmaFree=%u dmaLargest=%u",
+            static_cast<unsigned>(ESP.getFreeHeap()), static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_DMA)),
+            static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_DMA)));
     return false;
   }
   const int rc = mbedtls_gcm_crypt_and_tag(&gcm, MBEDTLS_GCM_ENCRYPT, sizeof(plaintext), nonce, kLogNonceLen, nullptr,
@@ -142,7 +149,9 @@ bool EncryptedLog::writeEnvelope(const LogRecordPlaintext& plaintext) {
                                            tag);
   mbedtls_gcm_free(&gcm);
   if (rc != 0) {
-    LOG_ERR("ENCLOG", "GCM encrypt failed: %d", rc);
+    LOG_ERR("ENCLOG", "GCM encrypt failed: %d; heap free=%u dmaFree=%u dmaLargest=%u", rc,
+            static_cast<unsigned>(ESP.getFreeHeap()), static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_DMA)),
+            static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_DMA)));
     return false;
   }
 
