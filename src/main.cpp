@@ -39,15 +39,15 @@ ActivityManager activityManager(renderer, mappedInputManager);
 FontDecompressor fontDecompressor;
 FontCacheManager fontCacheManager(renderer.getFontMap(), renderer.getSdCardFonts());
 
-// Fonts — Inter only (see lib/EpdFont/builtinFonts/all.h for why the reading-typography
-// families from upstream CrossPlant were dropped).
-EpdFont smallFont(&inter_8_regular);
+// Fonts — Space Mono only (see lib/EpdFont/builtinFonts/all.h for why the reading-typography
+// families from upstream CrossPlant were dropped, and for the monospace/instrument-readout choice).
+EpdFont smallFont(&space_mono_8_regular);
 EpdFontFamily smallFontFamily(&smallFont);
-EpdFont ui10RegularFont(&inter_10_regular);
-EpdFont ui10BoldFont(&inter_10_bold);
+EpdFont ui10RegularFont(&space_mono_10_regular);
+EpdFont ui10BoldFont(&space_mono_10_bold);
 EpdFontFamily ui10FontFamily(&ui10RegularFont, &ui10BoldFont);
-EpdFont ui12RegularFont(&inter_12_regular);
-EpdFont ui12BoldFont(&inter_12_bold);
+EpdFont ui12RegularFont(&space_mono_12_regular);
+EpdFont ui12BoldFont(&space_mono_12_bold);
 EpdFontFamily ui12FontFamily(&ui12RegularFont, &ui12BoldFont);
 
 namespace {

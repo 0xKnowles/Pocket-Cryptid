@@ -150,12 +150,14 @@ void SettingsActivity::render(RenderLock&&) {
   auto drawRow = [&](int index, const char* label, const char* value) {
     const bool isSelected = index == selected;
     if (isSelected) {
-      renderer.fillRect(Chrome::contentLeft() - 4, y - 3, Chrome::contentRight(renderer) - Chrome::contentLeft() + 8,
-                        kRowHeight - 6, true);
+      // An outlined "button" box rather than a solid inverted fill — reads as "this row is
+      // selected/pressable" without the heaviest-thing-on-the-screen look a full-black bar has.
+      Chrome::drawSelectionHighlight(renderer, Chrome::contentLeft() - 4, y - 3,
+                                     Chrome::contentRight(renderer) - Chrome::contentLeft() + 8, kRowHeight - 6);
     }
-    renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y, label, !isSelected, EpdFontFamily::REGULAR);
+    renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y, label, true, EpdFontFamily::REGULAR);
     const int valueW = renderer.getTextWidth(FONT_UI_10_ID, value);
-    renderer.drawText(FONT_UI_10_ID, Chrome::contentRight(renderer) - valueW, y, value, !isSelected);
+    renderer.drawText(FONT_UI_10_ID, Chrome::contentRight(renderer) - valueW, y, value, true);
   };
 
   drawRow(RowWifiEnabled, "WiFi monitor", SETTINGS.wifiSniffEnabled ? "ON" : "OFF");

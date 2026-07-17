@@ -22,6 +22,20 @@ All notable changes to this project are documented here. Format loosely follows
   O(1) random-access seeking instead of scanning from the start of the file
   (`src/activities/logviewer`).
 
+### Changed
+
+- UI font switched from Inter to [Space Mono](https://github.com/googlefonts/spacemono) (SIL OFL
+  1.1) — a monospace "instrument readout" look in place of a general-purpose UI sans, generated at
+  8/10/12pt via the same `fontconvert.py` pipeline upstream CrossPlant uses
+  (`lib/EpdFont/builtinFonts`).
+- Reworked chrome across the dashboard and Settings around a shared rounded-outline "card/button"
+  style (`Chrome::kCardRadius`) instead of plain dividers and solid inverted-fill highlights:
+  the footer is now four separated pill-shaped tabs instead of a flat row of labels, the header's
+  battery readout is a pill badge, the specimen creature box has a rounded frame
+  (`CryptidSpriteRenderer::draw()`), the two dashboard stat groups are boxed into "SIGNALS" /
+  "CAPTURE STATUS" cards, and the Settings selected-row highlight is an outlined box instead of a
+  solid black fill.
+
 ### Fixed
 
 - Dashboard now runs in portrait, not landscape. Landscape put the on-screen footer button hints
@@ -33,6 +47,14 @@ All notable changes to this project are documented here. Format loosely follows
 - Two remaining `cppcheck` `constParameterReference` findings in `Chrome::drawHeader` and
   `Chrome::drawFooterHints` (both now take `const GfxRenderer&`), the last thing blocking a fully
   green CI run.
+- **Left/Right buttons were swapped on real hardware**: `HalGPIO::BTN_LEFT`/`BTN_RIGHT` don't
+  match the physically left/right buttons on the X3/X4 case, so pressing the button labeled "Lore"
+  opened Maintenance/Export and vice versa (confirmed on a flashed device — Back/Confirm were
+  unaffected). Fixed once, in `MappedInputManager::hardwareIndex()`, correcting every screen that
+  uses Left/Right rather than special-casing the Dashboard.
+- Footer button-hint text could clip at the bottom of the screen: the old 22px-tall footer band
+  left too little room below the text baseline for a full line's descenders. The new pill-tab
+  footer is 40px tall with the label vertically centered inside each pill.
 
 ## [0.1.0] - 2026-07-17
 

@@ -45,6 +45,29 @@ void formatBytes(uint64_t bytes, char* out, size_t outSize) {
     snprintf(out, outSize, "%llu B", static_cast<unsigned long long>(bytes));
   }
 }
+
+constexpr int kCardOutsetX = 6;   // border stroke sits this far outside Chrome's text margin
+constexpr int kCardTitleGap = 6;  // space between the title rule and the first row
+constexpr int kCardTopPad = 6;
+constexpr int kCardBottomPad = 8;
+
+// Draws a bold section caption + rule at `y`. Returns the y the first Chrome::drawStatRow() call
+// should land at. Pairs with endStatCard(), which closes the rounded outline once the caller
+// knows where the last row ended — the two are separate calls (rather than one that takes a row
+// count) because every card here has a different row count driven by runtime state.
+int beginStatCard(const GfxRenderer& renderer, int y, const char* title) {
+  renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y + kCardTopPad, title, true, EpdFontFamily::BOLD);
+  const int ruleY = y + kCardTopPad + renderer.getLineHeight(FONT_SMALL_ID) + 2;
+  renderer.drawLine(Chrome::contentLeft(), ruleY, Chrome::contentRight(renderer), ruleY, true);
+  return ruleY + kCardTitleGap;
+}
+
+void endStatCard(const GfxRenderer& renderer, int cardTop, int rowsEndY) {
+  const int x = Chrome::contentLeft() - kCardOutsetX;
+  const int width = Chrome::contentRight(renderer) - Chrome::contentLeft() + kCardOutsetX * 2;
+  const int height = (rowsEndY + kCardBottomPad) - cardTop;
+  renderer.drawRoundedRect(x, cardTop, width, height, 1, Chrome::kCardRadius, true);
+}
 }  // namespace
 
 void DashboardActivity::onEnter() {
@@ -142,7 +165,7 @@ void DashboardActivity::renderFull() {
   int y = cryptidBoxY + cryptidBoxSize + 14;
   renderer.drawCenteredText(FONT_UI_12_ID, y, state.designation, true, EpdFontFamily::BOLD);
   y += 22;
-  // Plain ASCII hyphen, not an em dash: no guarantee the Inter subset baked into
+  // Plain ASCII hyphen, not an em dash: no guarantee the Space Mono subset baked into
   // builtinFonts covers U+2014, and this isn't worth risking a missing-glyph fallback over.
   char stageMood[48];
   snprintf(stageMood, sizeof(stageMood), "%s - %s", CryptidEvolution::stageName(state.stage),
@@ -164,9 +187,8 @@ void DashboardActivity::renderFull() {
   }
   y += barH + 22;
 
-  renderer.drawLine(Chrome::contentLeft(), y, Chrome::contentRight(renderer), y, true);
-  y += 18;
-
+  int cardTop = y;
+  y = beginStatCard(renderer, y, "SIGNALS");
   const auto& stats = SIGNAL_CATALOG.getStats();
   char buf[32];
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueWifiAPs));
@@ -177,11 +199,11 @@ void DashboardActivity::renderFull() {
   y = Chrome::drawStatRow(renderer, y, "Unique BLE devices", buf);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.handshakesCaptured));
   y = Chrome::drawStatRow(renderer, y, "Handshakes captured", buf);
+  endStatCard(renderer, cardTop, y);
+  y += 18;
 
-  y += 10;
-  renderer.drawLine(Chrome::contentLeft(), y, Chrome::contentRight(renderer), y, true);
-  y += 16;
-
+  cardTop = y;
+  y = beginStatCard(renderer, y, "CAPTURE STATUS");
   if (wifiSniffer.isRunning()) {
     char chbuf[16];
     snprintf(chbuf, sizeof(chbuf), "ch %u", wifiSniffer.currentChannel());
@@ -207,10 +229,9 @@ void DashboardActivity::renderFull() {
   char sessionBuf[24];
   snprintf(sessionBuf, sizeof(sessionBuf), "#%lu", static_cast<unsigned long>(APP_STATE.bootCount));
   y = Chrome::drawStatRow(renderer, y, "Session", sessionBuf);
+  endStatCard(renderer, cardTop, y);
+  y += 18;
 
-  y += 10;
-  renderer.drawLine(Chrome::contentLeft(), y, Chrome::contentRight(renderer), y, true);
-  y += 16;
   renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Up: recent devices    Down: decrypt log");
 
   drawCryptidPanel(true);

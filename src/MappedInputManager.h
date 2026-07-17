@@ -6,9 +6,14 @@
 // Thin, fixed mapping from logical buttons to the device's physical buttons. Upstream CrossPlant
 // has an elaborate remappable/orientation-aware layer here (reader page-turn side buttons,
 // front-button remap, power-as-confirm fallback for one-handed reading); none of that applies to
-// a fixed-orientation stats dashboard, so this is a direct passthrough plus small suppress-next-
-// release latches for the same "don't double-fire on the button that closed this screen" pattern
-// Activity::finishAfterBackPress() relies on.
+// a fixed-orientation stats dashboard, so this is mostly a direct passthrough plus small
+// suppress-next-release latches for the same "don't double-fire on the button that closed this
+// screen" pattern Activity::finishAfterBackPress() relies on.
+//
+// One correction lives here: HalGPIO::BTN_LEFT/BTN_RIGHT are swapped relative to the physical
+// case on real X3/X4 hardware — confirmed against a flashed device where Back/Confirm (the outer
+// two of the four front buttons) landed correctly but the two middle buttons opened the screen
+// labeled for the *other* one. See hardwareIndex().
 class MappedInputManager {
  public:
   enum class Button { Back, Confirm, Left, Right, Up, Down, Power };

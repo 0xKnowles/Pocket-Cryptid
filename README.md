@@ -92,6 +92,23 @@ button remapping layer in `MappedInputManager`; this port deliberately doesn't c
 complexity, so it stays in the one orientation where on-screen button hints are correct without
 it.
 
+`MappedInputManager` does carry one small physical correction: on real X3/X4 hardware, the
+board's `HalGPIO::BTN_LEFT`/`BTN_RIGHT` constants are swapped relative to which physical button is
+actually left vs. right on the case (confirmed by flashing a device — Back/Confirm, the outer two
+of the four front buttons, landed correctly, but the two middle buttons opened the screen labeled
+for the other one). `MappedInputManager::hardwareIndex()` swaps them back so every screen's
+Left/Right bindings (Dashboard's Lore/Export, Settings' -/+, Lore's Prev/Next, Log Viewer's file
+switching) match their on-screen labels.
+
+## Look and feel
+
+The UI font is [Space Mono](https://github.com/googlefonts/spacemono) (SIL OFL 1.1) — a monospace
+face chosen to read as "instrument readout" rather than "app UI," which fits a device whose whole
+job is displaying raw RF telemetry (see `lib/EpdFont/builtinFonts/all.h`). Boxed elements (the
+footer's button tabs, the battery badge, the specimen card, Settings' selected row) use a shared
+rounded-outline style (`Chrome::kCardRadius`) instead of solid filled highlights — outlines read as
+"buttons" without being the heaviest, most ghost-prone thing on the screen after a `FAST_REFRESH`.
+
 The ESP32-C3 has integrated WiFi 802.11 b/g/n and Bluetooth 5 (LE only) — both capture paths run
 on the same radio hardware the original firmware used for book downloads and OTA updates.
 

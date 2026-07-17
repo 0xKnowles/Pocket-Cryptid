@@ -142,6 +142,14 @@ void CryptidSpriteRenderer::draw(GfxRenderer& renderer, int x, int y, int boxSiz
   if (mood != CryptidMood::ASLEEP) {
     drawStaticNoise(renderer, x, y, boxSize, mood, animFrame);
   }
+
+  // The specimen card's rounded frame is drawn last, on top of the silhouette/noise, and lives
+  // here rather than in the caller because this is also what runs on the box-only "strict partial
+  // refresh" tick (see the class comment) — a border drawn by the caller instead would get wiped
+  // by this function's own fillRect() clear above and never redrawn. Drawing it last (instead of
+  // right after the clear) keeps it crisp regardless of how far noise/silhouette pixels wander
+  // near the edge. The 1px stroke sits fully inside [x, y, boxSize, boxSize].
+  renderer.drawRoundedRect(x, y, boxSize, boxSize, 1, 10, /*state=*/true);
 }
 
 void CryptidSpriteRenderer::drawPortrait(GfxRenderer& renderer, int x, int y, int boxSize, CryptidStage stage) {
