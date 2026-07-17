@@ -6,11 +6,11 @@
 
 // Shared observation types produced by WifiSniffer and BleScanner. Both capture paths are
 // receive-only — nothing here associates, pairs, or advertises, and BleScanner never transmits
-// at all. DeauthEngine (see DeauthEngine.h) is meant to be the one exception, transmitting
-// 802.11 deauthentication frames on the WiFi side, but is currently non-functional on real
-// hardware (see its class comment) — so in practice everything in this library stays passive
-// today regardless of settings. A MAC address here is a raw 6-byte hardware identifier as heard
-// over the air; callers decide whether/how to hash it before it touches persistent storage.
+// at all. DeauthEngine (see DeauthEngine.h) is the one exception, transmitting 802.11
+// deauthentication frames on the WiFi side via a transient TX-capable mode switch scoped to each
+// burst — see its class comment for the full reasoning and its current real-hardware-confirmation
+// status. A MAC address here is a raw 6-byte hardware identifier as heard over the air; callers
+// decide whether/how to hash it before it touches persistent storage.
 
 struct MacAddress {
   uint8_t bytes[6] = {0, 0, 0, 0, 0, 0};

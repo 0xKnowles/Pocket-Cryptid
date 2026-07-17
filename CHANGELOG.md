@@ -7,6 +7,24 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
+- **Active deauth: transmit capability re-enabled behind a transient WIFI_MODE_STA switch,
+  pending real-hardware confirmation.** `DeauthEngine::sendDeauthBurst()` now switches the radio
+  to `WIFI_MODE_STA` only for the duration of one burst (a handful of milliseconds), sends, then
+  immediately reverts to `WIFI_MODE_NULL` — rather than the earlier attempt, which brought STA
+  mode up for the whole session and crash-looped the X3 via `esp-aes` interrupt starvation. The
+  working theory: that crash was about *ordering*, not concurrency — STA mode came up before
+  `EncryptedLog` had ever written a record, so the interrupt-hungry STA driver and `esp-aes`'s
+  very first interrupt request collided at boot. With `WIFI_MODE_NULL` as the resting state
+  (unchanged), `esp-aes` claims its interrupt during ordinary logging long before any burst can
+  fire, so this transient switch only asks the driver to reconfigure an already-running radio.
+  Cross-checked against `github.com/yattsu/biscuit`'s WiFi deauther, which uses the same
+  `WIFI_MODE_STA` + `esp_wifi_80211_tx()` technique on the same hardware — the key difference is
+  Biscuit never runs anything like `EncryptedLog`'s always-on background AES logging concurrently
+  with it, so it had no reason to hit (or avoid) the ordering issue above. **Needs a real device
+  to confirm** — this environment can't compile-test interrupt behavior, and repeatedly toggling
+  STA mode over a long session could plausibly fragment the DMA pool even if each individual
+  switch is safe (the existing heap-health circuit breaker in `main.cpp` is the safety net if
+  that happens: a silent restart, not a hard crash).
 - **PMKID-capable capture counter** (`WifiSniffer::pmkidCapableFrames`, shown on the Export
   screen's RAW CAPTURE card). Scans each raw-captured EAPOL message-1 frame's Key Data field for
   the vendor-specific PMKID KDE (OUI `00:0F:AC`, type 4) — when present, hashcat's `-m 22000`

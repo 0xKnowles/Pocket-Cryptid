@@ -3,8 +3,8 @@
 > [!WARNING]
 > **Educational and authorized-testing use only.** Ruby passively captures WiFi and Bluetooth
 > traffic from *everything in range*, not just your own devices — and can optionally transmit
-> real 802.11 deauthentication frames (see [Active deauth](#active-deauth), currently
-> non-functional on this hardware — see that section). **Only point it at networks and devices
+> real 802.11 deauthentication frames (see [Active deauth](#active-deauth) — off by default,
+> gated behind an explicit target list). **Only point it at networks and devices
 > you own, or have explicit written authorization to test.** Capturing traffic from networks you
 > don't control, and especially transmitting deauthentication frames at them, is illegal in most
 > jurisdictions (wiretapping/interception and RF-interference statutes both apply) regardless of
@@ -49,7 +49,7 @@ mood faces than to a pet that eats XP to level up.
 - **Opt-in, off by default:** raw plaintext `.pcap` handshake export for offline auditing with
   hashcat/`hcxpcapngtool` (with on-device PMKID-capable-capture visibility), and an active-deauth
   capability gated by a two-list whitelist/blacklist system — see
-  [Active deauth](#active-deauth) for its current hardware limitation.
+  [Active deauth](#active-deauth) for its current real-hardware confirmation status.
 - **On-device management:** a live network-scan picker to build the whitelist/blacklist without a
   PC, a Power-button action you can set to Screenshot/Pause/Refresh, and a Settings screen for
   every capture toggle.
@@ -206,23 +206,26 @@ By itself, this path only ever *listens* — nothing here transmits or provokes 
 happening; it records what a passive monitor already sees handshakes doing on their own. A held
 channel lock while a handshake is in progress (see [How it works](#how-it-works)) helps catch the
 full exchange, but a real 4-way handshake completing on its own is still not guaranteed. **Active
-deauth** (below) is the opt-in, currently non-functional answer to that gap.
+deauth** (below) is the opt-in answer to that gap — see its own section for the current status of
+its transmit capability.
 
 ## Active deauth
 
-> **Status: currently non-functional.** The first attempt at this (WIFI_MODE_STA to get a
-> TX-capable interface) crashed the device on every boot on real X3 hardware — see
-> [CHANGELOG](CHANGELOG.md) for the root cause. Reverted to the working WIFI_MODE_NULL baseline;
-> the toggle and target lists below still work and are fully documented here, but deauth frames
-> don't actually transmit right now — `esp_wifi_80211_tx()` just fails harmlessly. Left documented
-> as the intended behavior once a safe way to get TX capability on this hardware is found.
+> **Status: transmit capability re-enabled, pending real-hardware confirmation.** The first
+> attempt at this (bringing the whole session up in `WIFI_MODE_STA` to get a TX-capable interface)
+> crashed the device on every boot on real X3 hardware — see [CHANGELOG](CHANGELOG.md) for the
+> root cause. `DeauthEngine` now switches to `WIFI_MODE_STA` only for the duration of a single
+> burst, then immediately reverts — a targeted fix for what looks like an interrupt-allocation
+> *ordering* problem rather than a fundamental incompatibility. **This has not yet been verified
+> on a physical device in this state** — treat it as untested until confirmed, and watch for the
+> same symptoms as before (repeated silent restarts, or a hard crash) the first time you test it.
+> If enabled, it **will attempt to actually transmit** — this is not a simulation.
 
 Passive capture alone often isn't enough to actually catch a handshake — a real 4-way handshake
 completes in well under a second, and the radio has to already be parked on the right channel
-when it happens. **Active deauth** is meant to close that gap by transmitting real 802.11
-deauthentication frames at a target network, forcing a client to reconnect so the resulting
-handshake lands in raw capture above instead of waiting — often in vain — for one to happen on
-its own.
+when it happens. **Active deauth** closes that gap by transmitting real 802.11 deauthentication
+frames at a target network, forcing a client to reconnect so the resulting handshake lands in raw
+capture above instead of waiting — often in vain — for one to happen on its own.
 
 - **Off by default**, and requires raw handshake capture to also be on — forcing a handshake
   nobody's capturing verbatim would just be disruption for nothing. Turn it on at
@@ -246,12 +249,12 @@ its own.
   aren't among the types ESP-IDF's own documentation calls "supported" for that function — this
   is a widely-used technique, not an officially documented one.
 
-**This is real RF interference against whatever it targets, once TX capability is restored on
-this hardware.** Transmitting deauthentication frames at a network you don't own or don't have
-explicit authorization to test is illegal in most jurisdictions, regardless of how small the
-transmitting device is. Only enable this against networks you own or are explicitly authorized to
-audit — the both-lists-empty default exists so that flipping the setting on can never itself put
-you outside that boundary; you have to deliberately add a target first.
+**This is real RF interference against whatever it targets.** Transmitting deauthentication
+frames at a network you don't own or don't have explicit authorization to test is illegal in most
+jurisdictions, regardless of how small the transmitting device is. Only enable this against
+networks you own or are explicitly authorized to audit — the both-lists-empty default exists so
+that flipping the setting on can never itself put you outside that boundary; you have to
+deliberately add a target first.
 
 ## Hardware
 

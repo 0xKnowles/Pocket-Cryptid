@@ -24,27 +24,33 @@
 // "beacon/probe request/probe response/action and non-QoS data frame" as supported — deauth
 // (a different management subtype) is not on that list.
 //
-// **Currently non-functional on real hardware.** esp_wifi_80211_tx(WIFI_IF_STA, ...) needs the
-// radio in WIFI_MODE_STA, but real X3 hardware testing showed that mode starves the interrupt
-// matrix badly enough that esp-aes (hardware crypto, needed for EncryptedLog's every write)
-// can't allocate its own interrupt and aborts on every boot — a crash loop, not a targeted
-// failure, since WifiSniffer brought the radio up in STA mode unconditionally rather than only
-// while this was armed. Reverted WifiSniffer back to WIFI_MODE_NULL (see its class comment).
-// sendDeauthBurst() no longer even attempts esp_wifi_80211_tx() while that's true — an earlier
-// version did, and field testing showed 6 calls x delay(2) per qualifying observation, run
-// synchronously inside WifiSniffer::tick()'s main-loop queue drain, was enough blocking to
-// overflow the raw observation queue and visibly lag the whole device in a dense RF environment,
-// for calls that were guaranteed to fail anyway with no STA interface up. It now just logs once
-// and returns. Left in place, not deleted, pending a way to get TX capability on this hardware
-// without breaking crypto — a transient, carefully-scoped mode switch only for the duration of a
-// burst is the most likely path, but that needs real hardware iteration this environment can't do.
+// **Transmit capability: re-enabled, pending real-hardware confirmation.** The first attempt
+// (WifiSniffer bringing the radio up in WIFI_MODE_STA unconditionally, for the whole session)
+// crash-looped real X3 hardware: esp-aes (hardware crypto, needed for EncryptedLog's every write)
+// couldn't allocate its own interrupt and aborted, every single boot. WifiSniffer stayed reverted
+// to WIFI_MODE_NULL as its resting state (see its class comment) — but the actual trigger for
+// that crash looks like it was *ordering*, not concurrency: STA mode came up before
+// EncryptedLog had ever written a record, so the interrupt-hungry STA driver and esp-aes's very
+// first interrupt request collided at the worst possible moment (boot). With WIFI_MODE_NULL as
+// the resting state, esp-aes claims and holds its interrupt during ordinary logging long before
+// any burst can fire, so sendDeauthBurst() now switches to WIFI_MODE_STA only for the duration of
+// one burst (a handful of milliseconds), then immediately reverts to WIFI_MODE_NULL — asking the
+// driver to reconfigure a radio that's already running, not to grab a fresh interrupt at boot.
+// This mirrors what github.com/yattsu/biscuit's WiFi deauther does on the same hardware (STA mode
+// + esp_wifi_80211_tx), with one difference: Biscuit never runs anything like EncryptedLog's
+// always-on background AES logging concurrently with it, so it never had a reason to discover
+// (or avoid) the ordering issue above. **Still needs confirmation on a real device** — this
+// environment can't compile-test interrupt behavior or watch for the DMA-pool fragmentation that
+// repeatedly toggling STA mode over a long session could plausibly cause (the existing
+// heap-health circuit breaker in main.cpp is the safety net if that happens: a silent restart,
+// not a hard crash).
 class DeauthEngine {
  public:
   bool begin();
 
   // Master on/off switch (mirrors WifiSniffer::setRawCaptureEnabled's pattern). Cheap to flip at
-  // runtime — just gates onObservation(), no radio reconfiguration needed since WifiSniffer
-  // already brings the interface up in a TX-capable mode (see WifiSniffer::begin).
+  // runtime — just gates onObservation(); no radio reconfiguration happens here, since the
+  // WIFI_MODE_STA switch only ever brackets an individual burst (see sendDeauthBurst).
   void setEnabled(bool value);
   bool isEnabled() const { return enabled; }
 

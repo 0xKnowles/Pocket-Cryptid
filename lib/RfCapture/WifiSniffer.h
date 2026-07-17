@@ -22,13 +22,15 @@
 //     EAPOL handshake bytes (ANonce/SNonce/MIC included) plus the SSID-bearing beacon for each
 //     BSSID, for export as a standard .pcap that offline tools like hashcat/hcxpcapngtool can
 //     attempt to crack. See PcapWriter and SettingsActivity.
-//   - Active deauth (see DeauthEngine, RubySettings::activeDeauthEnabled) is meant to transmit
-//     real 802.11 deauthentication frames to force a handshake instead of waiting for one, gated
-//     by TargetList in addition to its own setting. **Currently non-functional**: it needs the
-//     radio in WIFI_MODE_STA to get a TX-capable interface, but real X3 hardware testing showed
-//     that mode starves the interrupt matrix badly enough to crash esp-aes (hardware crypto) on
-//     every boot — see WifiSniffer::begin() and CHANGELOG. Reverted to WIFI_MODE_NULL; the code
-//     path is left in place (it fails harmlessly with no interface up) pending a safe fix.
+//   - Active deauth (see DeauthEngine, RubySettings::activeDeauthEnabled) transmits real 802.11
+//     deauthentication frames to force a handshake instead of waiting for one, gated by
+//     TargetList in addition to its own setting. Needs the radio in WIFI_MODE_STA to get a
+//     TX-capable interface — real X3 hardware testing showed bringing STA mode up for the whole
+//     session crashed esp-aes (hardware crypto) via interrupt starvation on every boot (see
+//     CHANGELOG), so WifiSniffer itself stays in WIFI_MODE_NULL as its resting state; DeauthEngine
+//     now switches to STA transiently, only for the duration of one deauth burst, then reverts —
+//     see DeauthEngine.h's class comment for the full reasoning and its still-pending
+//     real-hardware confirmation.
 // Both exist for auditing the strength of networks the device's owner controls or is
 // explicitly authorized to test.
 //
