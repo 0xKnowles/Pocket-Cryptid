@@ -61,6 +61,18 @@ constexpr uint32_t SILENT_REBOOT_MAGIC = 0xC81D7107;
 // catalog save, BLE/WiFi observation churn). Rebooting periodically is cheap insurance against a
 // multi-day-uptime OOM; the encrypted log and all persisted counters survive since they're on SD.
 constexpr unsigned long HEAP_DEFRAG_INTERVAL_MS = 12UL * 60 * 60 * 1000;  // 12 hours
+// Raw handshake capture (see WifiSniffer/PcapWriter) does its own SD open/write/close cycles on
+// top of the encrypted log's, on a device that already runs with a razor-thin DMA-pool margin
+// (see HEAP_DMA_*_THRESHOLD below) — real overnight use fragmented that pool enough to abort in
+// ~1.5 hours instead of the 12-hour window this interval was originally sized for. Until that's
+// fixed at the source, fall back to a much shorter interval whenever raw capture is on, so a
+// silent reboot always happens well before the fragmentation has a chance to catch up.
+constexpr unsigned long HEAP_DEFRAG_INTERVAL_MS_RAW_CAPTURE = 1UL * 60 * 60 * 1000;  // 1 hour
+// Checked every loop() — if the DMA-capable pool (what the hardware AES engine needs for
+// EncryptedLog's GCM calls) gets fragmented below this, proactively silent-restart rather than
+// wait for the next GCM call to fail with an uncontrolled abort(). Picked well above the ~4 bytes
+// observed at the point of an actual failure, so there's real margin to notice and react.
+constexpr size_t HEAP_DMA_LARGEST_BLOCK_MIN = 4096;
 // Deliberately longer than a simple debounce: the device rides around in a bag/pocket while
 // capturing, and a short jostle against the power button should not wake (and start refreshing
 // the display / burning battery) every time it gets bumped.
@@ -270,7 +282,7 @@ void setup() {
     recentSightings.recordWifi(obs, type);
   });
   wifiSniffer.setRawFrameCallback(
-      [](const RawFrameCapture& frame) { pcapWriter.writeFrame(frame.bytes, frame.len, frame.unixTime); });
+      [](const RawFrameCapture* frames, size_t count) { pcapWriter.writeFrames(frames, count); });
   bleScanner.setObservationCallback([](const BleObservation& obs) {
     encryptedLog.appendBle(obs);
     SIGNAL_CATALOG.observeBle(obs);
@@ -322,6 +334,19 @@ void loop() {
     lastMemPrint = millis();
   }
 
+  // Circuit breaker: EncryptedLog's hardware-accelerated AES-GCM needs a contiguous chunk of the
+  // DMA-capable pool for every write, and that pool is small enough on this chip that a
+  // long-running capture session can fragment it down to nothing — which previously showed up as
+  // an uncontrolled abort() (see CHANGELOG). Restarting here instead is the same silent, seamless
+  // reboot the heap-defrag timer below already uses — invisible to whoever's watching the device
+  // versus a hard crash that may not even reboot cleanly.
+  const size_t dmaLargestFree = heap_caps_get_largest_free_block(MALLOC_CAP_DMA);
+  if (dmaLargestFree < HEAP_DMA_LARGEST_BLOCK_MIN) {
+    LOG_ERR("MAIN", "DMA pool fragmented (largest block %u bytes) — restarting before it fails outright",
+           static_cast<unsigned>(dmaLargestFree));
+    silentRestart();
+  }
+
   static unsigned long lastActivityTime = millis();
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || activityManager.preventAutoSleep()) {
     lastActivityTime = millis();
@@ -346,7 +371,9 @@ void loop() {
     }
   }
 
-  if (millis() - bootMillis >= HEAP_DEFRAG_INTERVAL_MS) {
+  const unsigned long defragIntervalMs =
+      SETTINGS.rawHandshakeCaptureEnabled ? HEAP_DEFRAG_INTERVAL_MS_RAW_CAPTURE : HEAP_DEFRAG_INTERVAL_MS;
+  if (millis() - bootMillis >= defragIntervalMs) {
     silentRestart();
   }
 

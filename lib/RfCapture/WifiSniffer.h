@@ -30,7 +30,10 @@
 class WifiSniffer {
  public:
   using ObservationCallback = std::function<void(const WifiObservation&)>;
-  using RawFrameCallback = std::function<void(const RawFrameCapture&)>;
+  // Batch, not single-frame: tick() hands over everything drained from the raw queue in one call
+  // rather than one call per frame, so a handshake's rapid burst of captures can be written to SD
+  // in a single open/write-many/close cycle instead of one cycle per frame — see PcapWriter.
+  using RawFrameCallback = std::function<void(const RawFrameCapture* frames, size_t count)>;
 
   // Default 2.4 GHz channel plan (1/6/11 are the non-overlapping US/EU channels; the rest catch
   // networks that ignore that convention).

@@ -5,6 +5,37 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Real overnight crash with raw handshake capture on: heap/DMA-pool fragmentation abort after
+  ~1.5 hours, then a crash loop on every subsequent boot.** Confirmed via a field crash report:
+  `GCM encrypt failed: -1; heap free=1396 dmaFree=36 dmaLargest=4` — the same failure signature as
+  the sleep-crash chased down earlier, but this time caused by raw handshake capture's own SD
+  churn stacking on top of the encrypted log's. Three mitigations, none mutually exclusive:
+  - **Heap-health circuit breaker** (`src/main.cpp::loop()`): every loop, check
+    `heap_caps_get_largest_free_block(MALLOC_CAP_DMA)`; if it drops below a safe floor
+    (`HEAP_DMA_LARGEST_BLOCK_MIN`, 4KB — well above the ~4 bytes seen at actual failure),
+    proactively trigger the same silent, seamless restart the 12-hour defrag timer already uses,
+    *before* the next GCM call gets a chance to abort. Converts an uncontrolled crash into an
+    invisible reboot.
+  - **Shorter defrag-reboot interval while raw capture is on**: the existing 12-hour periodic
+    silent reboot (safety net against long-uptime fragmentation) drops to 1 hour
+    (`HEAP_DEFRAG_INTERVAL_MS_RAW_CAPTURE`) specifically when `rawHandshakeCaptureEnabled` is set,
+    since raw capture demonstrably compresses the fragmentation timeline well below the original
+    12-hour assumption.
+  - **Batched pcap writes**: a real handshake bursts 4 EAPOL captures within milliseconds, each
+    previously triggering its own `Storage.open()`/write/close cycle — and every `Storage.open()`
+    heap-allocates a file-handle object, so that's 4x the churn for the highest-density moment raw
+    capture produces. `WifiSniffer::tick()` now drains everything queued into one batch and hands
+    it to `PcapWriter::writeFrames()` (replacing the old single-frame `writeFrame()`) as a single
+    open/write-many/close cycle.
+  - Deliberately not done yet, pending further investigation: disabling hardware AES acceleration
+    for `EncryptedLog` (would remove its DMA-pool dependency entirely — the most direct fix, but
+    unclear yet whether this Arduino-framework build lets that be reconfigured without deeper
+    toolchain surgery), and revisiting `EncryptedLog`'s open/write/close-per-record pattern with a
+    proper fix for the concurrent-reader bug that caused it to be reverted from a persistent
+    handle earlier.
+
 ### Changed
 
 - **Battery badge moved to the left of the header, title now right-aligned** (the reverse of the

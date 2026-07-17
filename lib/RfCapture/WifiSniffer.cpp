@@ -220,10 +220,18 @@ void WifiSniffer::tick() {
   }
 
   if (rawQueue && rawCallback) {
-    RawFrameCapture frame;
-    while (xQueueReceive(static_cast<QueueHandle_t>(rawQueue), &frame, 0) == pdTRUE) {
-      rawCallback(frame);
+    // Drain everything currently queued into one local batch and hand it to the callback in a
+    // single call, rather than once per frame — a handshake's 4 EAPOL captures usually all land
+    // in the queue within the same tick(), so writing them with one open/write-many/close cycle
+    // instead of 4 separate ones cuts the SD-card churn (and the heap allocation each
+    // Storage.open() does for its file handle) by 4x during raw capture's highest-density moment.
+    RawFrameCapture batch[kRawQueueCapacity];
+    size_t batchCount = 0;
+    while (batchCount < kRawQueueCapacity &&
+           xQueueReceive(static_cast<QueueHandle_t>(rawQueue), &batch[batchCount], 0) == pdTRUE) {
+      batchCount++;
     }
+    if (batchCount > 0) rawCallback(batch, batchCount);
   }
 }
 

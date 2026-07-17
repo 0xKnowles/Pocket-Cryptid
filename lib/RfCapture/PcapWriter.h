@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <string>
 
+#include "RfTypes.h"
+
 // Writes standard libpcap (.pcap) files of raw 802.11 frames — link-layer type 105
 // (DLT_IEEE802_11), no radiotap header. This is the one capture path in Ruby that writes
 // plaintext to SD: a WPA handshake is only crackable by tools like hashcat/hcxpcapngtool if the
@@ -15,9 +17,12 @@ class PcapWriter {
  public:
   bool begin();
 
-  // Appends one raw frame as a pcap record to today's file. `len` is clamped by the caller to
-  // kRawFrameMaxLen (see RfTypes.h) before this is called.
-  bool writeFrame(const uint8_t* frame, size_t len, uint32_t unixTime);
+  // Appends `count` raw frames as pcap records to today's file in a single open/write/close —
+  // batched rather than one file-handle cycle per frame, since a real handshake's rapid 4-frame
+  // burst was a meaningful contributor to the SD-churn-driven heap fragmentation that caused
+  // real crashes during extended unattended capture (see CHANGELOG). Frames with len == 0 are
+  // skipped.
+  bool writeFrames(const RawFrameCapture* frames, size_t count);
 
   // Call periodically from the main loop: rotates to a new day's file when the date changes.
   void tick();

@@ -78,22 +78,28 @@ void PcapWriter::tick() {
   openTodaysFile();  // cheap check; only does work when the day actually rolled over
 }
 
-bool PcapWriter::writeFrame(const uint8_t* frame, size_t len, uint32_t unixTime) {
-  if (!ready || len == 0) return false;
+bool PcapWriter::writeFrames(const RawFrameCapture* frames, size_t count) {
+  if (!ready || count == 0) return false;
   openTodaysFile();
 
-  // Open/write/close per record rather than holding a handle open — same reasoning as
-  // EncryptedLog::writeEnvelope (see that file's comment): keeping a persistent handle caused a
-  // concurrent-reader correctness bug there, and these writes are rare enough (a handful of
-  // frames per handshake) that the per-call open() cost doesn't matter.
+  // One open/write-many/close per batch rather than per frame — a real handshake bursts 4 EAPOL
+  // captures within milliseconds, and each Storage.open() heap-allocates a file-handle object, so
+  // this cuts that churn (and its contribution to DMA-pool fragmentation elsewhere — see
+  // CHANGELOG) by up to 4x during raw capture's highest-density moment. Still open/write/close
+  // rather than a held-open handle overall, for the same concurrent-reader-correctness reason
+  // EncryptedLog::writeEnvelope reverted to that pattern.
   HalFile file = Storage.open(currentFilePath.c_str(), O_WRONLY | O_CREAT | O_APPEND);
   if (!file) {
     LOG_ERR("PCAP", "Failed to open capture file for append: %s", currentFilePath.c_str());
     return false;
   }
-  const PcapRecordHeader rec{unixTime, 0, static_cast<uint32_t>(len), static_cast<uint32_t>(len)};
-  file.write(reinterpret_cast<const uint8_t*>(&rec), sizeof(rec));
-  file.write(frame, len);
+  for (size_t i = 0; i < count; i++) {
+    const RawFrameCapture& frame = frames[i];
+    if (frame.len == 0) continue;
+    const PcapRecordHeader rec{frame.unixTime, 0, static_cast<uint32_t>(frame.len), static_cast<uint32_t>(frame.len)};
+    file.write(reinterpret_cast<const uint8_t*>(&rec), sizeof(rec));
+    file.write(frame.bytes, frame.len);
+  }
   file.close();
   return true;
 }
