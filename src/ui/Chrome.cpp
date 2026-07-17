@@ -31,8 +31,11 @@ bool isLandscape(const GfxRenderer& renderer) { return renderer.getScreenWidth()
 namespace Chrome {
 
 void drawHeader(const GfxRenderer& renderer, const char* title, int batteryPercent) {
-  renderer.drawText(FONT_UI_12_ID, kMarginX, 6, title, true, EpdFontFamily::BOLD);
-
+  // Battery on the left, title right-aligned — the reverse of the original layout. Also fixes a
+  // real collision in landscape: the battery badge used to right-align to the raw screen edge,
+  // which is exactly where the button-hint sidebar's top pill lives (see drawFooterHints below);
+  // title now right-aligns to the shared content-area edge (contentRight()) instead of the raw
+  // screen edge for the same reason.
   if (batteryPercent >= 0) {
     char buf[8];
     snprintf(buf, sizeof(buf), "%d%%", batteryPercent);
@@ -40,13 +43,18 @@ void drawHeader(const GfxRenderer& renderer, const char* title, int batteryPerce
     constexpr int kChipPadX = 7;
     constexpr int kChipH = 16;
     const int chipW = textW + kChipPadX * 2;
-    const int chipX = renderer.getScreenWidth() - kMarginX - chipW;
+    const int chipX = kMarginX;
     const int chipY = 5;
     // Pill-shaped badge (corner radius = half the height) rather than bare text — a small
     // "instrument readout" touch that also gives the battery number a visible boundary.
     renderer.drawRoundedRect(chipX, chipY, chipW, kChipH, 1, kChipH / 2, true);
     const int textY = chipY + (kChipH - renderer.getLineHeight(FONT_SMALL_ID)) / 2;
     renderer.drawText(FONT_SMALL_ID, chipX + kChipPadX, textY, buf);
+  }
+
+  if (title != nullptr && title[0] != '\0') {
+    const int titleW = renderer.getTextWidth(FONT_UI_12_ID, title, EpdFontFamily::BOLD);
+    renderer.drawText(FONT_UI_12_ID, contentRight(renderer) - titleW, 6, title, true, EpdFontFamily::BOLD);
   }
 
   drawDivider(renderer, kHeaderHeight);

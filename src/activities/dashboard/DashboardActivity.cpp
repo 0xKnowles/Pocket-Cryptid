@@ -61,6 +61,23 @@ void formatAgo(unsigned long seenAtMs, char* out, size_t outSize) {
   }
 }
 
+// Shorter than logRecordTypeShortName() (LogRecord.h) specifically for the RECENT DEVICES grid
+// below — that one pads to 6 chars for LogViewerActivity's single-column cards, but here every
+// character of column width is worth reclaiming to fit a second column in.
+const char* compactTypeLabel(LogRecordType type) {
+  switch (type) {
+    case LogRecordType::WifiAp:
+      return "AP";
+    case LogRecordType::WifiClient:
+      return "STA";
+    case LogRecordType::WifiHandshake:
+      return "EAP";
+    case LogRecordType::BleDevice:
+      return "BLE";
+  }
+  return "?";
+}
+
 constexpr int kCardOutsetX = 6;   // border stroke sits this far outside the card's text column
 constexpr int kCardTitleGap = 6;  // space between the title rule and the first row
 constexpr int kCardTopPad = 6;
@@ -205,22 +222,38 @@ void DashboardActivity::renderFull() {
   if (liveCount == 0) {
     renderer.drawText(FONT_SMALL_ID, deviceColX, y, "Nothing heard yet.");
   } else {
-    const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
-    for (size_t i = 0; i < liveCount; i++) {
-      if (y + lineHeight * 2 + 6 > deviceRowsBottom) break;  // out of room in this box's height
+    // Tight, purpose-sized line spacing instead of GfxRenderer::getLineHeight() (~25px for
+    // FONT_SMALL_ID — that's the font's paragraph line-spacing, not a per-row stride, and was
+    // only fitting 3-4 entries here). This box is also wide enough in landscape to lay entries
+    // out in columns rather than one long single-file list — kEntryColWidth is sized for the
+    // worst case ("STA 12:34:56:78:9A:BC" at this font's fixed pitch) so a 2-column grid fits
+    // cleanly without truncating anything.
+    constexpr int kLineHeight = 13;
+    constexpr int kLineGap = 2;
+    constexpr int kEntryGap = 6;
+    constexpr int kEntryHeight = kLineHeight * 2 + kLineGap + kEntryGap;
+    constexpr int kEntryColWidth = 224;
+    const int rowsPerColumn = std::max(1, (deviceRowsBottom - y) / kEntryHeight);
+    const int columnCount = std::max(1, deviceColWidth / (kEntryColWidth + kColumnGap));
+    const size_t maxVisible = std::min(liveCount, static_cast<size_t>(rowsPerColumn * columnCount));
+
+    for (size_t i = 0; i < maxVisible; i++) {
+      const size_t col = i / static_cast<size_t>(rowsPerColumn);
+      const size_t row = i % static_cast<size_t>(rowsPerColumn);
+      const int entryX = deviceColX + static_cast<int>(col) * (kEntryColWidth + kColumnGap);
+      const int entryY = y + static_cast<int>(row) * kEntryHeight;
+
       const auto& entry = recentSightings.at(i);
       char macBuf[18];
       formatMac(entry.mac, macBuf);
       char agoBuf[16];
       formatAgo(entry.seenAtMs, agoBuf, sizeof(agoBuf));
       char line1[32];
-      snprintf(line1, sizeof(line1), "%-6s %s", logRecordTypeShortName(entry.type), macBuf);
-      renderer.drawText(FONT_SMALL_ID, deviceColX, y, line1);
-      y += lineHeight + 2;
+      snprintf(line1, sizeof(line1), "%s %s", compactTypeLabel(entry.type), macBuf);
+      renderer.drawText(FONT_SMALL_ID, entryX, entryY, line1);
       char line2[32];
       snprintf(line2, sizeof(line2), "  %d dBm  %s", entry.rssi, agoBuf);
-      renderer.drawText(FONT_SMALL_ID, deviceColX, y, line2);
-      y += lineHeight + 6;
+      renderer.drawText(FONT_SMALL_ID, entryX, entryY + kLineHeight + kLineGap, line2);
     }
   }
   endStatCard(renderer, deviceColX, deviceColWidth, cardTop, deviceRowsBottom);

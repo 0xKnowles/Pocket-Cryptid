@@ -5,6 +5,20 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Battery badge moved to the left of the header, title now right-aligned** (the reverse of the
+  original layout). Also fixes a real collision this uncovered: the battery badge used to
+  right-align to the raw screen edge, which in landscape is exactly where the button-hint
+  sidebar's top pill lives — title now right-aligns to the shared content-area edge instead of
+  the raw screen edge for the same reason.
+- **RECENT DEVICES shows far more than 3-4 entries now.** Same root cause as the sidebar text fix
+  below: it was spacing rows with `getLineHeight()` (~25px, paragraph spacing) instead of a size
+  meant for compact rows. Replaced with a tight, purpose-sized line height, and — since the box is
+  wide enough in landscape to have a lot of unused horizontal space at 1 column — laid entries out
+  in a 2-column grid instead of a single-file list. Device type labels in this view are more
+  abbreviated (AP/STA/EAP/BLE) to fit a full MAC address in each column without truncating it.
+
 ### Fixed
 
 - **Sidebar letter spacing, second hardware-feedback round:** the upright-character stack from
