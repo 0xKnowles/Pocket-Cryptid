@@ -8,21 +8,28 @@
 
 #include "RfTypes.h"
 
-// Passive 802.11 monitor-mode capture.
+// 802.11 monitor-mode capture, passive by default.
 //
 // WifiSniffer puts the ESP32-C3's radio into promiscuous (monitor) mode via the ESP-IDF
-// esp_wifi_* API — it never calls esp_wifi_connect()/associate, never transmits a frame, and
-// never starts an AP. It only listens. By default it only extracts metadata that is broadcast
-// in the clear by design (beacon/probe SSIDs, MAC addresses, the *presence* of an EAPOL
-// handshake and which message number it is) — it does not crack, decrypt, or store handshake
-// key material or payloads.
+// esp_wifi_* API — it never calls esp_wifi_connect()/associate, and never starts an AP. By
+// default it only extracts metadata that is broadcast in the clear by design (beacon/probe
+// SSIDs, MAC addresses, the *presence* of an EAPOL handshake and which message number it is)
+// — it does not crack, decrypt, or store handshake key material or payloads, and transmits
+// nothing.
 //
-// The one exception is raw frame capture (see setRawCaptureEnabled/setRawFrameCallback): an
-// explicit opt-in, off by default, that preserves verbatim EAPOL handshake bytes (ANonce/
-// SNonce/MIC included) plus the SSID-bearing beacon for each BSSID, for export as a standard
-// .pcap that offline tools like hashcat/hcxpcapngtool can attempt to crack. This exists for
-// auditing the strength of networks the device's owner controls — see PcapWriter and
-// SettingsActivity for the rest of that path.
+// Two explicit, off-by-default opt-ins layer on top of that baseline:
+//   - Raw frame capture (see setRawCaptureEnabled/setRawFrameCallback) preserves verbatim
+//     EAPOL handshake bytes (ANonce/SNonce/MIC included) plus the SSID-bearing beacon for each
+//     BSSID, for export as a standard .pcap that offline tools like hashcat/hcxpcapngtool can
+//     attempt to crack. See PcapWriter and SettingsActivity.
+//   - Active deauth (see DeauthEngine, RubySettings::activeDeauthEnabled) transmits real
+//     802.11 deauthentication frames to force a handshake instead of waiting for one — the one
+//     thing that makes this class's radio initialization use WIFI_MODE_STA (interface up,
+//     never associated) instead of WIFI_MODE_NULL; see WifiSniffer::begin(). This is real RF
+//     interference against whatever it targets and is gated by TargetList in addition to its
+//     own setting — see DeauthEngine's class comment before enabling it.
+// Both exist for auditing the strength of networks the device's owner controls or is
+// explicitly authorized to test.
 //
 // The radio hardware can only listen to one channel at a time, so start() hops across the
 // configured channel list on a timer (tick() must be called regularly from the main loop to

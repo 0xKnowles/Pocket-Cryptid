@@ -5,9 +5,12 @@
 #include <cstring>
 
 // Shared observation types produced by WifiSniffer and BleScanner. Both capture paths are
-// strictly passive/receive-only — nothing in this library ever transmits, associates, pairs,
-// or advertises. A MAC address here is a raw 6-byte hardware identifier as heard over the air;
-// callers decide whether/how to hash it before it touches persistent storage.
+// receive-only by default — nothing here associates, pairs, or advertises, and BleScanner never
+// transmits at all. The one exception is DeauthEngine (see DeauthEngine.h), an explicit,
+// off-by-default opt-in that transmits 802.11 deauthentication frames on the WiFi side to force
+// a capturable handshake; everything else in this library stays passive whether or not that's
+// enabled. A MAC address here is a raw 6-byte hardware identifier as heard over the air; callers
+// decide whether/how to hash it before it touches persistent storage.
 
 struct MacAddress {
   uint8_t bytes[6] = {0, 0, 0, 0, 0, 0};

@@ -75,8 +75,13 @@ uint8_t classifyEapolMessage(const uint8_t* eapolKeyFrame, size_t len) {
   const bool keyMic = keyInfo & 0x0100;
   const bool secure = keyInfo & 0x0200;
   uint16_t keyDataLen = 0;
-  if (len >= 99) {
-    keyDataLen = (eapolKeyFrame[97] << 8) | eapolKeyFrame[98];
+  // Key Data Length sits at absolute EAPOL-header offset 97-98; eapolKeyFrame is already based
+  // at offset 4 (the Descriptor Type byte, per the caller's `eapol + 4`), so the offset relative
+  // to *this* pointer is 93-94, not 97-98 — indexing 97/98 here read 4 bytes into the Key Data
+  // field itself instead of its length, which meant M4 (the only message classified using this
+  // field) was almost never correctly recognized.
+  if (len >= 95) {
+    keyDataLen = (eapolKeyFrame[93] << 8) | eapolKeyFrame[94];
   }
 
   if (keyAck && !keyMic) return 1;
@@ -118,7 +123,13 @@ bool WifiSniffer::begin() {
   // joins anything, so there's nothing worth surviving a reboot, and it avoids flash wear from a
   // radio that's expected to run for most of the device's on-time.
   esp_wifi_set_storage(WIFI_STORAGE_RAM);
-  esp_wifi_set_mode(WIFI_MODE_NULL);
+  // STA rather than NULL: esp_wifi_80211_tx() (DeauthEngine's raw-TX primitive) requires the
+  // interface matching its wifi_interface_t argument to be up, even though nothing here ever
+  // calls esp_wifi_connect() — bringing the STA interface up is not the same as joining a
+  // network. Promiscuous/monitor-mode capture works identically to before; this only changes
+  // whether raw TX is possible, and DeauthEngine still requires its own separate opt-in
+  // (RubySettings::activeDeauthEnabled, off by default) before it ever calls it.
+  esp_wifi_set_mode(WIFI_MODE_STA);
   err = esp_wifi_start();
   if (err != ESP_OK) {
     LOG_ERR("RFSNIFF", "esp_wifi_start failed: %d", err);

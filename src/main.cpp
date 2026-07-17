@@ -22,6 +22,7 @@
 
 #include "AppVersion.h"
 #include "BleScanner.h"
+#include "DeauthEngine.h"
 #include "EncryptedLog.h"
 #include "MappedInputManager.h"
 #include "PcapWriter.h"
@@ -29,6 +30,7 @@
 #include "RubyAppState.h"
 #include "RubySettings.h"
 #include "SignalCatalog.h"
+#include "TargetList.h"
 #include "WifiSniffer.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
@@ -115,6 +117,9 @@ void startCaptureIfEnabled() {
   if (SETTINGS.bleSniffEnabled) {
     bleScanner.start();
   }
+  // Forcing a handshake via deauth is pointless disruption if raw capture isn't on to catch it —
+  // refuse to run active mode without it, regardless of what the setting says.
+  deauthEngine.setEnabled(SETTINGS.activeDeauthEnabled && SETTINGS.rawHandshakeCaptureEnabled);
 }
 
 void enterDeepSleep() {
@@ -122,6 +127,7 @@ void enterDeepSleep() {
 
   wifiSniffer.stop();
   bleScanner.stop();
+  deauthEngine.setEnabled(false);
 
   APP_STATE.totalCaptureSeconds += (millis() - bootMillis) / 1000;
   APP_STATE.saveToFile();
@@ -267,12 +273,15 @@ void setup() {
   if (!pcapWriter.begin()) {
     LOG_ERR("MAIN", "Pcap writer failed to initialize — raw handshake capture will not be persisted to disk");
   }
+  targetList.begin();
+  deauthEngine.begin();
 
   wifiSniffer.setObservationCallback([](const WifiObservation& obs) {
     const LogRecordType type = mapWifiKindToLogType(obs.kind);
     encryptedLog.appendWifi(obs, type);
     SIGNAL_CATALOG.observeWifi(obs);
     recentSightings.recordWifi(obs, type);
+    deauthEngine.onObservation(obs);
   });
   wifiSniffer.setRawFrameCallback(
       [](const RawFrameCapture* frames, size_t count) { pcapWriter.writeFrames(frames, count); });

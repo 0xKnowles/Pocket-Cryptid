@@ -19,6 +19,14 @@ class RubySettings : public PersistableStore<RubySettings> {
   // SettingsActivity's on-screen warning before turning this on.
   bool rawHandshakeCaptureEnabled = false;
 
+  // Off by default: transmits 802.11 deauthentication frames (see DeauthEngine) at BSSIDs
+  // TargetList allows, to force a handshake instead of waiting for one passively. Real RF
+  // interference against whatever it targets — see DeauthEngine's class comment and
+  // SettingsActivity's on-screen warning before turning this on. main.cpp additionally refuses
+  // to start it unless rawHandshakeCaptureEnabled is also on, since forcing a handshake nobody's
+  // capturing verbatim would just be pointless disruption.
+  bool activeDeauthEnabled = false;
+
   // Milliseconds spent on each WiFi channel before hopping to the next (see WifiSniffer). Lower
   // = catches more short-lived probe bursts but misses more beacons per channel; higher = the
   // reverse. 100-1000 is a sane range.

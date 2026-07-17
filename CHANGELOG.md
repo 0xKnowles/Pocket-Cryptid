@@ -5,6 +5,48 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- **Active deauth capability** (`DeauthEngine`, `TargetList`) — off by default. A field capture
+  session produced a `.pcap` with zero crackable hashes because passive channel-hopping (13
+  channels, 300ms dwell) essentially never stays parked on a network long enough to catch a full
+  4-way handshake happening on its own. `DeauthEngine` transmits real 802.11 deauthentication
+  frames (via `esp_wifi_80211_tx`, the same raw-TX primitive used by community ESP32 deauther
+  projects — deauth isn't among the frame types ESP-IDF's own doxygen comment calls "supported"
+  for that function, so this is a widely-used technique rather than an officially documented one;
+  verify on real hardware before relying on it) at BSSIDs `TargetList` allows, forcing a
+  reconnect so the resulting handshake lands in the raw-capture path that already existed.
+  - `TargetList` is a whitelist/blacklist gating every target, backed by a human-editable SD file
+    (`/.ruby/targets.txt`) — editable directly on a PC with the card out, or from the new Confirm
+    action in `DeviceListActivity` (marks the selected AP `[T]`), or the mode toggle in Settings.
+    Defaults to **Whitelist with an empty list**, specifically so turning the feature on can never
+    itself attack every network in range — the owner has to explicitly add a BSSID first.
+  - `RubySettings::activeDeauthEnabled` (off by default) additionally requires
+    `rawHandshakeCaptureEnabled` to be on — main.cpp and `SettingsActivity` both refuse to arm
+    active mode without it, since forcing a handshake nobody's capturing verbatim would just be
+    disruption for nothing.
+  - `WifiSniffer::begin()` now brings the radio up in `WIFI_MODE_STA` instead of `WIFI_MODE_NULL`
+    (still never calls `esp_wifi_connect()` — an unconnected STA interface, not a joined one) so
+    `esp_wifi_80211_tx(WIFI_IF_STA, ...)` has an interface to transmit on. Passive capture behavior
+    is unchanged; this only makes TX possible, DeauthEngine's own opt-in still gates whether it
+    ever happens.
+  - **This is real RF interference against whatever it targets.** Only use it against networks
+    you own or are explicitly authorized to test — see the in-app warning in `SettingsActivity`
+    and the class comments on `DeauthEngine`/`TargetList`.
+  - `MaintenanceActivity` shows burst/frame counters once any have been sent.
+
+### Fixed
+
+- **`WifiSniffer::classifyEapolMessage()` read the Key Data Length field 4 bytes off**, from the
+  same overnight capture-session investigation above. The function takes `eapol + 4` (based at
+  the Descriptor Type byte) but indexed the Key Data Length field at `[97]`/`[98]` — the offset
+  for the *unshifted* EAPOL header, not the already-`+4`-based pointer it was actually given. The
+  real field sits at relative offset `93`/`94` from that base. Message 4 (the handshake's final
+  ACK) is the only message classified using that field (`keyDataLen == 0`), so this meant M4
+  frames were almost never recognized and got silently dropped before ever reaching the raw
+  capture queue — a real (if partial) contributor to that night's empty `.pcap`, on top of the
+  passive-capture timing problem the active-deauth capability above addresses directly.
+
 ### Removed
 
 - Temporary checkpoint/diagnostic logging left over from tonight's crash investigations

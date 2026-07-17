@@ -85,8 +85,10 @@ When the device is asleep, it shows a different, much larger piece of art instea
    channels, extracting beacon/probe-request SSIDs, MAC addresses, and — when it hears one — the
    presence of a WPA 4-way handshake and which message number it is. `BleScanner` runs a
    **passive** BLE scan (it never sends a SCAN_REQ) and records advertised MACs, names, and
-   manufacturer-data length. Neither path ever transmits, associates, pairs, or connects to
-   anything — this device only listens.
+   manufacturer-data length. Neither path associates, pairs, or connects to anything, and BLE
+   scanning never transmits. WiFi capture is passive by default too, unless
+   [active deauth](#active-deauth) is deliberately turned on — an explicit, off-by-default opt-in
+   covered in its own section below.
 2. **Catalog.** Every observation is deduplicated by `SignalCatalog` against a bounded in-RAM
    hash set. The first time a given MAC/role is seen, that's a "unique" event: it increments a
    lifetime counter, nudges the creature's expression, and — every few captures — unlocks another
@@ -117,16 +119,19 @@ When the device is asleep, it shows a different, much larger piece of art instea
   Viewer, `Back` → force a full ghost-clearing refresh.
 - **Settings** — toggle WiFi/BLE capture, adjust WiFi channel dwell time, set the ghost-clear
   refresh interval, turn on [raw handshake capture](#raw-handshake-capture-crackable-pcap-export)
-  (off by default), reveal the log's AES key, wipe the log.
+  or [active deauth](#active-deauth) (both off by default), toggle the target list's
+  whitelist/blacklist mode, reveal the log's AES key, wipe the log.
 - **Lore** — flavor text unlocked progressively with lifetime captures, mixed with a few real
   running stats.
 - **Export/Maintenance** — how to pull captures off the SD card, plus the current session's
-  record count and (when any exist) raw-capture file stats.
+  record count and (when any exist) raw-capture file stats and deauth burst/frame counters.
 - **Recent Devices** — a live, RAM-only feed of the last 16 WiFi/BLE observations (type, MAC,
   RSSI, SSID/name, time since seen), newest first. This is separate from both `SignalCatalog`
   (which deliberately never retains which specific MACs it has seen — only dedup counts) and the
   encrypted log (which retains everything, but only ever encrypted at rest). Nothing shown here
-  is persisted; it's lost on reboot along with the rest of RAM.
+  is persisted; it's lost on reboot along with the rest of RAM. `Confirm` on an AP entry toggles
+  it in/out of the [active deauth target list](#active-deauth) — a `[T]` marker shows targeted
+  networks.
 - **Log Viewer** — browses the encrypted capture log *on the device itself*, no PC required. See
   [On-device log decryption](#on-device-log-decryption) below for how that's possible without any
   key-entry UI. `Left`/`Right` switch between daily log files, `Up`/`Down` page through records
@@ -154,9 +159,45 @@ strength of networks you own, offline, with tools like [hashcat](https://hashcat
 - Turn it back off when you're not actively auditing — it's meant to be run deliberately, not left
   on as a background default.
 
-As with every other capture path, this only ever *listens*: nothing here transmits, deauths, or
-otherwise provokes a handshake into happening. It records what a passive monitor already sees
-handshakes doing on their own.
+By itself, this path only ever *listens* — nothing here transmits or provokes a handshake into
+happening; it records what a passive monitor already sees handshakes doing on their own. That's a
+real limitation: catching a full 4-way handshake by chance while hopping across 13 channels every
+300ms is unreliable in practice. **Active deauth** (below) is the opt-in answer to that.
+
+## Active deauth
+
+Passive capture alone often isn't enough to actually catch a handshake — a real 4-way handshake
+completes in well under a second, and the radio has to already be parked on the right channel
+when it happens. **Active deauth** closes that gap by transmitting real 802.11 deauthentication
+frames at a target network, forcing a client to reconnect so the resulting handshake lands in raw
+capture above instead of waiting — often in vain — for one to happen on its own.
+
+- **Off by default**, and requires raw handshake capture to also be on — forcing a handshake
+  nobody's capturing verbatim would just be disruption for nothing. Turn it on at
+  `Settings → Active deauth`.
+- **Every target is gated by an editable whitelist/blacklist** (`TargetList`, backed by
+  `/.ruby/targets.txt` on the SD card):
+  - **Whitelist mode** (the default, starting empty) — only BSSIDs you've explicitly added are
+    attacked. An empty whitelist means *nothing* is attacked, even with the feature switched on.
+  - **Blacklist mode** — every BSSID Ruby sees is attacked *except* the ones you've added.
+  - Edit the list directly on a PC (pull the SD card, edit the plain-text file, put it back), or
+    on-device: open the device list (`Dashboard → Up`), move the cursor to a network, and press
+    `Confirm` to toggle it in/out of the list — a `[T]` marker shows targeted networks. Toggle
+    whitelist/blacklist mode from `Settings → Target list mode`.
+- Each targeted BSSID gets a short burst of deauth frames, then a 30-second cooldown before it's
+  attacked again, and attacks stop entirely for a BSSID once its handshake has been captured —
+  this isn't meant to be a sustained flood against any one network.
+- Frame transmission uses `esp_wifi_80211_tx()`, the same raw-TX primitive most community ESP32
+  deauther projects use. It works in practice, but deauth frames aren't among the types ESP-IDF's
+  own documentation calls "supported" for that function — this is a widely-used technique, not an
+  officially documented one.
+
+**This is real RF interference against whatever it targets.** Transmitting deauthentication
+frames at a network you don't own or don't have explicit authorization to test is illegal in most
+jurisdictions, regardless of how small the transmitting device is. Only enable this against
+networks you own or are explicitly authorized to audit — the empty-whitelist default exists so
+that flipping the setting on can never itself put you outside that boundary; you have to
+deliberately add a target first.
 
 ## Hardware
 
@@ -199,7 +240,7 @@ the encrypted log, the creature, every screen — is new.
 | Layer | What it is |
 | --- | --- |
 | `freeink-sdk/`, `lib/hal`, `lib/GfxRenderer`, `lib/EpdFont` | Hardware bring-up: display driver, buttons, power, SD card, fonts, graphics primitives. Carried over from CrossPlant/CrossInk largely unmodified — this is what makes the firmware boot on real hardware. |
-| `lib/RfCapture` | **New.** Passive 802.11 monitor-mode WiFi sniffing, passive BLE advertisement scanning, and the opt-in raw-frame path behind `.pcap` export. |
+| `lib/RfCapture` | **New.** 802.11 monitor-mode WiFi sniffing, passive BLE advertisement scanning, the opt-in raw-frame path behind `.pcap` export, and the opt-in `DeauthEngine`/`TargetList` active-deauth capability. |
 | `lib/SignalCatalog` | **New.** Deduplicates observations into "have I seen this MAC before" and lifetime unique-device counters, plus a small RAM-only ring of recent sightings for the Recent Devices screen. |
 | `lib/RubyLog` | **New.** AES-256-GCM encrypted append-only capture log. |
 | `src/ruby` | **New.** The creature: procedurally-rendered (no bitmap art pipeline for the logic — see `bmp/` for the actual source art), fed by `SignalCatalog`. |

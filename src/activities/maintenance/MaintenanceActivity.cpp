@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdio>
 
+#include "DeauthEngine.h"
 #include "EncryptedLog.h"
 #include "PcapWriter.h"
 #include "fontIds.h"
@@ -113,6 +114,18 @@ void MaintenanceActivity::render(RenderLock&&) {
       renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y, line.c_str());
       y += lineHeight;
     }
+  }
+
+  if (deauthEngine.burstsSent() > 0) {
+    y += 24;
+    Chrome::drawDivider(renderer, y);
+    y += 16;
+
+    snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(deauthEngine.burstsSent()));
+    y = Chrome::drawStatRow(renderer, y, "Deauth bursts sent", valueBuf);
+    snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(deauthEngine.framesTransmitted()));
+    y = Chrome::drawStatRow(renderer, y, "Deauth frames sent", valueBuf);
+    y += 8;
   }
 
   y += 16;

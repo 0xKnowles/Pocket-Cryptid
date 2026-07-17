@@ -8,8 +8,10 @@
 #include <cstring>
 
 #include "BleScanner.h"
+#include "DeauthEngine.h"
 #include "EncryptedLog.h"
 #include "RubySettings.h"
+#include "TargetList.h"
 #include "WifiSniffer.h"
 #include "fontIds.h"
 #include "ui/Chrome.h"
@@ -70,6 +72,21 @@ void SettingsActivity::adjustSelected(int direction) {
     case RowRawCapture:
       SETTINGS.rawHandshakeCaptureEnabled = !SETTINGS.rawHandshakeCaptureEnabled;
       wifiSniffer.setRawCaptureEnabled(SETTINGS.rawHandshakeCaptureEnabled);
+      // Turning raw capture off must also stop active deauth — see DeauthEngine's class comment
+      // on why it refuses to run without something capturing the handshake it forces.
+      deauthEngine.setEnabled(SETTINGS.activeDeauthEnabled && SETTINGS.rawHandshakeCaptureEnabled);
+      break;
+    case RowActiveDeauth:
+      if (!SETTINGS.activeDeauthEnabled && !SETTINGS.rawHandshakeCaptureEnabled) {
+        // Refuse to arm active mode without raw capture on to catch what it forces — leave off.
+        break;
+      }
+      SETTINGS.activeDeauthEnabled = !SETTINGS.activeDeauthEnabled;
+      deauthEngine.setEnabled(SETTINGS.activeDeauthEnabled && SETTINGS.rawHandshakeCaptureEnabled);
+      break;
+    case RowListMode:
+      targetList.setMode(targetList.mode() == TargetListMode::Whitelist ? TargetListMode::Blacklist
+                                                                         : TargetListMode::Whitelist);
       break;
     default:
       break;
@@ -83,6 +100,8 @@ void SettingsActivity::activateSelected() {
     case RowWifiEnabled:
     case RowBleEnabled:
     case RowRawCapture:
+    case RowActiveDeauth:
+    case RowListMode:
       adjustSelected(1);
       return;
     case RowRevealKey:
@@ -181,6 +200,10 @@ void SettingsActivity::render(RenderLock&&) {
   y += kRowHeight;
   drawRow(RowRawCapture, "Raw handshake capture", SETTINGS.rawHandshakeCaptureEnabled ? "ON" : "OFF");
   y += kRowHeight;
+  drawRow(RowActiveDeauth, "Active deauth", SETTINGS.activeDeauthEnabled ? "ON" : "OFF");
+  y += kRowHeight;
+  drawRow(RowListMode, "Target list mode", targetList.mode() == TargetListMode::Whitelist ? "whitelist" : "blacklist");
+  y += kRowHeight;
   drawRow(RowRevealKey, "Reveal log key", "show >");
   y += kRowHeight;
   drawRow(RowWipeLog, "Wipe encrypted log", wipeArmed ? "confirm?" : "erase >");
@@ -212,6 +235,31 @@ void SettingsActivity::render(RenderLock&&) {
         "Saves WPA handshake frames unencrypted to /.ruby/pcap for cracking-tool auditing "
         "(hashcat/hcxpcapngtool) of networks you own. Unlike the encrypted log, these files are "
         "plaintext on the SD card.",
+        Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
+    const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
+    for (const auto& line : lines) {
+      renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
+      y += lineHeight;
+    }
+  } else if (selected == RowActiveDeauth) {
+    const auto lines = renderer.wrappedText(
+        FONT_SMALL_ID,
+        "Transmits real deauthentication frames at BSSIDs your target list allows, to force a "
+        "handshake instead of waiting for one. Only use against networks you own or are "
+        "explicitly authorized to test — doing this to networks you don't is illegal in most "
+        "places. Requires raw handshake capture to be on; won't arm without it.",
+        Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
+    const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
+    for (const auto& line : lines) {
+      renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
+      y += lineHeight;
+    }
+  } else if (selected == RowListMode) {
+    const auto lines = renderer.wrappedText(
+        FONT_SMALL_ID,
+        "Whitelist: active deauth only attacks BSSIDs you've added (default, attacks nothing "
+        "until you add one). Blacklist: attacks every BSSID except the ones you've added. Edit "
+        "/.ruby/targets.txt on the SD card, or add/remove from the device list screen.",
         Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (const auto& line : lines) {
