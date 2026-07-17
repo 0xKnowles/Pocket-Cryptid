@@ -1,12 +1,24 @@
 # Ruby
 
+> [!WARNING]
+> **Educational and authorized-testing use only.** Ruby passively captures WiFi and Bluetooth
+> traffic from *everything in range*, not just your own devices — and can optionally transmit
+> real 802.11 deauthentication frames (see [Active deauth](#active-deauth), currently
+> non-functional on this hardware — see that section). **Only point it at networks and devices
+> you own, or have explicit written authorization to test.** Capturing traffic from networks you
+> don't control, and especially transmitting deauthentication frames at them, is illegal in most
+> jurisdictions (wiretapping/interception and RF-interference statutes both apply) regardless of
+> how small or "hobbyist" the device is. This project is published for security research and
+> education. You are solely responsible for how you use it and for knowing the laws that apply
+> where you use it.
+
 <p align="center">
   <img src="bmp/boot.bmp" width="260" alt="Ruby — the boot splash art shown on first power-on">
 </p>
 
 <p align="center">
-  <a href="https://github.com/0xKnowles/Pocket-Cryptid/actions/workflows/ci.yml">
-    <img src="https://github.com/0xKnowles/Pocket-Cryptid/actions/workflows/ci.yml/badge.svg" alt="CI (build) status">
+  <a href="https://github.com/0xKnowles/Ruby/actions/workflows/ci.yml">
+    <img src="https://github.com/0xKnowles/Ruby/actions/workflows/ci.yml/badge.svg" alt="CI (build) status">
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License">
@@ -18,10 +30,31 @@ hardware into something else entirely: a stealthy, long-battery-life passive RF 
 with a small digital companion living in the corner of the screen.
 
 It is not a book reader. It does not read EPUBs, sync with KOReader, or talk to OPDS catalogs.
-It listens — passively, receive-only — to the WiFi and Bluetooth Low Energy traffic already in
-the air around it, catalogs what it hears into an encrypted on-device log, and Ruby reacts with a
-changing expression as a visual front-end for that catalog — closer to Pwnagotchi's mood faces
-than to a pet that eats XP to level up.
+It listens — passively, receive-only, by default — to the WiFi and Bluetooth Low Energy traffic
+already in the air around it, catalogs what it hears into an encrypted on-device log, and Ruby
+reacts with a changing expression as a visual front-end for that catalog — closer to Pwnagotchi's
+mood faces than to a pet that eats XP to level up.
+
+### At a glance
+
+- **Hardware:** Xteink X3 or X4, ESP32-C3 (single-core RISC-V, no PSRAM), 792×528 e-ink panel,
+  runs in landscape (the panel's native orientation). One firmware binary for both; hardware is
+  detected at runtime, not chosen at build time.
+- **Capture:** 802.11 monitor-mode WiFi sniffing across all channels (beacons, probe
+  requests/responses, WPA 4-way-handshake message detection) plus passive BLE advertisement
+  scanning — neither path associates, pairs, or connects to anything by default.
+- **Log:** every observation is deduplicated for the on-screen stats and independently written to
+  an AES-256-GCM encrypted daily log on the SD card, decryptable on-device (no PC required) or via
+  a bundled Python script.
+- **Opt-in, off by default:** raw plaintext `.pcap` handshake export for offline auditing with
+  hashcat/`hcxpcapngtool` (with on-device PMKID-capable-capture visibility), and an active-deauth
+  capability gated by a two-list whitelist/blacklist system — see
+  [Active deauth](#active-deauth) for its current hardware limitation.
+- **On-device management:** a live network-scan picker to build the whitelist/blacklist without a
+  PC, a Power-button action you can set to Screenshot/Pause/Refresh, and a Settings screen for
+  every capture toggle.
+- **License:** MIT. Single PlatformIO environment (`default`), built and static-analyzed on every
+  push via GitHub Actions.
 
 ## Installing Ruby
 
@@ -29,7 +62,7 @@ The easiest way to get Ruby onto real hardware is to flash a prebuilt release st
 browser — no toolchain install required.
 
 1. Grab the latest `firmware-default-v*.bin` from the
-   **[Releases page](https://github.com/0xKnowles/Pocket-Cryptid/releases/latest)**.
+   **[Releases page](https://github.com/0xKnowles/Ruby/releases/latest)**.
 2. Plug the X3/X4 into your computer with a USB-C cable.
 3. Open **[CrossPoint Reader's flash tool](https://crosspointreader.com/#flash-tools)** in a
    Chromium-based browser (Chrome, Edge, or Opera — the page uses the Web Serial API to talk to
@@ -72,6 +105,8 @@ reaction to what's been heard most recently over the air:
 
 There's no XP, no stages, nothing to "feed" permanently — just a mood, the same idea as
 Pwnagotchi's faces, driven entirely by `SignalCatalog`'s counts rather than anything cosmetic.
+Pausing capture (see [Screens](#screens)) freezes it in place rather than showing a mood, since
+there's nothing new to react to while paused.
 
 When the device is asleep, it shows a different, much larger piece of art instead:
 
@@ -83,12 +118,13 @@ When the device is asleep, it shows a different, much larger piece of art instea
 
 1. **Capture.** `WifiSniffer` puts the ESP32-C3's radio into 802.11 monitor mode and hops across
    channels, extracting beacon/probe-request SSIDs, MAC addresses, and — when it hears one — the
-   presence of a WPA 4-way handshake and which message number it is. `BleScanner` runs a
-   **passive** BLE scan (it never sends a SCAN_REQ) and records advertised MACs, names, and
-   manufacturer-data length. Neither path associates, pairs, or connects to anything, and BLE
-   scanning never transmits. WiFi capture is passive by default too, unless
-   [active deauth](#active-deauth) is deliberately turned on — an explicit, off-by-default opt-in
-   covered in its own section below.
+   presence of a WPA 4-way handshake and which message number it is. The radio holds its current
+   channel for a few seconds whenever it sees part of a handshake, instead of hopping away and
+   missing the rest of it mid-exchange. `BleScanner` runs a **passive** BLE scan (it never sends a
+   SCAN_REQ) and records advertised MACs, names, and manufacturer-data length. Neither path
+   associates, pairs, or connects to anything, and BLE scanning never transmits. WiFi capture is
+   passive by default too, unless [active deauth](#active-deauth) is deliberately turned on — an
+   explicit, off-by-default opt-in covered in its own section below.
 2. **Catalog.** Every observation is deduplicated by `SignalCatalog` against a bounded in-RAM
    hash set. The first time a given MAC/role is seen, that's a "unique" event: it increments a
    lifetime counter and nudges the creature's expression.
@@ -112,11 +148,13 @@ When the device is asleep, it shows a different, much larger piece of art instea
 
 ## Screens
 
-- **Dashboard** (home) — the creature, its current Mood, whether handshake capture/deauth are on,
-  unique AP/client/BLE/handshake counts, capture status, log size, and session uptime.
-  `Confirm` → Settings, `Left` → toggle Pause (same
-  button pauses and resumes WiFi/BLE capture — no screen change), `Right` → Export/Maintenance,
-  `Up` → Recent Devices, `Down` → Log Viewer, `Back` → force a full ghost-clearing refresh.
+- **Dashboard** (home) — the creature, its current Mood (or "-- PAUSED --" while capture is
+  paused), whether handshake capture/deauth are switched on, unique AP/client/BLE/handshake
+  counts, capture status, log size, and session uptime. `Confirm` → Settings, `Left` → toggle
+  Pause (same button pauses and resumes WiFi/BLE capture — no screen change, and it stops
+  `DeauthEngine` too since that only ever fires from the observation stream capture produces),
+  `Right` → Export/Maintenance, `Up` → Recent Devices, `Down` → Log Viewer, `Back` → force a full
+  ghost-clearing refresh.
 - **Settings** — toggle WiFi/BLE capture, adjust WiFi channel dwell time, set the ghost-clear
   refresh interval, choose what a short Power-button tap does (Refresh / Screenshot / Pause — a
   long hold is always Sleep, not configurable), turn on
@@ -125,7 +163,8 @@ When the device is asleep, it shows a different, much larger piece of art instea
   a live network scan to add/remove targets — see [Active deauth](#active-deauth)), reveal the
   log's AES key, wipe the log.
 - **Export/Maintenance** — how to pull captures off the SD card, plus the current session's
-  record count and (when any exist) raw-capture file stats and deauth burst/frame counters.
+  record count and (when any exist) raw-capture file stats, a PMKID-capable-capture count, and
+  deauth burst/frame counters.
 - **Recent Devices** — a live, RAM-only feed of the last 16 WiFi/BLE observations (type, MAC,
   RSSI, SSID/name, time since seen), newest first, read-only. This is separate from both
   `SignalCatalog` (which deliberately never retains which specific MACs it has seen — only dedup
@@ -164,24 +203,26 @@ strength of networks you own, offline, with tools like [hashcat](https://hashcat
   on as a background default.
 
 By itself, this path only ever *listens* — nothing here transmits or provokes a handshake into
-happening; it records what a passive monitor already sees handshakes doing on their own. That's a
-real limitation: catching a full 4-way handshake by chance while hopping across 13 channels every
-300ms is unreliable in practice. **Active deauth** (below) is the opt-in answer to that.
+happening; it records what a passive monitor already sees handshakes doing on their own. A held
+channel lock while a handshake is in progress (see [How it works](#how-it-works)) helps catch the
+full exchange, but a real 4-way handshake completing on its own is still not guaranteed. **Active
+deauth** (below) is the opt-in, currently non-functional answer to that gap.
 
 ## Active deauth
 
 > **Status: currently non-functional.** The first attempt at this (WIFI_MODE_STA to get a
 > TX-capable interface) crashed the device on every boot on real X3 hardware — see
 > [CHANGELOG](CHANGELOG.md) for the root cause. Reverted to the working WIFI_MODE_NULL baseline;
-> the toggle and target list below still work, but deauth frames don't actually transmit right
-> now. Left documented here as the intended behavior once a safe way to get TX capability on this
-> hardware is found.
+> the toggle and target lists below still work and are fully documented here, but deauth frames
+> don't actually transmit right now — `esp_wifi_80211_tx()` just fails harmlessly. Left documented
+> as the intended behavior once a safe way to get TX capability on this hardware is found.
 
 Passive capture alone often isn't enough to actually catch a handshake — a real 4-way handshake
 completes in well under a second, and the radio has to already be parked on the right channel
-when it happens. **Active deauth** closes that gap by transmitting real 802.11 deauthentication
-frames at a target network, forcing a client to reconnect so the resulting handshake lands in raw
-capture above instead of waiting — often in vain — for one to happen on its own.
+when it happens. **Active deauth** is meant to close that gap by transmitting real 802.11
+deauthentication frames at a target network, forcing a client to reconnect so the resulting
+handshake lands in raw capture above instead of waiting — often in vain — for one to happen on
+its own.
 
 - **Off by default**, and requires raw handshake capture to also be on — forcing a handshake
   nobody's capturing verbatim would just be disruption for nothing. Turn it on at
@@ -201,16 +242,16 @@ capture above instead of waiting — often in vain — for one to happen on its 
   attacked again, and attacks stop entirely for a BSSID once its handshake has been captured —
   this isn't meant to be a sustained flood against any one network.
 - Frame transmission uses `esp_wifi_80211_tx()`, the same raw-TX primitive most community ESP32
-  deauther projects use. It works in practice, but deauth frames aren't among the types ESP-IDF's
-  own documentation calls "supported" for that function — this is a widely-used technique, not an
-  officially documented one.
+  deauther projects use. It works in practice on hardware that can support it, but deauth frames
+  aren't among the types ESP-IDF's own documentation calls "supported" for that function — this
+  is a widely-used technique, not an officially documented one.
 
-**This is real RF interference against whatever it targets.** Transmitting deauthentication
-frames at a network you don't own or don't have explicit authorization to test is illegal in most
-jurisdictions, regardless of how small the transmitting device is. Only enable this against
-networks you own or are explicitly authorized to audit — the both-lists-empty default exists so
-that flipping the setting on can never itself put you outside that boundary; you have to
-deliberately add a target first.
+**This is real RF interference against whatever it targets, once TX capability is restored on
+this hardware.** Transmitting deauthentication frames at a network you don't own or don't have
+explicit authorization to test is illegal in most jurisdictions, regardless of how small the
+transmitting device is. Only enable this against networks you own or are explicitly authorized to
+audit — the both-lists-empty default exists so that flipping the setting on can never itself put
+you outside that boundary; you have to deliberately add a target first.
 
 ## Hardware
 
@@ -218,8 +259,8 @@ Same target as upstream CrossPlant/CrossInk: **Xteink X3 or X4**, ESP32-C3 (sing
 ~380 KB usable RAM, no PSRAM), 792×528 e-ink panel. The dashboard runs in **landscape**
 (792×528 logical) — the panel's own native orientation, needing no rotation math to draw into.
 `MappedInputManager` is a direct, orientation-unaware passthrough from logical buttons
-(Back/Confirm/Left/Right/Up/Down) to hardware — screen orientation is purely a rendering concern,
-so it has no effect on what any button does. What *does* change with orientation is
+(Back/Confirm/Left/Right/Up/Down/Power) to hardware — screen orientation is purely a rendering
+concern, so it has no effect on what any button does. What *does* change with orientation is
 `Chrome::drawFooterHints`: in landscape, the on-screen button-hint pills move from a horizontal
 bar along the bottom to a vertical strip along the right edge, with rotated text — see
 `ui/Chrome.cpp` for the coordinate-geometry reasoning behind that specific edge.
@@ -253,11 +294,12 @@ the encrypted log, the creature, every screen — is new.
 | Layer | What it is |
 | --- | --- |
 | `freeink-sdk/`, `lib/hal`, `lib/GfxRenderer`, `lib/EpdFont` | Hardware bring-up: display driver, buttons, power, SD card, fonts, graphics primitives. Carried over from CrossPlant/CrossInk largely unmodified — this is what makes the firmware boot on real hardware. |
-| `lib/RfCapture` | **New.** 802.11 monitor-mode WiFi sniffing, passive BLE advertisement scanning, the opt-in raw-frame path behind `.pcap` export, and the opt-in `DeauthEngine`/`TargetList` active-deauth capability. |
-| `lib/SignalCatalog` | **New.** Deduplicates observations into "have I seen this MAC before" and lifetime unique-device counters, plus a small RAM-only ring of recent sightings for the Recent Devices screen. |
+| `lib/RfCapture` | **New.** 802.11 monitor-mode WiFi sniffing, passive BLE advertisement scanning, the opt-in raw-frame path behind `.pcap` export (with on-device PMKID visibility), and the opt-in `DeauthEngine`/`TargetList` active-deauth capability. |
+| `lib/SignalCatalog` | **New.** Deduplicates observations into "have I seen this MAC before" and lifetime unique-device counters, plus a small RAM-only ring of recent sightings for the Recent Devices screen and a live dedup-by-BSSID scan cache for the network-picker screens. |
 | `lib/RubyLog` | **New.** AES-256-GCM encrypted append-only capture log. |
 | `src/ruby` | **New.** The creature: procedurally-rendered (no bitmap art pipeline for the logic — see `bmp/` for the actual source art), fed by `SignalCatalog`. |
 | `src/activities/*` | **New.** Dashboard, Settings, device list, log viewer, network picker (`targets/`), and Export/Maintenance screens replace CrossPlant's reader/browser/pet activities entirely. |
+| `src/CaptureControl.h/.cpp`, `src/Screenshot.h/.cpp` | **New.** Session-only capture pause and framebuffer-to-BMP screenshot, both reachable from the Power button (see [Screens](#screens)). |
 
 Reading-specific subsystems (EPUB/TXT/XTC rendering, the file browser, OPDS, KOReader sync,
 WiFi-connected file transfer, the Lexend Deca/Bitter/Charein reading fonts, i18n) were removed,
@@ -347,7 +389,12 @@ value proposition is that it never associates with a network:
 - **Auto-sleep on inactivity** — a reader auto-sleeps when you stop pressing buttons because
   reading is a foreground activity. A passive analyzer's entire job is to sit still and listen
   with no buttons pressed; auto-sleeping on that basis would defeat the point. Sleep here is
-  always an explicit power-button press.
+  always an explicit long-press of the Power button — a short tap does whatever
+  [Settings → Power button (tap)](#screens) is set to instead.
+- **A "Lore" progression screen** — an earlier build unlocked short flavor-text entries as
+  captures accumulated. It read as a pet-sim feature bolted onto a recon tool rather than
+  something that earned its screen real estate, so it was removed outright in favor of
+  [Pause](#screens) on the same Dashboard button.
 
 ## License
 
