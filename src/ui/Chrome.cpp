@@ -16,17 +16,6 @@ constexpr int kFooterTabMarginY = 5;  // vertical inset of each pill within the 
 // from the same physical-geometry reasoning below — not about tracking every possible
 // orientation enum value in parallel.
 bool isLandscape(const GfxRenderer& renderer) { return renderer.getScreenWidth() > renderer.getScreenHeight(); }
-
-// Reverses a short ASCII string in place into `out` (labels here are always plain words like
-// "SETTINGS" — no UTF-8 multi-byte handling needed). Used only for the rotated sidebar text
-// below, so a top-to-bottom reading order still spells the label forwards — see the comment on
-// the landscape branch of drawFooterHints() for why that needs reversing at all.
-void reverseAscii(const char* in, char* out, size_t outSize) {
-  const size_t len = strlen(in);
-  const size_t n = len < outSize - 1 ? len : outSize - 1;
-  for (size_t i = 0; i < n; i++) out[i] = in[len - 1 - i];
-  out[n] = '\0';
-}
 }  // namespace
 
 namespace Chrome {
@@ -66,12 +55,12 @@ void drawFooterHints(const GfxRenderer& renderer, const char* back, const char* 
     // that sits at the *bottom* of the portrait layout below, per Portrait's coordinate rotation
     // (logical portrait y maps onto that physical edge) — which works out to the *right* edge
     // once the panel is shown in its native (LandscapeCounterClockwise) orientation instead. So
-    // the hint pills stack vertically there, with their labels rotated 90° to read top-to-bottom
-    // in a narrow strip rather than left-to-right in a wide one. Stacking order is reversed
-    // relative to the portrait row (top of the sidebar = the portrait row's rightmost slot) for
-    // the same coordinate-rotation reason. drawTextRotated90CW renders forward-order text
-    // growing *upward*, so each label is reversed before drawing — read top-to-bottom, that
-    // still spells it forwards.
+    // the hint pills stack vertically there. Tried drawTextRotated90CW first (rotating each whole
+    // label 90°) but on real hardware that reads as sideways text tilted into a stack, not a
+    // vertical label — so instead each pill spells its label as a column of ordinary upright
+    // characters, one per line, centered in the pill both ways. Stacking order (which slot gets
+    // which label) is reversed relative to the portrait row — top of the sidebar = the portrait
+    // row's rightmost slot — for the same coordinate-rotation reason as the edge choice above.
     const int barLeft = screenW - kFooterHeight;
     const int totalGap = kFooterTabGap * (kCount - 1);
     const int slotH = (screenH - 2 * kMarginX - totalGap) / kCount;
@@ -85,12 +74,17 @@ void drawFooterHints(const GfxRenderer& renderer, const char* back, const char* 
       const int slotY = kMarginX + i * (slotH + kFooterTabGap);
       renderer.drawRoundedRect(pillX, slotY, pillW, slotH, 1, kCardRadius, true);
 
-      char reversed[16];
-      reverseAscii(label, reversed, sizeof(reversed));
-      const int textLen = renderer.getTextWidth(FONT_SMALL_ID, reversed);  // becomes vertical extent, rotated
-      const int textX = pillX + (pillW - lineHeight) / 2;
-      const int textY = slotY + (slotH + textLen) / 2;
-      renderer.drawTextRotated90CW(FONT_SMALL_ID, textX, textY, reversed);
+      const size_t len = strlen(label);
+      const int blockHeight = static_cast<int>(len) * lineHeight;
+      int charY = slotY + (slotH - blockHeight) / 2;
+      char ch[2] = {0, 0};
+      for (size_t c = 0; c < len; c++) {
+        ch[0] = label[c];
+        const int charW = renderer.getTextWidth(FONT_SMALL_ID, ch);
+        const int charX = pillX + (pillW - charW) / 2;
+        renderer.drawText(FONT_SMALL_ID, charX, charY, ch);
+        charY += lineHeight;
+      }
     }
     return;
   }
@@ -116,14 +110,16 @@ void drawFooterHints(const GfxRenderer& renderer, const char* back, const char* 
 
 void drawDivider(const GfxRenderer& renderer, int y) { renderer.drawLine(0, y, renderer.getScreenWidth(), y, true); }
 
-int drawStatRow(const GfxRenderer& renderer, int y, const char* label, const char* value, bool bold, int rightX) {
+int drawStatRow(const GfxRenderer& renderer, int y, const char* label, const char* value, bool bold, int rightX,
+                int leftX) {
   constexpr int kRowHeight = 20;
   const auto style = bold ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
   // Defaults to the shared content-area right edge (not the raw screen edge) so callers that
   // don't pass an explicit column boundary still respect the landscape sidebar reservation — see
   // contentRight() below.
   const int edge = rightX > 0 ? rightX : contentRight(renderer);
-  renderer.drawText(FONT_UI_10_ID, kMarginX, y, label, true, style);
+  const int start = leftX > 0 ? leftX : kMarginX;
+  renderer.drawText(FONT_UI_10_ID, start, y, label, true, style);
   const int valueW = renderer.getTextWidth(FONT_UI_10_ID, value, style);
   renderer.drawText(FONT_UI_10_ID, edge - valueW, y, value, true, style);
   return y + kRowHeight;

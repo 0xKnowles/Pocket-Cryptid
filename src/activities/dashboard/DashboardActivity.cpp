@@ -4,6 +4,7 @@
 #include <HalDisplay.h>
 #include <HalPowerManager.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdio>
 
@@ -246,45 +247,60 @@ void DashboardActivity::renderFull() {
   // Bottom half: SIGNALS + CAPTURE STATUS. Landscape's 792x528 canvas has much less spare height
   // below the top row than the old portrait canvas did, but a lot more spare width — so these
   // two cards sit side by side in their own columns instead of stacked full-width. Every other
-  // proportion on this screen (box size, top row, mood text) is unchanged.
+  // proportion on this screen (box size, top row, mood text) is unchanged. Both cards' borders
+  // extend all the way to the bottom of the content area (there's room to spare below 4 rows of
+  // stats now), rather than shrink-wrapping tightly around their rows the way a single full-width
+  // card used to.
   y += kCardGap;
   const int bottomY = y;
   const int colWidth = (Chrome::contentRight(renderer) - Chrome::contentLeft() - kColumnGap) / 2;
   const int leftColX = Chrome::contentLeft();
   const int rightColX = leftColX + colWidth + kColumnGap;
+  const int columnBottom = Chrome::contentBottom(renderer) - kCardBottomPad;
 
   int leftY = beginStatCard(renderer, leftColX, colWidth, bottomY, "SIGNALS");
   const auto& stats = SIGNAL_CATALOG.getStats();
   char buf[32];
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueWifiAPs));
-  leftY = Chrome::drawStatRow(renderer, leftY, "Unique access points", buf, false, leftColX + colWidth);
+  leftY = Chrome::drawStatRow(renderer, leftY, "Unique access points", buf, false, leftColX + colWidth, leftColX);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueWifiClients));
-  leftY = Chrome::drawStatRow(renderer, leftY, "Unique WiFi clients", buf, false, leftColX + colWidth);
+  leftY = Chrome::drawStatRow(renderer, leftY, "Unique WiFi clients", buf, false, leftColX + colWidth, leftColX);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueBleDevices));
-  leftY = Chrome::drawStatRow(renderer, leftY, "Unique BLE devices", buf, false, leftColX + colWidth);
+  leftY = Chrome::drawStatRow(renderer, leftY, "Unique BLE devices", buf, false, leftColX + colWidth, leftColX);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.handshakesCaptured));
-  leftY = Chrome::drawStatRow(renderer, leftY, "Handshakes captured", buf, false, leftColX + colWidth);
-  endStatCard(renderer, leftColX, colWidth, bottomY, leftY);
+  leftY = Chrome::drawStatRow(renderer, leftY, "Handshakes captured", buf, false, leftColX + colWidth, leftColX);
+  endStatCard(renderer, leftColX, colWidth, bottomY, columnBottom);
 
-  int rightY = beginStatCard(renderer, rightColX, colWidth, bottomY, "CAPTURE STATUS");
+  // CAPTURE STATUS's 4 rows are vertically centered within the card instead of hugging the title
+  // the way SIGNALS' do — asked for explicitly, and it also reads better here since these rows
+  // (WiFi monitor/BLE scan/log size/uptime) are a much more varied mix of value lengths than
+  // SIGNALS' four numbers, so a centered block looks more deliberate than a top-anchored one.
+  constexpr int kCaptureStatusRowCount = 4;
+  constexpr int kStatRowHeight = 20;  // mirrors Chrome::drawStatRow's internal row height
+  const int captureRowsTop = beginStatCard(renderer, rightColX, colWidth, bottomY, "CAPTURE STATUS");
+  const int captureRowsBlockHeight = kCaptureStatusRowCount * kStatRowHeight;
+  const int captureRowsAvailable = columnBottom - captureRowsTop;
+  int rightY = captureRowsTop + std::max(0, (captureRowsAvailable - captureRowsBlockHeight) / 2);
   if (wifiSniffer.isRunning()) {
     char chbuf[16];
     snprintf(chbuf, sizeof(chbuf), "ch %u", wifiSniffer.currentChannel());
-    rightY = Chrome::drawStatRow(renderer, rightY, "WiFi monitor", chbuf, false, rightColX + colWidth);
+    rightY = Chrome::drawStatRow(renderer, rightY, "WiFi monitor", chbuf, false, rightColX + colWidth, rightColX);
   } else {
-    rightY = Chrome::drawStatRow(renderer, rightY, "WiFi monitor", "off", false, rightColX + colWidth);
+    rightY = Chrome::drawStatRow(renderer, rightY, "WiFi monitor", "off", false, rightColX + colWidth, rightColX);
   }
   rightY = Chrome::drawStatRow(renderer, rightY, "BLE scan", bleScanner.isRunning() ? "passive" : "off", false,
-                               rightColX + colWidth);
+                               rightColX + colWidth, rightColX);
 
   char sizeBuf[24];
   formatBytes(encryptedLog.currentFileSizeBytes(), sizeBuf, sizeof(sizeBuf));
-  rightY = Chrome::drawStatRow(renderer, rightY, "Encrypted log (today)", sizeBuf, false, rightColX + colWidth);
+  rightY = Chrome::drawStatRow(renderer, rightY, "Encrypted log (today)", sizeBuf, false, rightColX + colWidth,
+                               rightColX);
 
   char uptimeBuf[24];
   formatUptime(millis(), uptimeBuf, sizeof(uptimeBuf));
-  rightY = Chrome::drawStatRow(renderer, rightY, "Uptime this session", uptimeBuf, false, rightColX + colWidth);
-  endStatCard(renderer, rightColX, colWidth, bottomY, rightY);
+  rightY = Chrome::drawStatRow(renderer, rightY, "Uptime this session", uptimeBuf, false, rightColX + colWidth,
+                               rightColX);
+  endStatCard(renderer, rightColX, colWidth, bottomY, columnBottom);
 
   drawRubyPanel(true);
 

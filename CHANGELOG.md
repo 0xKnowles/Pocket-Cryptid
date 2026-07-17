@@ -5,6 +5,22 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Landscape follow-up, from real hardware feedback:**
+  - Sidebar button-hint labels were rotated as whole glyphs (`drawTextRotated90CW`), which on
+    real hardware reads as sideways-tilted text rather than a vertical label. Replaced with a
+    column of ordinary upright characters, one per line, centered in the pill.
+  - `Chrome::drawStatRow` always drew its label at the fixed global left margin regardless of
+    which column it was called for — harmless with one full-width card, but with
+    `DashboardActivity`'s new side-by-side SIGNALS/CAPTURE STATUS columns, CAPTURE STATUS's
+    labels were drawing on top of SIGNALS' box. Added an explicit `leftX` parameter (defaults to
+    the old global-margin behavior, so every other caller is unaffected).
+  - SIGNALS and CAPTURE STATUS now both extend down to the bottom of the content area instead of
+    shrink-wrapping around their rows — there was a lot of unused space below them at the old
+    tightly-fit height. CAPTURE STATUS's row block is vertically centered within that taller box;
+    SIGNALS stays top-anchored.
+
 ### Changed
 
 - **Rotated the UI to landscape (792x528, the panel's native orientation).** Button *behavior*

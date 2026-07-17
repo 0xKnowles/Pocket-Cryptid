@@ -34,12 +34,14 @@ void drawFooterHints(const GfxRenderer& renderer, const char* back, const char* 
 // A short horizontal rule, full content width, at logical y.
 void drawDivider(const GfxRenderer& renderer, int y);
 
-// A single "label ......... value" stat row, value right-aligned to `rightX` (screen width minus
-// margin if <= 0 — pass an explicit column edge when the row must not run under other content,
-// e.g. DashboardActivity's Ruby corner panel). Returns the y of the next row (y + row height)
-// so callers can chain calls without recomputing layout by hand.
+// A single "label ......... value" stat row: label starts at `leftX` (the shared left margin if
+// <= 0), value right-aligned to `rightX` (content-area right edge if <= 0). Pass explicit column
+// edges for anything narrower than the full content width — e.g. DashboardActivity's side-by-side
+// SIGNALS/CAPTURE STATUS columns — otherwise both rows in a two-column layout draw their labels
+// at the same global-left-margin x regardless of which column they're actually in. Returns the y
+// of the next row (y + row height) so callers can chain calls without recomputing layout by hand.
 int drawStatRow(const GfxRenderer& renderer, int y, const char* label, const char* value, bool bold = false,
-                int rightX = -1);
+                int rightX = -1, int leftX = -1);
 
 // A rounded-outline "button" highlight box behind a selectable row (e.g. the focused row in
 // Settings) — an outlined pill rather than a solid inverted fill, so it reads as "this is a
