@@ -7,6 +7,19 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
+- **"RUBY" moved into the creature's own box.** It used to be the dashboard's header title;
+  it's now a small chip pinned to the top-left corner of Ruby's box itself
+  (`RubySpriteRenderer::draw`), so the header on that screen is just the divider rule and battery
+  badge. Drawn inside the sprite renderer (not the caller) so it survives the box's own
+  ~1.2s partial-refresh tick, the same reason the box's rounded border lives there too.
+- **Much bigger Lore, and it now talks about real captures.** The static flavor-text pool doubled
+  (16 → 32 entries), and a new second tier of 14 entries generates its text live from actual
+  capture data — unique AP/client/BLE counts, handshakes, lifetime frame counts, uptime, boot
+  count, log size, and the most recently heard device/signal strength — pulled from
+  `SignalCatalog`, `RecentSightings`, `EncryptedLog`, and `RubyAppState`. These re-render fresh
+  every time Lore is opened rather than freezing whatever was true at unlock time. Unlock pacing
+  (one entry per 6 lifetime captures) is unchanged, so full unlock now takes longer (46 entries
+  instead of 16) — intentional for a device meant to accumulate lore over weeks, not a day.
 - **Raw handshake capture → crackable `.pcap` export.** A new opt-in, off-by-default setting
   (`Settings > Raw handshake capture`) that captures WPA 4-way-handshake frames verbatim —
   ANonce/SNonce/MIC and all — plus the SSID-bearing beacon for each network involved, and writes

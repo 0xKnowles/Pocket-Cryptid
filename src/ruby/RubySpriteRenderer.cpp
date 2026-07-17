@@ -8,6 +8,7 @@
 #include <cmath>
 
 #include "RubyEmbeddedArt.h"
+#include "fontIds.h"
 
 namespace {
 
@@ -253,6 +254,23 @@ void drawStaticNoise(const GfxRenderer& renderer, int x, int y, int boxSize, Rub
   }
 }
 
+// "RUBY" used to be the dashboard's header title; it now lives here, pinned to the box's own
+// top-left corner instead, so the header itself can stay uncluttered. Backed by a small white
+// chip (rather than relying on blank margin in the art) so it stays legible regardless of
+// whether the box is showing bitmap art, the procedural silhouette fallback, or dark pixels from
+// either one happen to land in that corner.
+void drawNameChip(const GfxRenderer& renderer, int x, int y) {
+  constexpr int kChipInset = 5;
+  constexpr int kChipPadX = 4;
+  constexpr int kChipPadY = 2;
+  const int textW = renderer.getTextWidth(FONT_SMALL_ID, "RUBY", EpdFontFamily::BOLD);
+  const int lineH = renderer.getLineHeight(FONT_SMALL_ID);
+  const int chipX = x + kChipInset;
+  const int chipY = y + kChipInset;
+  renderer.fillRect(chipX, chipY, textW + kChipPadX * 2, lineH + kChipPadY * 2, /*state=*/false);
+  renderer.drawText(FONT_SMALL_ID, chipX + kChipPadX, chipY + kChipPadY, "RUBY", true, EpdFontFamily::BOLD);
+}
+
 }  // namespace
 
 void RubySpriteRenderer::draw(GfxRenderer& renderer, int x, int y, int boxSize, RubyExpression expression,
@@ -280,12 +298,14 @@ void RubySpriteRenderer::draw(GfxRenderer& renderer, int x, int y, int boxSize, 
     }
   }
 
-  // The specimen card's rounded frame is drawn last, on top of the bitmap/silhouette/noise, and lives
-  // here rather than in the caller because this is also what runs on the box-only "strict partial
-  // refresh" tick (see the class comment) — a border drawn by the caller instead would get wiped
-  // by this function's own fillRect() clear above and never redrawn. Drawing it last keeps it
-  // crisp regardless of how far noise/silhouette pixels wander near the edge. The 1px stroke sits
-  // fully inside [x, y, boxSize, boxSize].
+  if (expression != RubyExpression::SLEEPING) drawNameChip(renderer, x, y);
+
+  // The box's rounded frame is drawn last, on top of the bitmap/silhouette/noise/name chip, and
+  // lives here rather than in the caller because this is also what runs on the box-only "strict
+  // partial refresh" tick (see the class comment) — anything drawn by the caller instead would
+  // get wiped by this function's own fillRect() clear above and never redrawn. Drawing it last
+  // keeps it crisp regardless of how far noise/silhouette pixels wander near the edge. The 1px
+  // stroke sits fully inside [x, y, boxSize, boxSize].
   renderer.drawRoundedRect(x, y, boxSize, boxSize, 1, 10, /*state=*/true);
 }
 

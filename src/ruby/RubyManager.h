@@ -42,8 +42,11 @@ class RubyManager : public PersistableStore<RubyManager> {
   // refresh cadence, fast enough to read as "alive" rather than a slideshow.
   uint8_t animFrame() const;
 
-  // Lore entries unlock progressively with lifetime captures; see RubyManager.cpp for the
-  // table. Returns nullptr for an out-of-range index.
+  // Lore entries unlock progressively with lifetime captures; see RubyManager.cpp for the table.
+  // The first entries are fixed flavor text; later ones are generated on the fly from live
+  // stats (SignalCatalog, RecentSightings, EncryptedLog, RubyAppState) so they read differently
+  // every time they're viewed rather than freezing whatever was true at unlock time. Returns
+  // nullptr for an out-of-range index.
   static size_t loreEntryCount();
   const char* loreEntry(size_t index) const;  // nullptr if index >= unlocked count
 
@@ -54,6 +57,10 @@ class RubyManager : public PersistableStore<RubyManager> {
  private:
   RubyManager() = default;
 
+  // Renders one of the live-data lore entries (index into just that half of the table, i.e.
+  // already offset past the fixed flavor-text entries) into loreBuf and returns it.
+  const char* dynamicLoreEntry(size_t index) const;
+
   RubyState state;
   unsigned long lastCaptureMillis = 0;
   unsigned long lastHandshakeMillis = 0;
@@ -61,6 +68,10 @@ class RubyManager : public PersistableStore<RubyManager> {
   bool dirty = false;
   bool justCapturedHandshake = false;
   unsigned long lastSaveMs = 0;
+  // Scratch space for dynamicLoreEntry() — mutable because loreEntry() is const (it's just a
+  // getter from the caller's point of view) but formatting live stats into text needs somewhere
+  // to write. Valid until the next loreEntry() call, which is all LoreActivity ever needs.
+  mutable char loreBuf[160] = {};
 };
 
 #define RUBY RubyManager::getInstance()

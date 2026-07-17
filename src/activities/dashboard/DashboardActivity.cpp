@@ -185,8 +185,11 @@ void DashboardActivity::renderRubyBoxOnly() {
 void DashboardActivity::renderFull() {
   renderer.clearScreen();
 
+  // No title text here: "RUBY" now lives as a small chip pinned to the creature box's own
+  // top-left corner (see RubySpriteRenderer::draw) instead of the shared header bar, so the
+  // header on this one screen is just the divider rule plus the battery badge.
   const int battery = powerManager.getBatteryPercentage();
-  Chrome::drawHeader(renderer, "RUBY", battery);
+  Chrome::drawHeader(renderer, "", battery);
 
   // Top row: specimen box pinned top-left, "RECENT DEVICES" window beside it to the right at the
   // same height.
