@@ -1,8 +1,21 @@
 # bmp/
 
-Bitmap image assets for Ruby, added here manually (not committed by the firmware build itself).
+Bitmap art for Ruby's expressions. `RubySpriteRenderer` (`src/ruby/RubySpriteRenderer.cpp`) loads
+these **from the SD card**, not from the compiled firmware — copy this whole folder onto the SD
+card's root (so the device sees `/bmp/excited.bmp`, etc.) for it to take effect. If a file is
+missing, that expression falls back to the procedural silhouette instead of failing.
 
-This directory is not yet wired into the firmware's rendering pipeline — `RubySpriteRenderer`
-currently draws Ruby procedurally (no bitmap assets, see `src/ruby/RubySpriteRenderer.h`). Once
-image format/size requirements are settled, loading code will be added to draw from files placed
-here instead of (or alongside) the procedural renderer.
+| File | Shown when Ruby is... |
+| --- | --- |
+| `excited.bmp` | `EXCITED` — a handshake was captured moments ago |
+| `curious.bmp` | `CURIOUS` — any new unique device was seen moments ago |
+| `content.bmp` | `CONTENT` — steady recent activity |
+| `bored.bmp` | `BORED` — quiet for a while |
+| `lonely.bmp` | `LONELY` — quiet for a long while |
+| `sleep.bmp` | `SLEEPING` — device is on the sleep screen; also used for the boot splash |
+
+Format: standard Windows BMP (`BM` signature), uncompressed, 1/2/4/8/24/32 bpp all work. Images
+are scaled down (never up) and centered to fit their box, so non-square art is fine — but the
+scaling is simple nearest-neighbor, not smoothed, so art pre-sized close to its target box will
+look crisper. Box sizes: 200×200 on the dashboard, 120×120 on the boot splash, 96×96 on the sleep
+screen.

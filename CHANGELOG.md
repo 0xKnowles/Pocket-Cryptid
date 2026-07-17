@@ -5,8 +5,28 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- **SD-card bitmap art for Ruby** (`RubySpriteRenderer::draw()`): if `/bmp/<expression>.bmp`
+  exists on the SD card (see `bmp/README.md` for the full list and how to deploy it), it's drawn
+  scaled-to-fit and centered instead of the procedural silhouette; missing files fall back to the
+  procedural rendering per-expression, so partial art works fine.
+- **Dashboard "RECENT DEVICES" card**: a live 4-entry preview of `RecentSightings` (type, MAC,
+  time-ago) embedded directly on the main screen next to Ruby, so seeing what's actually been
+  found doesn't require leaving the dashboard. The full 16-entry feed is still available via
+  `Up` (now titled "DEVICE LOG" to distinguish it from the new inline preview).
+- Log Viewer records now show the WiFi channel / BLE address-kind (`extra`) and the EAPOL message
+  number for handshake records, in addition to what was already shown.
+
 ### Changed
 
+- Log Viewer rewritten from two packed, abbreviated lines per record to a bordered three-line
+  card per record (type+MAC, time/RSSI/channel, label), and the page size dropped from 8 to 5
+  records so each has room to breathe — both directly in response to "hard to read."
+- Dashboard's "CAPTURE STATUS" card dropped raw WiFi-frame/BLE-advertisement counters and the
+  session/boot counter to make room for the new "RECENT DEVICES" card; actually seeing what's
+  been found is more useful at a glance than a raw packet tally, and the boot counter remains in
+  `/.ruby/app_state.json` even though it's no longer shown on-screen.
 - **Renamed the project from Pocket Cryptid to Ruby** — README/CHANGELOG/AGENTS.md, the
   on-screen title, the boot splash, the panic-report string, every `Cryptid*` class and macro
   (`CryptidManager` → `RubyManager`, `CRYPTID` → `RUBY`, `CryptidSettings` →
@@ -71,14 +91,21 @@ All notable changes to this project are documented here. Format loosely follows
 - Two remaining `cppcheck` `constParameterReference` findings in `Chrome::drawHeader` and
   `Chrome::drawFooterHints` (both now take `const GfxRenderer&`), the last thing blocking a fully
   green CI run.
-- **Left/Right buttons were swapped on real hardware**: `HalGPIO::BTN_LEFT`/`BTN_RIGHT` don't
-  match the physically left/right buttons on the X3/X4 case, so pressing the button labeled "Lore"
-  opened Maintenance/Export and vice versa (confirmed on a flashed device — Back/Confirm were
-  unaffected). Fixed once, in `MappedInputManager::hardwareIndex()`, correcting every screen that
-  uses Left/Right rather than special-casing the Dashboard.
 - Footer button-hint text could clip at the bottom of the screen: the old 22px-tall footer band
   left too little room below the text baseline for a full line's descenders. The new pill-tab
   footer is 40px tall with the label vertically centered inside each pill.
+- **Power button behavior was inverted**: a quick tap put the device to sleep and only a long
+  hold forced a screen refresh — backwards from the "hold power to turn off" convention users
+  expect, and the direct cause of "long-holding power doesn't sleep." Swapped in `main.cpp`: hold
+  now sleeps, a tap forces a refresh.
+- **Reverted the Left/Right button swap** from the previous entry below. It was based on one X4
+  test where the two middle front buttons seemed to trigger each other's screen, but it
+  contradicts the ADC-ladder calibration table in `freeink-sdk/InputManager.cpp` (real recorded
+  voltages from pressing BACK/CONF/LEFT/RIGHT on physical Xteink hardware — the actual ground
+  truth this device's button reading is built on), and a second, broader "buttons don't do what
+  they say" report on an X3 unit suggests that swap fixed the wrong thing.
+  `MappedInputManager::hardwareIndex()` is back to a direct passthrough; still investigating the
+  real cause with more precise button-by-button reports.
 
 ## [0.1.0] - 2026-07-17
 

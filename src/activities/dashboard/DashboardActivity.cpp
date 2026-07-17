@@ -9,7 +9,7 @@
 
 #include "BleScanner.h"
 #include "EncryptedLog.h"
-#include "RubyAppState.h"
+#include "RecentSightings.h"
 #include "RubySettings.h"
 #include "SignalCatalog.h"
 #include "WifiSniffer.h"
@@ -46,10 +46,25 @@ void formatBytes(uint64_t bytes, char* out, size_t outSize) {
   }
 }
 
+void formatMac(const MacAddress& mac, char* out) {
+  snprintf(out, 18, "%02X:%02X:%02X:%02X:%02X:%02X", mac.bytes[0], mac.bytes[1], mac.bytes[2], mac.bytes[3],
+           mac.bytes[4], mac.bytes[5]);
+}
+
+void formatAgo(unsigned long seenAtMs, char* out, size_t outSize) {
+  const unsigned long ageSec = (millis() - seenAtMs) / 1000;
+  if (ageSec < 60) {
+    snprintf(out, outSize, "%lus ago", ageSec);
+  } else {
+    snprintf(out, outSize, "%lum ago", ageSec / 60);
+  }
+}
+
 constexpr int kCardOutsetX = 6;   // border stroke sits this far outside Chrome's text margin
 constexpr int kCardTitleGap = 6;  // space between the title rule and the first row
 constexpr int kCardTopPad = 6;
 constexpr int kCardBottomPad = 8;
+constexpr int kCardGap = 14;  // vertical gap between stacked cards
 
 // Draws a bold section caption + rule at `y`. Returns the y the first Chrome::drawStatRow() call
 // should land at. Pairs with endStatCard(), which closes the rounded outline once the caller
@@ -187,7 +202,7 @@ void DashboardActivity::renderFull() {
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.handshakesCaptured));
   y = Chrome::drawStatRow(renderer, y, "Handshakes captured", buf);
   endStatCard(renderer, cardTop, y);
-  y += 18;
+  y += kCardGap;
 
   cardTop = y;
   y = beginStatCard(renderer, y, "CAPTURE STATUS");
@@ -200,11 +215,6 @@ void DashboardActivity::renderFull() {
   }
   y = Chrome::drawStatRow(renderer, y, "BLE scan", bleScanner.isRunning() ? "passive" : "off");
 
-  snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.wifiFramesObserved));
-  y = Chrome::drawStatRow(renderer, y, "WiFi frames seen", buf);
-  snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.bleAdvertisementsObserved));
-  y = Chrome::drawStatRow(renderer, y, "BLE adverts seen", buf);
-
   char sizeBuf[24];
   formatBytes(encryptedLog.currentFileSizeBytes(), sizeBuf, sizeof(sizeBuf));
   y = Chrome::drawStatRow(renderer, y, "Encrypted log (today)", sizeBuf);
@@ -212,14 +222,38 @@ void DashboardActivity::renderFull() {
   char uptimeBuf[24];
   formatUptime(millis(), uptimeBuf, sizeof(uptimeBuf));
   y = Chrome::drawStatRow(renderer, y, "Uptime this session", uptimeBuf);
-
-  char sessionBuf[24];
-  snprintf(sessionBuf, sizeof(sessionBuf), "#%lu", static_cast<unsigned long>(APP_STATE.bootCount));
-  y = Chrome::drawStatRow(renderer, y, "Session", sessionBuf);
   endStatCard(renderer, cardTop, y);
-  y += 18;
+  y += kCardGap;
 
-  renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Up: recent devices    Down: decrypt log");
+  // Live preview of what's actually being heard, not just aggregate counts — the full 16-entry
+  // feed is still one Up press away (DeviceListActivity), this is just "what just happened" at a
+  // glance without leaving the dashboard.
+  cardTop = y;
+  y = beginStatCard(renderer, y, "RECENT DEVICES");
+  const size_t liveCount = recentSightings.count();
+  if (liveCount == 0) {
+    renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Nothing heard yet.");
+    y += renderer.getLineHeight(FONT_SMALL_ID) + 2;
+  } else {
+    constexpr size_t kPreviewCount = 4;
+    const size_t shown = liveCount < kPreviewCount ? liveCount : kPreviewCount;
+    const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
+    for (size_t i = 0; i < shown; i++) {
+      const auto& entry = recentSightings.at(i);
+      char macBuf[18];
+      formatMac(entry.mac, macBuf);
+      char agoBuf[16];
+      formatAgo(entry.seenAtMs, agoBuf, sizeof(agoBuf));
+      char line[56];
+      snprintf(line, sizeof(line), "%-6s %s  %s", logRecordTypeShortName(entry.type), macBuf, agoBuf);
+      renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line);
+      y += lineHeight + 4;
+    }
+  }
+  endStatCard(renderer, cardTop, y);
+  y += kCardGap;
+
+  renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Up: full device list    Down: decrypt log");
 
   drawRubyPanel(true);
 

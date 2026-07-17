@@ -6,12 +6,10 @@ uint8_t MappedInputManager::hardwareIndex(Button button) {
       return HalGPIO::BTN_BACK;
     case Button::Confirm:
       return HalGPIO::BTN_CONFIRM;
-    // Swapped on purpose — see the class comment in MappedInputManager.h. HalGPIO's BTN_LEFT/
-    // BTN_RIGHT constants don't match the physical left/right buttons on the X3/X4 case.
     case Button::Left:
-      return HalGPIO::BTN_RIGHT;
-    case Button::Right:
       return HalGPIO::BTN_LEFT;
+    case Button::Right:
+      return HalGPIO::BTN_RIGHT;
     case Button::Up:
       return HalGPIO::BTN_UP;
     case Button::Down:

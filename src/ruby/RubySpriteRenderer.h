@@ -4,11 +4,12 @@
 
 #include "RubyState.h"
 
-// Renders Ruby entirely procedurally — a jittered silhouette polygon, a pair of eyes, a
-// small mouth, and analog-noise "static" — instead of loading baked bitmap frames. Unlike a pet
-// that grows through stages, the silhouette here is one fixed shape: what changes from frame to
-// frame is the *expression* (eyes/mouth/noise/jitter), driven by RubyExpression, the same
-// way Pwnagotchi's face reacts to what it just found rather than the pet "leveling up."
+// Draws Ruby: bitmap art per expression from the SD card (/bmp/<expression>.bmp — see the
+// repo's bmp/ directory) when present, otherwise a jittered silhouette polygon with procedural
+// eyes/mouth/noise as a fallback so the firmware never depends on the SD card having art on it.
+// Unlike a pet that grows through stages, there's one fixed identity: what changes from frame to
+// frame is the *expression*, driven by RubyExpression, the same way Pwnagotchi's face reacts to
+// what it just found rather than the pet "leveling up."
 //
 // This is also what gets redrawn on every "strict partial refresh" tick: callers own clearing and
 // redrawing only the box below, then calling GfxRenderer::displayBuffer(FAST_REFRESH) — see

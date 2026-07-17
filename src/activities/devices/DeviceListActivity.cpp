@@ -46,7 +46,7 @@ void DeviceListActivity::loop() {
 
 void DeviceListActivity::render(RenderLock&&) {
   renderer.clearScreen();
-  Chrome::drawHeader(renderer, "RECENT DEVICES");
+  Chrome::drawHeader(renderer, "DEVICE LOG");
 
   const size_t total = recentSightings.count();
   int y = Chrome::contentTop() + 4;

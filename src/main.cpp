@@ -284,12 +284,16 @@ void loop() {
 
   if (millis() >= allowSleepAt) {
     if (mappedInputManager.wasReleased(MappedInputManager::Button::Power)) {
+      // Hold-to-sleep, tap-to-refresh — matches the physical convention of "hold power to turn
+      // off" rather than the reverse. (Previously this was inverted: a quick tap slept the
+      // device and only a long hold forced a refresh, which is backwards from what a power
+      // button is expected to do.)
       const bool wasLongPress = mappedInputManager.getHeldTime() >= POWER_LONG_PRESS_MS;
       if (wasLongPress) {
+        enterDeepSleep();
+      } else {
         RenderLock lock;
         renderer.displayBuffer(HalDisplay::FULL_REFRESH);
-      } else {
-        enterDeepSleep();
       }
       lastActivityTime = millis();
       return;

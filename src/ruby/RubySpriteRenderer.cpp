@@ -1,8 +1,72 @@
 #include "RubySpriteRenderer.h"
 
+#include <HalStorage.h>
+
+#include <algorithm>
 #include <cmath>
 
 namespace {
+
+// SD-card bitmap art, one per expression — same folder layout as the repo's bmp/ directory, so
+// copying that folder onto the SD card root is all that's needed. Falls back to the procedural
+// silhouette below when a file is missing (e.g. no SD card provisioned, or an expression's art
+// hasn't been added yet), so the firmware never depends on these being present.
+const char* bmpPathFor(RubyExpression expression) {
+  switch (expression) {
+    case RubyExpression::EXCITED:
+      return "/bmp/excited.bmp";
+    case RubyExpression::CURIOUS:
+      return "/bmp/curious.bmp";
+    case RubyExpression::CONTENT:
+      return "/bmp/content.bmp";
+    case RubyExpression::BORED:
+      return "/bmp/bored.bmp";
+    case RubyExpression::LONELY:
+      return "/bmp/lonely.bmp";
+    case RubyExpression::SLEEPING:
+      return "/bmp/sleep.bmp";
+  }
+  return "";
+}
+
+// Loads and draws bmpPathFor(expression), scaled down (never up) to fit inside boxSize x boxSize
+// and centered — the uploaded art isn't square (143x200 for the expressions, 107x150 for sleep),
+// so centering avoids it hugging one edge of the box. Returns false (drawing nothing) if the file
+// doesn't exist or fails to parse as a BMP GfxRenderer understands, so the caller can fall back to
+// the procedural silhouette.
+bool tryDrawBitmap(const GfxRenderer& renderer, int x, int y, int boxSize, RubyExpression expression) {
+  const char* path = bmpPathFor(expression);
+  if (!Storage.exists(path)) return false;
+
+  HalFile file = Storage.open(path);
+  if (!file) return false;
+
+  Bitmap bitmap(file);
+  if (bitmap.parseHeaders() != BmpReaderError::Ok) {
+    file.close();
+    return false;
+  }
+
+  const int bw = bitmap.getWidth();
+  const int bh = bitmap.getHeight();
+  if (bw <= 0 || bh <= 0) {
+    file.close();
+    return false;
+  }
+
+  // Mirrors GfxRenderer::drawBitmap's own fit-to-box scale (shrink-only) so the centering offset
+  // computed here lines up with what it will actually draw.
+  const float scale =
+      std::min(1.0f, std::min(static_cast<float>(boxSize) / bw, static_cast<float>(boxSize) / bh));
+  const int drawnW = static_cast<int>(bw * scale);
+  const int drawnH = static_cast<int>(bh * scale);
+  const int offsetX = x + (boxSize - drawnW) / 2;
+  const int offsetY = y + (boxSize - drawnH) / 2;
+
+  renderer.drawBitmap(bitmap, offsetX, offsetY, boxSize, boxSize);
+  file.close();
+  return true;
+}
 
 // Not relying on M_PI: it's a POSIX/GNU extension to <cmath>, not standard C++, and its
 // availability under newlib's -std=gnu++2a varies by define. Cheap to just spell it out.
@@ -150,26 +214,28 @@ void RubySpriteRenderer::draw(GfxRenderer& renderer, int x, int y, int boxSize, 
                                     uint8_t animFrame) {
   renderer.fillRect(x, y, boxSize, boxSize, /*state=*/false);  // clear to white before redrawing
 
-  const int halfBox = boxSize / 2;
-  const int radiusPx = (kRadiusPct * halfBox) / 100;
-  const int cx = x + halfBox;
-  const int cy = y + halfBox;
+  if (!tryDrawBitmap(renderer, x, y, boxSize, expression)) {
+    const int halfBox = boxSize / 2;
+    const int radiusPx = (kRadiusPct * halfBox) / 100;
+    const int cx = x + halfBox;
+    const int cy = y + halfBox;
 
-  int jitterAmplitude = 1;
-  if (expression == RubyExpression::EXCITED) jitterAmplitude = 4;
-  if (expression == RubyExpression::CURIOUS) jitterAmplitude = 2;
-  if (expression == RubyExpression::BORED) jitterAmplitude = 0;
-  if (expression == RubyExpression::LONELY) jitterAmplitude = 0;
-  if (expression == RubyExpression::SLEEPING) jitterAmplitude = 0;
+    int jitterAmplitude = 1;
+    if (expression == RubyExpression::EXCITED) jitterAmplitude = 4;
+    if (expression == RubyExpression::CURIOUS) jitterAmplitude = 2;
+    if (expression == RubyExpression::BORED) jitterAmplitude = 0;
+    if (expression == RubyExpression::LONELY) jitterAmplitude = 0;
+    if (expression == RubyExpression::SLEEPING) jitterAmplitude = 0;
 
-  const uint32_t frameSeed = hash32(static_cast<uint32_t>(expression) * 4001 + animFrame * 17);
-  drawSilhouette(renderer, cx, cy, radiusPx, animFrame, jitterAmplitude, frameSeed);
-  drawFace(renderer, cx, cy, radiusPx, expression, animFrame);
-  if (expression != RubyExpression::SLEEPING) {
-    drawStaticNoise(renderer, x, y, boxSize, expression, animFrame);
+    const uint32_t frameSeed = hash32(static_cast<uint32_t>(expression) * 4001 + animFrame * 17);
+    drawSilhouette(renderer, cx, cy, radiusPx, animFrame, jitterAmplitude, frameSeed);
+    drawFace(renderer, cx, cy, radiusPx, expression, animFrame);
+    if (expression != RubyExpression::SLEEPING) {
+      drawStaticNoise(renderer, x, y, boxSize, expression, animFrame);
+    }
   }
 
-  // The specimen card's rounded frame is drawn last, on top of the silhouette/noise, and lives
+  // The specimen card's rounded frame is drawn last, on top of the bitmap/silhouette/noise, and lives
   // here rather than in the caller because this is also what runs on the box-only "strict partial
   // refresh" tick (see the class comment) — a border drawn by the caller instead would get wiped
   // by this function's own fillRect() clear above and never redrawn. Drawing it last keeps it

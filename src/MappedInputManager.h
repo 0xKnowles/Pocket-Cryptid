@@ -6,14 +6,17 @@
 // Thin, fixed mapping from logical buttons to the device's physical buttons. Upstream CrossPlant
 // has an elaborate remappable/orientation-aware layer here (reader page-turn side buttons,
 // front-button remap, power-as-confirm fallback for one-handed reading); none of that applies to
-// a fixed-orientation stats dashboard, so this is mostly a direct passthrough plus small
+// a fixed-orientation stats dashboard, so this is a direct passthrough plus small
 // suppress-next-release latches for the same "don't double-fire on the button that closed this
 // screen" pattern Activity::finishAfterBackPress() relies on.
 //
-// One correction lives here: HalGPIO::BTN_LEFT/BTN_RIGHT are swapped relative to the physical
-// case on real X3/X4 hardware — confirmed against a flashed device where Back/Confirm (the outer
-// two of the four front buttons) landed correctly but the two middle buttons opened the screen
-// labeled for the *other* one. See hardwareIndex().
+// This used to swap HalGPIO::BTN_LEFT/BTN_RIGHT here, based on one X4 test where the two middle
+// front buttons seemed to open each other's screen. That swap contradicted the ADC-ladder
+// calibration table in freeink-sdk's InputManager.cpp (real recorded voltages from physically
+// pressing BACK/CONF/LEFT/RIGHT on Xteink hardware, which is the ground truth this device's
+// button reading is built on), and a later, broader "buttons don't do what they say" report on a
+// second X3 unit suggests that swap was the wrong fix for the wrong bug. Reverted back to direct
+// passthrough; see hardwareIndex().
 class MappedInputManager {
  public:
   enum class Button { Back, Confirm, Left, Right, Up, Down, Power };

@@ -28,7 +28,10 @@ class LogViewerActivity final : public Activity {
   void refreshRecordCountAndPage();
   void loadCurrentPage();
 
-  static constexpr size_t kPageSize = 8;
+  // Deliberately small: each record renders as a multi-line bordered card (type, MAC, time,
+  // RSSI, channel/address-kind, label, EAPOL message number) rather than one packed line, so
+  // fewer fit per screen than the old dense 8-line layout did.
+  static constexpr size_t kPageSize = 5;
 
   std::vector<std::string> files;  // filenames only (no dir prefix), sorted oldest to newest
   size_t fileIndex = 0;
