@@ -46,6 +46,17 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **Low raw-capture yield: real-world testing showed 14 EAPOL M1 messages captured against only
+  1 M2 and 1 M3 over ~2 hours, with `hcxpcapngtool` extracting only 1 crackable pair.** Root
+  cause: `WifiSniffer::tick()` hopped channels on a fixed `dwellMs` (300ms default) cadence with
+  no exception for an in-progress handshake, but a full 4-way exchange completes in tens of
+  milliseconds — an AP's M1 arriving just before the hop timer fired meant the client's M2 reply
+  landed on a channel Ruby had already left, so the AP just kept retransmitting M1 into a channel
+  nobody was listening on, exactly matching the lopsided message counts observed. Fixed by
+  briefly locking the current channel whenever an EAPOL frame is seen (`kHandshakeChannelLockMs`,
+  3s, re-armed on every EAPOL frame so a slow multi-retry handshake keeps the lock alive) before
+  resuming the normal hop cycle.
+
 - **Export/Maintenance screen: content ran off the bottom of the screen, and the header read
   badly.** Confirmed by walking the actual render sequence: with raw-capture and active-deauth
   stats both present (a real, shipped combination), the single-column stack of stat rows plus two

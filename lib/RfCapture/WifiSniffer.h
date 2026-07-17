@@ -34,7 +34,9 @@
 //
 // The radio hardware can only listen to one channel at a time, so start() hops across the
 // configured channel list on a timer (tick() must be called regularly from the main loop to
-// drive the hop and to drain captured frames into the observation callback).
+// drive the hop and to drain captured frames into the observation callback). That hop is briefly
+// suspended whenever an EAPOL frame is seen, so an in-progress handshake isn't orphaned mid-hop —
+// see kHandshakeChannelLockMs.
 class WifiSniffer {
  public:
   using ObservationCallback = std::function<void(const WifiObservation&)>;
@@ -89,6 +91,16 @@ class WifiSniffer {
     bool ssidCaptured = false;
   };
 
+  // How long to hold the current channel once an EAPOL frame is seen, instead of hopping on the
+  // normal dwellMs cadence. A full 4-way handshake completes in tens of milliseconds, but with a
+  // 300ms dwell it's easy for the hop timer to fire between the AP's M1 and the client's M2 —
+  // this held the channel just long enough for the AP to give up and retransmit M1 into a channel
+  // Ruby had already left, over and over, without ever seeing a reply. 3s comfortably covers a
+  // handshake plus a retry or two. Set/extended from promiscuousRxCallback each time any EAPOL
+  // frame arrives (any BSSID — the radio can only be on one channel regardless), so a slow
+  // multi-retry handshake keeps the lock alive rather than only the first message extending it.
+  static constexpr uint32_t kHandshakeChannelLockMs = 3000;
+
   bool running = false;
   bool initialized = false;
   const uint8_t* channels = kAllChannels;
@@ -96,6 +108,10 @@ class WifiSniffer {
   size_t channelIndex = 0;
   uint32_t dwellMs = 300;
   unsigned long lastHopAt = 0;
+  // Written from promiscuousRxCallback (WiFi driver task), read from tick() (main loop) — a plain
+  // unsigned long is naturally aligned and single-writer here, so this doesn't need a mutex/queue
+  // the way actual frame data does.
+  volatile unsigned long channelLockUntilMs = 0;
   uint32_t totalFrames = 0;
   uint32_t droppedFrames = 0;
 

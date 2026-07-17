@@ -220,7 +220,11 @@ void WifiSniffer::tick() {
 
   if (running && channelCount > 1) {
     const unsigned long now = millis();
-    if (now - lastHopAt >= dwellMs) {
+    // Hold the current channel while a handshake looks to be in progress — see
+    // kHandshakeChannelLockMs's comment. now - lastHopAt keeps accumulating while locked, so once
+    // the lock clears, a hop happens on the next tick() rather than waiting a full dwellMs from
+    // the unlock moment.
+    if (now >= channelLockUntilMs && now - lastHopAt >= dwellMs) {
       channelIndex = (channelIndex + 1) % channelCount;
       esp_wifi_set_channel(channels[channelIndex], WIFI_SECOND_CHAN_NONE);
       lastHopAt = now;
@@ -319,6 +323,9 @@ void WifiSniffer::promiscuousRxCallback(void* buf, wifi_promiscuous_pkt_type_t t
             obs.bssid = toMac(hdr->addr2);
           }
           matched = true;
+          // Stay on this channel a while instead of hopping away mid-handshake — see
+          // kHandshakeChannelLockMs's comment on WifiSniffer.h.
+          wifiSniffer.channelLockUntilMs = millis() + kHandshakeChannelLockMs;
         }
       }
     }
