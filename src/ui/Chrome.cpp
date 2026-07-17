@@ -1,5 +1,6 @@
 #include "Chrome.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -8,6 +9,15 @@
 namespace {
 constexpr int kFooterTabGap = 6;     // visible gap between tab pills — reads as separate buttons
 constexpr int kFooterTabMarginY = 5;  // vertical inset of each pill within the footer band
+
+// Vertical step between stacked characters in the landscape sidebar (see drawFooterHints below)
+// — deliberately NOT GfxRenderer::getLineHeight() (that's the font's paragraph line-spacing,
+// ~25px for FONT_SMALL_ID, meant for text with real ascenders/descenders between lines; stacked
+// straight up, that reads as distractingly gappy). This is sized off the font's actual glyph
+// metrics instead: FONT_SMALL_ID's uppercase glyphs are ~12px tall and its descenders (g/p/y)
+// reach ~4px below baseline, so ~16px between baselines keeps letters close without the rare
+// descender-into-next-cap case actually touching.
+constexpr int kSidebarCharStep = 16;
 
 // True for the one landscape orientation this firmware actually uses (LandscapeCounterClockwise
 // — see GfxRenderer::Orientation, "native panel orientation"). Checked via aspect ratio rather
@@ -75,7 +85,12 @@ void drawFooterHints(const GfxRenderer& renderer, const char* back, const char* 
       renderer.drawRoundedRect(pillX, slotY, pillW, slotH, 1, kCardRadius, true);
 
       const size_t len = strlen(label);
-      const int blockHeight = static_cast<int>(len) * lineHeight;
+      // Shrink below kSidebarCharStep only if this specific label would otherwise overflow its
+      // slot (only 8-character labels like "Settings"/"Continue" actually hit this) — everything
+      // shorter uses the same fixed step so letter spacing stays visually consistent across pills
+      // instead of stretching short labels to fill the slot.
+      const int charStep = len > 0 ? std::min(kSidebarCharStep, slotH / static_cast<int>(len)) : kSidebarCharStep;
+      const int blockHeight = static_cast<int>(len) * charStep;
       int charY = slotY + (slotH - blockHeight) / 2;
       char ch[2] = {0, 0};
       for (size_t c = 0; c < len; c++) {
@@ -83,7 +98,7 @@ void drawFooterHints(const GfxRenderer& renderer, const char* back, const char* 
         const int charW = renderer.getTextWidth(FONT_SMALL_ID, ch);
         const int charX = pillX + (pillW - charW) / 2;
         renderer.drawText(FONT_SMALL_ID, charX, charY, ch);
-        charY += lineHeight;
+        charY += charStep;
       }
     }
     return;

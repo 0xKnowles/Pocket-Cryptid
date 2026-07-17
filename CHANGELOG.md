@@ -7,6 +7,16 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **Sidebar letter spacing, second hardware-feedback round:** the upright-character stack from
+  the previous fix used `GfxRenderer::getLineHeight()` (~25px for FONT_SMALL_ID) as the vertical
+  step between characters — that's the font's *paragraph* line-spacing metric, way more generous
+  than actual glyph height (~12px for this font's uppercase letters), so letters read as
+  distractingly gapped. Worse, at 25px/character an 8-letter label like "Settings" or "Continue"
+  needed ~200px against an ~121px-tall slot, overflowing into the next pill down. Replaced with a
+  fixed 16px step sized off the font's real glyph metrics (tight but not touching, even across a
+  descender-into-cap worst case), which only shrinks further for the specific labels that would
+  still overflow at 16px — so short labels keep consistent, non-gappy spacing instead of being
+  stretched to fill the slot, and long ones are guaranteed to stay inside their own pill.
 - **Landscape follow-up, from real hardware feedback:**
   - Sidebar button-hint labels were rotated as whole glyphs (`drawTextRotated90CW`), which on
     real hardware reads as sideways-tilted text rather than a vertical label. Replaced with a
