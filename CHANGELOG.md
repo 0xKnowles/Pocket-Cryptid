@@ -37,22 +37,25 @@ All notable changes to this project are documented here. Format loosely follows
     capture produces. `WifiSniffer::tick()` now drains everything queued into one batch and hands
     it to `PcapWriter::writeFrames()` (replacing the old single-frame `writeFrame()`) as a single
     open/write-many/close cycle.
-  - The two items deferred when this was first mitigated are now both done — see the next two
-    entries.
+  - Of the two items deferred when this was first mitigated, one is done (see below); the other
+    (software AES) was attempted and reverted — also below, so it isn't silently retried later.
 
-- **EncryptedLog now uses software AES-256-GCM instead of this chip's hardware accelerator.**
-  This is the direct fix for the DMA-pool dependency above, rather than a workaround for it:
-  `mbedtls_gcm_*` defaults to hardware acceleration, which needs a contiguous chunk of the small
-  DMA-capable pool per call — software AES/GCM only needs ordinary heap, which this device has
-  tens of KB of free even under load. Set via `custom_sdkconfig` in `platformio.ini`
-  (`CONFIG_MBEDTLS_HARDWARE_AES=n`, `CONFIG_MBEDTLS_HARDWARE_GCM=n`) — confirmed pioarduino's
-  `platform-espressif32` supports per-project sdkconfig overrides even for plain
-  `framework = arduino` (not just an `espidf` hybrid) by reading the builder script directly, since
-  it isn't documented anywhere. Same `mbedtls_gcm_*` API either way, so this is a backend swap, not
-  a change to `EncryptedLog`'s own code — no correctness risk beyond "does this build option
-  actually take," which CI now confirms it does. Slower per call, but negligible: still well under
-  a millisecond for the 39-byte plaintext blocks this encrypts, at a rate of at most a few writes
-  per second even in a busy RF environment.
+- **Investigated forcing software AES-256-GCM instead of this chip's hardware accelerator —
+  reverted, left as a documented dead end.** This would have been the direct fix for the DMA-pool
+  dependency above rather than a workaround for it: `mbedtls_gcm_*` defaults to hardware
+  acceleration, which needs a contiguous chunk of the small DMA-capable pool per call, while
+  software AES/GCM only needs ordinary heap. Confirmed pioarduino's `platform-espressif32` supports
+  per-project sdkconfig overrides even for plain `framework = arduino` (undocumented, found by
+  reading the builder script directly) and set `CONFIG_MBEDTLS_HARDWARE_AES=n` /
+  `CONFIG_MBEDTLS_HARDWARE_GCM=n` via `custom_sdkconfig` in `platformio.ini`. CI caught a real
+  problem before it ever reached a device: setting `custom_sdkconfig` *at all* forces this pinned
+  pioarduino release into a full from-source rebuild of the entire ESP-IDF managed-component tree
+  — including components this project never uses (esp-modbus, esp-zigbee, esp_insights, an HTTPS
+  server) — and that path fails outright on a missing generated file (`https_server.crt.S`)
+  unrelated to the mbedtls setting itself. That's a pioarduino/esp-idf component-packaging bug, not
+  something fixable from the application side. Reverted rather than fought further; the heap-health
+  circuit breaker above remains the real safety net for the DMA-pool exhaustion this was meant to
+  prevent at the source.
 
 - **`EncryptedLog` holds a persistent write handle again, with a proper fix this time.** The
   open/write/close-per-record pattern (reverted to earlier tonight after a persistent handle broke
