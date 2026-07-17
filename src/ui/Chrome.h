@@ -23,18 +23,18 @@ void drawFooterHints(GfxRenderer& renderer, const char* back, const char* confir
                      const char* right);
 
 // A short horizontal rule, full content width, at logical y.
-void drawDivider(GfxRenderer& renderer, int y);
+void drawDivider(const GfxRenderer& renderer, int y);
 
 // A single "label ......... value" stat row, value right-aligned to `rightX` (screen width minus
 // margin if <= 0 — pass an explicit column edge when the row must not run under other content,
 // e.g. DashboardActivity's cryptid corner panel). Returns the y of the next row (y + row height)
 // so callers can chain calls without recomputing layout by hand.
-int drawStatRow(GfxRenderer& renderer, int y, const char* label, const char* value, bool bold = false,
+int drawStatRow(const GfxRenderer& renderer, int y, const char* label, const char* value, bool bold = false,
                 int rightX = -1);
 
 int contentTop();     // y just below the header
-int contentBottom(GfxRenderer& renderer);  // y just above the footer
+int contentBottom(const GfxRenderer& renderer);  // y just above the footer
 int contentLeft();
-int contentRight(GfxRenderer& renderer);
+int contentRight(const GfxRenderer& renderer);
 
 }  // namespace Chrome

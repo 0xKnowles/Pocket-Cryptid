@@ -37,9 +37,9 @@ void drawFooterHints(GfxRenderer& renderer, const char* back, const char* confir
   }
 }
 
-void drawDivider(GfxRenderer& renderer, int y) { renderer.drawLine(0, y, renderer.getScreenWidth(), y, true); }
+void drawDivider(const GfxRenderer& renderer, int y) { renderer.drawLine(0, y, renderer.getScreenWidth(), y, true); }
 
-int drawStatRow(GfxRenderer& renderer, int y, const char* label, const char* value, bool bold, int rightX) {
+int drawStatRow(const GfxRenderer& renderer, int y, const char* label, const char* value, bool bold, int rightX) {
   constexpr int kRowHeight = 20;
   const auto style = bold ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
   const int edge = rightX > 0 ? rightX : renderer.getScreenWidth() - kMarginX;
@@ -50,8 +50,8 @@ int drawStatRow(GfxRenderer& renderer, int y, const char* label, const char* val
 }
 
 int contentTop() { return kHeaderHeight + 8; }
-int contentBottom(GfxRenderer& renderer) { return renderer.getScreenHeight() - kFooterHeight - 4; }
+int contentBottom(const GfxRenderer& renderer) { return renderer.getScreenHeight() - kFooterHeight - 4; }
 int contentLeft() { return kMarginX; }
-int contentRight(GfxRenderer& renderer) { return renderer.getScreenWidth() - kMarginX; }
+int contentRight(const GfxRenderer& renderer) { return renderer.getScreenWidth() - kMarginX; }
 
 }  // namespace Chrome

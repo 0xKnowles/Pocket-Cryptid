@@ -43,7 +43,11 @@ jobs:
         run: touch platformio.local.ini
 
       - name: Build firmware (covers X3 and X4 — single runtime-detected binary)
-        run: pio run -e default | tee pio.log
+        # set -o pipefail: without it, `| tee` makes this step report success off tee's exit
+        # code even when `pio run` itself fails — bash -e alone does not catch that.
+        run: |
+          set -o pipefail
+          pio run -e default | tee pio.log
 
       - name: Static analysis (cppcheck via pio check)
         run: pio check -e default --fail-on-defect low --fail-on-defect medium --fail-on-defect high
@@ -57,6 +61,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY" || true
 
       - name: Upload firmware artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: firmware-default

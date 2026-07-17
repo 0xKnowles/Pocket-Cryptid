@@ -69,7 +69,7 @@ void drawSilhouette(GfxRenderer& renderer, int cx, int cy, const StageShape& sha
   renderer.fillPolygon(xs, ys, n, /*state=*/true);
 }
 
-void drawEyes(GfxRenderer& renderer, int cx, int cy, const StageShape& shape, int radiusPx, CryptidMood mood,
+void drawEyes(const GfxRenderer& renderer, int cx, int cy, const StageShape& shape, int radiusPx, CryptidMood mood,
              uint8_t animFrame) {
   if (shape.eyeCount == 0) return;
   const int spread = (radiusPx * shape.eyeSpreadPct) / 100;
