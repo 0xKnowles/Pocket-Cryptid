@@ -75,8 +75,12 @@ not disabled — there is no code path for them left in this repo.
 ## Hardware
 
 Same target as upstream CrossPlant/CrossInk: **Xteink X3 or X4**, ESP32-C3 (single-core RISC-V,
-~380 KB usable RAM, no PSRAM), 800×480 e-ink panel. The dashboard runs in the panel's native
-landscape orientation rather than the portrait orientation a book reader uses.
+~380 KB usable RAM, no PSRAM), 800×480 e-ink panel. The dashboard runs in **portrait**
+(480×800 logical) — that's the orientation the physical Back/Confirm/Left/Right/Up/Down buttons
+are laid out for. Upstream CrossPlant handles rotated orientations with an orientation-aware
+button remapping layer in `MappedInputManager`; this port deliberately doesn't carry that
+complexity, so it stays in the one orientation where on-screen button hints are correct without
+it.
 
 The ESP32-C3 has integrated WiFi 802.11 b/g/n and Bluetooth 5 (LE only) — both capture paths run
 on the same radio hardware the original firmware used for book downloads and OTA updates.

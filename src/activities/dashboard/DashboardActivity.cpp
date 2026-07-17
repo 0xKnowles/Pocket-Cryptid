@@ -50,9 +50,13 @@ void formatBytes(uint64_t bytes, char* out, size_t outSize) {
 void DashboardActivity::onEnter() {
   Activity::onEnter();
 
-  cryptidBoxSize = 140;
-  cryptidBoxX = renderer.getScreenWidth() - cryptidBoxSize - Chrome::kMarginX;
-  cryptidBoxY = Chrome::contentBottom(renderer) - cryptidBoxSize;
+  // Portrait layout: the creature gets a prominent "specimen card" box centered at the top of
+  // the screen, with its name/stage/mood/XP bar directly beneath it, then the RF stats fill the
+  // rest of the tall screen full-width below that. See DashboardActivity.h for why this is
+  // portrait and not landscape — the physical buttons are laid out for this orientation.
+  cryptidBoxSize = 200;
+  cryptidBoxX = (renderer.getScreenWidth() - cryptidBoxSize) / 2;
+  cryptidBoxY = Chrome::contentTop();
 
   pendingRenderKind = RenderKind::Full;
   lastFullRenderMs = 0;
@@ -124,76 +128,77 @@ void DashboardActivity::renderFull() {
   const int battery = powerManager.getBatteryPercentage();
   Chrome::drawHeader(renderer, "POCKET CRYPTID", battery);
 
-  int y = Chrome::contentTop();
-  const auto& stats = SIGNAL_CATALOG.getStats();
-  // Stat values right-align to statColRight, not the full screen width, so they never run
-  // underneath the cryptid corner panel occupying the right kMarginX..cryptidBoxSize column.
-  const int statColRight = cryptidBoxX - 16;
+  // Specimen card: box, then name/stage/mood/XP bar centered directly beneath it.
+  const CryptidState& state = CRYPTID.getState();
+  const CryptidMood mood = CRYPTID.currentMood(false);
+  int y = cryptidBoxY + cryptidBoxSize + 14;
+  renderer.drawCenteredText(FONT_UI_12_ID, y, state.designation, true, EpdFontFamily::BOLD);
+  y += 22;
+  // Plain ASCII hyphen, not an em dash: no guarantee the Inter subset baked into
+  // builtinFonts covers U+2014, and this isn't worth risking a missing-glyph fallback over.
+  char stageMood[48];
+  snprintf(stageMood, sizeof(stageMood), "%s - %s", CryptidEvolution::stageName(state.stage),
+           CryptidEvolution::moodLabel(mood));
+  renderer.drawCenteredText(FONT_SMALL_ID, y, stageMood);
+  y += 20;
 
+  const uint32_t need = CryptidEvolution::xpNeededForNextStage(state.xp);
+  constexpr int barW = 240;
+  constexpr int barH = 8;
+  const int barX = (renderer.getScreenWidth() - barW) / 2;
+  renderer.drawRect(barX, y, barW, barH, true);
+  if (need > 0) {
+    const uint32_t into = CryptidEvolution::xpIntoCurrentStage(state.xp);
+    const int fillW = static_cast<int>((static_cast<uint64_t>(into) * (barW - 2)) / need);
+    if (fillW > 0) renderer.fillRect(barX + 1, y + 1, fillW, barH - 2, true);
+  } else {
+    renderer.fillRect(barX + 1, y + 1, barW - 2, barH - 2, true);  // APEX: full bar
+  }
+  y += barH + 22;
+
+  renderer.drawLine(Chrome::contentLeft(), y, Chrome::contentRight(renderer), y, true);
+  y += 18;
+
+  const auto& stats = SIGNAL_CATALOG.getStats();
   char buf[32];
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueWifiAPs));
-  y = Chrome::drawStatRow(renderer, y, "Unique access points", buf, false, statColRight);
+  y = Chrome::drawStatRow(renderer, y, "Unique access points", buf);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueWifiClients));
-  y = Chrome::drawStatRow(renderer, y, "Unique WiFi clients", buf, false, statColRight);
+  y = Chrome::drawStatRow(renderer, y, "Unique WiFi clients", buf);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueBleDevices));
-  y = Chrome::drawStatRow(renderer, y, "Unique BLE devices", buf, false, statColRight);
+  y = Chrome::drawStatRow(renderer, y, "Unique BLE devices", buf);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.handshakesCaptured));
-  y = Chrome::drawStatRow(renderer, y, "Handshakes captured", buf, false, statColRight);
+  y = Chrome::drawStatRow(renderer, y, "Handshakes captured", buf);
 
-  y += 6;
-  renderer.drawLine(Chrome::contentLeft(), y, statColRight, y, true);
-  y += 12;
+  y += 10;
+  renderer.drawLine(Chrome::contentLeft(), y, Chrome::contentRight(renderer), y, true);
+  y += 16;
 
   if (wifiSniffer.isRunning()) {
     char chbuf[16];
     snprintf(chbuf, sizeof(chbuf), "ch %u", wifiSniffer.currentChannel());
-    y = Chrome::drawStatRow(renderer, y, "WiFi monitor", chbuf, false, statColRight);
+    y = Chrome::drawStatRow(renderer, y, "WiFi monitor", chbuf);
   } else {
-    y = Chrome::drawStatRow(renderer, y, "WiFi monitor", "off", false, statColRight);
+    y = Chrome::drawStatRow(renderer, y, "WiFi monitor", "off");
   }
-  y = Chrome::drawStatRow(renderer, y, "BLE scan", bleScanner.isRunning() ? "passive" : "off", false, statColRight);
+  y = Chrome::drawStatRow(renderer, y, "BLE scan", bleScanner.isRunning() ? "passive" : "off");
 
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.wifiFramesObserved));
-  y = Chrome::drawStatRow(renderer, y, "WiFi frames seen", buf, false, statColRight);
+  y = Chrome::drawStatRow(renderer, y, "WiFi frames seen", buf);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.bleAdvertisementsObserved));
-  y = Chrome::drawStatRow(renderer, y, "BLE adverts seen", buf, false, statColRight);
+  y = Chrome::drawStatRow(renderer, y, "BLE adverts seen", buf);
 
   char sizeBuf[24];
   formatBytes(encryptedLog.currentFileSizeBytes(), sizeBuf, sizeof(sizeBuf));
-  y = Chrome::drawStatRow(renderer, y, "Encrypted log (today)", sizeBuf, false, statColRight);
+  y = Chrome::drawStatRow(renderer, y, "Encrypted log (today)", sizeBuf);
 
   char uptimeBuf[24];
   formatUptime(millis(), uptimeBuf, sizeof(uptimeBuf));
-  y = Chrome::drawStatRow(renderer, y, "Uptime this session", uptimeBuf, false, statColRight);
+  y = Chrome::drawStatRow(renderer, y, "Uptime this session", uptimeBuf);
 
   char sessionBuf[24];
   snprintf(sessionBuf, sizeof(sessionBuf), "#%lu", static_cast<unsigned long>(APP_STATE.bootCount));
-  Chrome::drawStatRow(renderer, y, "Session", sessionBuf, false, statColRight);
-
-  // Cryptid panel: name/stage/mood/XP bar sit directly above the box, forming one status card
-  // in the bottom-right corner rather than stretching across the whole right column.
-  const CryptidState& state = CRYPTID.getState();
-  const CryptidMood mood = CRYPTID.currentMood(false);
-  const int panelX = cryptidBoxX;
-  int py = cryptidBoxY - 68;
-  renderer.drawText(FONT_UI_10_ID, panelX, py, state.designation, true, EpdFontFamily::BOLD);
-  py += 18;
-  renderer.drawText(FONT_SMALL_ID, panelX, py, CryptidEvolution::stageName(state.stage));
-  py += 14;
-  renderer.drawText(FONT_SMALL_ID, panelX, py, CryptidEvolution::moodLabel(mood));
-  py += 16;
-
-  const uint32_t need = CryptidEvolution::xpNeededForNextStage(state.xp);
-  const int barW = cryptidBoxSize;
-  const int barH = 6;
-  renderer.drawRect(panelX, py, barW, barH, true);
-  if (need > 0) {
-    const uint32_t into = CryptidEvolution::xpIntoCurrentStage(state.xp);
-    const int fillW = static_cast<int>((static_cast<uint64_t>(into) * (barW - 2)) / need);
-    if (fillW > 0) renderer.fillRect(panelX + 1, py + 1, fillW, barH - 2, true);
-  } else {
-    renderer.fillRect(panelX + 1, py + 1, barW - 2, barH - 2, true);  // APEX: full bar
-  }
+  Chrome::drawStatRow(renderer, y, "Session", sessionBuf);
 
   drawCryptidPanel(true);
 

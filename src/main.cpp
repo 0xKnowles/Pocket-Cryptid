@@ -141,9 +141,13 @@ void setupDisplayAndFonts() {
   renderer.insertFont(FONT_UI_10_ID, ui10FontFamily);
   renderer.insertFont(FONT_UI_12_ID, ui12FontFamily);
 
-  // 800x480 landscape (the panel's native orientation) — a stats dashboard reads better wide
-  // than the portrait orientation upstream CrossPlant uses for book pages.
-  renderer.setOrientation(GfxRenderer::LandscapeCounterClockwise);
+  // Portrait (480x800 logical) — this is the orientation the X3/X4's physical buttons are
+  // actually laid out for. Landscape rotates the logical screen 90° from where Back/Confirm/
+  // Left/Right/Up/Down physically sit on the case; upstream CrossPlant handles that with an
+  // orientation-aware button remapping layer in MappedInputManager that this port deliberately
+  // dropped as reader-specific complexity. Rather than resurrect that layer to chase a landscape
+  // dashboard, staying in the native orientation keeps on-screen button hints correct for free.
+  renderer.setOrientation(GfxRenderer::Portrait);
 
   LOG_DBG("MAIN", "Display and fonts ready");
 }

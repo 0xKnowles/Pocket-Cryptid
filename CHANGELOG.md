@@ -9,6 +9,16 @@ All notable changes to this project are documented here. Format loosely follows
 
 - GitHub Actions CI (`.github/workflows/ci.yml`): builds the `default` PlatformIO environment
   and runs `pio check` static analysis on every push/PR.
+- Verified on real X4 hardware for the first time.
+
+### Fixed
+
+- Dashboard now runs in portrait, not landscape. Landscape put the on-screen footer button hints
+  out of alignment with the physical buttons, which are wired for portrait; fixing it properly
+  would mean carrying the orientation-aware button remapping layer upstream drops for reader
+  page-turning, which this port intentionally doesn't have. Reworked the dashboard layout for a
+  tall screen in the process: the creature is now a centered "specimen card" at the top with its
+  name/stage/mood/XP bar beneath it, RF stats fill the rest of the screen full-width below that.
 
 ## [0.1.0] - 2026-07-17
 
