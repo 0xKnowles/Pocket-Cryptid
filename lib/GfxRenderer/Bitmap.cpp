@@ -21,7 +21,7 @@ Bitmap::~Bitmap() {
   delete fsDitherer;
 }
 
-uint16_t Bitmap::readLE16(HalFile& f) {
+uint16_t Bitmap::readLE16(BitmapSource& f) {
   const int c0 = f.read();
   const int c1 = f.read();
   const auto b0 = static_cast<uint8_t>(c0 < 0 ? 0 : c0);
@@ -29,7 +29,7 @@ uint16_t Bitmap::readLE16(HalFile& f) {
   return static_cast<uint16_t>(b0) | (static_cast<uint16_t>(b1) << 8);
 }
 
-uint32_t Bitmap::readLE32(HalFile& f) {
+uint32_t Bitmap::readLE32(BitmapSource& f) {
   const int c0 = f.read();
   const int c1 = f.read();
   const int c2 = f.read();

@@ -1,17 +1,19 @@
 #include "RubySpriteRenderer.h"
 
+#include <BitmapSource.h>
 #include <HalStorage.h>
 #include <Logging.h>
 
 #include <algorithm>
 #include <cmath>
 
+#include "RubyEmbeddedArt.h"
+
 namespace {
 
-// SD-card bitmap art, one per expression — same folder layout as the repo's bmp/ directory, so
-// copying that folder onto the SD card root is all that's needed. Falls back to the procedural
-// silhouette below when a file is missing (e.g. no SD card provisioned, or an expression's art
-// hasn't been added yet), so the firmware never depends on these being present.
+// Optional SD-card override, one per expression — same folder layout as the repo's bmp/
+// directory, so copying that folder onto the SD card root is all that's needed to replace the
+// art baked into the firmware (see RubyEmbeddedArt.h) without recompiling.
 const char* bmpPathFor(RubyExpression expression) {
   switch (expression) {
     case RubyExpression::EXCITED:
@@ -30,40 +32,13 @@ const char* bmpPathFor(RubyExpression expression) {
   return "";
 }
 
-// Loads and draws bmpPathFor(expression), scaled down (never up) to fit inside boxSize x boxSize
-// and centered — the uploaded art isn't square (143x200 for the expressions, 107x150 for sleep),
-// so centering avoids it hugging one edge of the box. Returns false (drawing nothing) if the file
-// doesn't exist or fails to parse as a BMP GfxRenderer understands, so the caller can fall back to
-// the procedural silhouette.
-bool tryDrawBitmap(const GfxRenderer& renderer, int x, int y, int boxSize, RubyExpression expression) {
-  const char* path = bmpPathFor(expression);
-  if (!Storage.exists(path)) {
-    LOG_ERR("RUBYART", "%s not found on SD card, using procedural fallback", path);
-    return false;
-  }
-
-  HalFile file = Storage.open(path);
-  if (!file) {
-    LOG_ERR("RUBYART", "Failed to open %s", path);
-    return false;
-  }
-
-  Bitmap bitmap(file, /*dithering=*/true);
-  const BmpReaderError err = bitmap.parseHeaders();
-  if (err != BmpReaderError::Ok) {
-    LOG_ERR("RUBYART", "Failed to parse %s: %s", path, Bitmap::errorToString(err));
-    file.close();
-    return false;
-  }
-
+// Scales bitmap down (never up) to fit inside boxSize x boxSize and centers it, then draws —
+// shared by both the SD-card and embedded-asset paths below. `label` is just for logging.
+void drawScaledAndCentered(const GfxRenderer& renderer, const Bitmap& bitmap, int x, int y, int boxSize,
+                           const char* label) {
   const int bw = bitmap.getWidth();
   const int bh = bitmap.getHeight();
-  if (bw <= 0 || bh <= 0) {
-    LOG_ERR("RUBYART", "%s parsed with bad dimensions %dx%d", path, bw, bh);
-    file.close();
-    return false;
-  }
-  LOG_INF("RUBYART", "Drawing %s (%dx%d, %ubpp)", path, bw, bh, bitmap.getBpp());
+  LOG_INF("RUBYART", "Drawing %s (%dx%d, %ubpp)", label, bw, bh, bitmap.getBpp());
 
   // Mirrors GfxRenderer::drawBitmap's own fit-to-box scale (shrink-only) so the centering offset
   // computed here lines up with what it will actually draw.
@@ -75,8 +50,67 @@ bool tryDrawBitmap(const GfxRenderer& renderer, int x, int y, int boxSize, RubyE
   const int offsetY = y + (boxSize - drawnH) / 2;
 
   renderer.drawBitmap(bitmap, offsetX, offsetY, boxSize, boxSize);
+}
+
+// Tries the SD-card override first — returns false (drawing nothing) if the file doesn't exist
+// or fails to parse, so the caller can fall back to the art baked into the firmware.
+bool tryDrawFromSd(const GfxRenderer& renderer, int x, int y, int boxSize, RubyExpression expression) {
+  const char* path = bmpPathFor(expression);
+  if (!Storage.exists(path)) return false;
+
+  HalFile file = Storage.open(path);
+  if (!file) {
+    LOG_ERR("RUBYART", "Failed to open SD override %s", path);
+    return false;
+  }
+
+  HalFileSource source(file);
+  Bitmap bitmap(source, /*dithering=*/true);
+  const BmpReaderError err = bitmap.parseHeaders();
+  if (err != BmpReaderError::Ok) {
+    LOG_ERR("RUBYART", "Failed to parse SD override %s: %s", path, Bitmap::errorToString(err));
+    file.close();
+    return false;
+  }
+  if (bitmap.getWidth() <= 0 || bitmap.getHeight() <= 0) {
+    LOG_ERR("RUBYART", "SD override %s parsed with bad dimensions %dx%d", path, bitmap.getWidth(),
+            bitmap.getHeight());
+    file.close();
+    return false;
+  }
+
+  drawScaledAndCentered(renderer, bitmap, x, y, boxSize, path);
   file.close();
   return true;
+}
+
+// Draws the art baked into the firmware (see RubyEmbeddedArt.h) — always present, so this should
+// only ever fail if the generator script produced something the parser rejects.
+bool tryDrawFromEmbedded(const GfxRenderer& renderer, int x, int y, int boxSize, RubyExpression expression) {
+  const RubyEmbeddedArt::Asset asset = RubyEmbeddedArt::forExpression(expression);
+  if (!asset.data || asset.size == 0) return false;
+
+  MemorySource source(asset.data, asset.size);
+  Bitmap bitmap(source, /*dithering=*/true);
+  const BmpReaderError err = bitmap.parseHeaders();
+  if (err != BmpReaderError::Ok) {
+    LOG_ERR("RUBYART", "Failed to parse embedded art for expression %u: %s",
+            static_cast<unsigned>(expression), Bitmap::errorToString(err));
+    return false;
+  }
+  if (bitmap.getWidth() <= 0 || bitmap.getHeight() <= 0) {
+    LOG_ERR("RUBYART", "Embedded art for expression %u parsed with bad dimensions %dx%d",
+            static_cast<unsigned>(expression), bitmap.getWidth(), bitmap.getHeight());
+    return false;
+  }
+
+  drawScaledAndCentered(renderer, bitmap, x, y, boxSize, "embedded art");
+  return true;
+}
+
+bool tryDrawBitmap(const GfxRenderer& renderer, int x, int y, int boxSize, RubyExpression expression) {
+  if (tryDrawFromSd(renderer, x, y, boxSize, expression)) return true;
+  return tryDrawFromEmbedded(renderer, x, y, boxSize, expression);
 }
 
 // Not relying on M_PI: it's a POSIX/GNU extension to <cmath>, not standard C++, and its

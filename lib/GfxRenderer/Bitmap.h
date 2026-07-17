@@ -5,6 +5,7 @@
 #include <cstdint>
 
 #include "BitmapHelpers.h"
+#include "BitmapSource.h"
 
 #pragma pack(push, 1)
 struct BmpHeader {
@@ -64,7 +65,7 @@ class Bitmap {
  public:
   static const char* errorToString(BmpReaderError err);
 
-  explicit Bitmap(HalFile& file, bool dithering = false) : file(file), dithering(dithering) {}
+  explicit Bitmap(BitmapSource& file, bool dithering = false) : file(file), dithering(dithering) {}
   ~Bitmap();
   BmpReaderError parseHeaders();
   BmpReaderError readNextRow(uint8_t* data, uint8_t* rowBuffer) const;
@@ -78,10 +79,10 @@ class Bitmap {
   uint16_t getBpp() const { return bpp; }
 
  private:
-  static uint16_t readLE16(HalFile& f);
-  static uint32_t readLE32(HalFile& f);
+  static uint16_t readLE16(BitmapSource& f);
+  static uint32_t readLE32(BitmapSource& f);
 
-  HalFile& file;
+  BitmapSource& file;
   bool dithering = false;
   int width = 0;
   int height = 0;

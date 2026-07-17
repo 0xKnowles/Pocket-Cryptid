@@ -1,9 +1,14 @@
 # bmp/
 
-Bitmap art for Ruby's expressions. `RubySpriteRenderer` (`src/ruby/RubySpriteRenderer.cpp`) loads
-these **from the SD card**, not from the compiled firmware — copy this whole folder onto the SD
-card's root (so the device sees `/bmp/excited.bmp`, etc.) for it to take effect. If a file is
-missing, that expression falls back to the procedural silhouette instead of failing.
+Source art for Ruby's expressions. These files are baked directly into the firmware image at
+build time — see `scripts/generate_embedded_art.py`, which re-encodes each one as an 8bpp
+grayscale header under `src/ruby/embeddedArt/` (checked into the repo, regenerate after changing
+anything here) — so a freshly flashed device shows this art immediately with **no SD card setup
+required**.
+
+Optionally, a device's SD card can still override any of these at `/bmp/<name>.bmp` on the card's
+root (`RubySpriteRenderer` checks there first); that's for swapping in custom art without
+recompiling, not something you need to do to see the built-in art.
 
 | File | Shown when Ruby is... |
 | --- | --- |
@@ -21,3 +26,8 @@ down (never up) and centered to fit their box, so non-square art is fine — but
 simple nearest-neighbor, not smoothed, so art pre-sized close to its target box will look
 crisper. Box sizes: 170×170 on the dashboard, 120×120 on the boot splash, 96×96 on the sleep
 screen.
+
+To replace this art: overwrite the relevant file(s) here, then run
+`python3 scripts/generate_embedded_art.py` (needs `Pillow`, see `scripts/requirements.txt`) and
+rebuild — the SD-card override path also still works if you'd rather not touch these source files
+or rebuild at all.

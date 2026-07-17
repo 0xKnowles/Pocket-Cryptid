@@ -7,10 +7,14 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
-- **SD-card bitmap art for Ruby** (`RubySpriteRenderer::draw()`): if `/bmp/<expression>.bmp`
-  exists on the SD card (see `bmp/README.md` for the full list and how to deploy it), it's drawn
-  scaled-to-fit and centered instead of the procedural silhouette; missing files fall back to the
-  procedural rendering per-expression, so partial art works fine.
+- **Bitmap art for Ruby, baked into the firmware** (`RubySpriteRenderer::draw()`,
+  `RubyEmbeddedArt.h`): each expression's art (`bmp/*.bmp`) is re-encoded at build-prep time
+  (`scripts/generate_embedded_art.py`, needs `Pillow`) into an 8bpp-grayscale C header and
+  compiled directly into the firmware image, so it's there from a fresh flash with no SD-card
+  setup — no more "not found on SD card" if a user never provisioned one. An SD card at
+  `/bmp/<expression>.bmp` (see `bmp/README.md`) is still checked first and overrides the built-in
+  art when present, for anyone who wants to swap in their own without recompiling. Falls back
+  further still to the procedural silhouette only if a bitmap somehow fails to parse.
 - **Dashboard "RECENT DEVICES" card**: a live 4-entry preview of `RecentSightings` (type, MAC,
   time-ago) embedded directly on the main screen next to Ruby, so seeing what's actually been
   found doesn't require leaving the dashboard. The full 16-entry feed is still available via
@@ -64,15 +68,17 @@ All notable changes to this project are documented here. Format loosely follows
   specimen box 200→170px, card gaps 14→10px, spacing under the name/mood/lore lines trimmed, the
   "RECENT DEVICES" preview 4→3 entries, and the standalone "Up: full device list / Down: decrypt
   log" hint line folded into that card's title instead of getting its own line.
-- **Uploaded `.bmp` art wasn't displaying** on the dashboard (procedural fallback kept showing
-  instead). The BMP parser looks correct for the uploaded files (32bpp `BI_BITFIELDS`,
-  `BITMAPV5HEADER`, no palette) by manual byte-level inspection, so the cause wasn't confirmed on
-  real hardware; added `LOG_ERR`/`LOG_INF` calls at every point
-  `RubySpriteRenderer::tryDrawBitmap()` can bail (file not found, open failed, specific
-  `BmpReaderError`, bad dimensions) so the next test run's serial log pinpoints exactly which step
-  fails instead of silently falling back. Also turned on Atkinson dithering for SD-card art (was
-  off by default), which should meaningfully improve how photographic/gradient art looks on the
-  4-level grayscale panel once loading is confirmed working.
+- **Uploaded `.bmp` art wasn't displaying**, root-caused via the serial log added below:
+  `/bmp/curious.bmp not found on SD card` — the art had been added to the *repo's* `bmp/` folder,
+  not copied onto the device's actual SD card, and the firmware had no other source for it. Rather
+  than just documenting the SD-card step more clearly, the art is now baked into the firmware
+  image directly (see "Added" above) so this class of mismatch — repo assets vs. what's physically
+  on the card — can't happen for the built-in expressions at all; the SD-card path still exists,
+  now purely as an optional override. Also added `LOG_ERR`/`LOG_INF` calls at every point
+  `RubySpriteRenderer`'s SD/embedded loaders can bail (open failed, specific `BmpReaderError`, bad
+  dimensions) so a real parse failure would be equally easy to diagnose from serial output, and
+  turned on Atkinson dithering for bitmap art (was off by default), improving how
+  photographic/gradient art looks on the 4-level grayscale panel.
 
 ### Added
 
