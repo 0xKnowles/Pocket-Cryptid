@@ -7,6 +7,17 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **Sleep crash, take 4 — found it (pending confirmation)**: the added heap diagnostics gave a
+  concrete number — `free=2692` bytes of *general* heap right after capture starts, dropping to
+  ~1400-1500 with the DMA-capable pool almost fully fragmented (`dmaLargest=0`), moments before
+  the `esp-aes` allocation failure and abort. That's not a small dedicated pool running out — the
+  whole application was down to a few KB of free RAM. The user confirmed by bisecting to a known-
+  good build (before the responsiveness pass) that this is a real regression, and with
+  `EncryptedLog`'s persistent-handle change already reverted without fixing it, `SignalCatalog`'s
+  open-addressing hash index is the remaining suspect from that same change: ~10 KB of *static*
+  RAM added permanently to a device already apparently running with only single-digit KB of
+  margin. Reverted `HashRing` back to the plain O(Capacity) linear scan it was before — same
+  dedup behavior, no extra RAM. CPU cost was the acceptable trade here, not memory.
 - **Sleep crash, take 3**: fresh serial logs from real hardware ruled out the previous theory —
   this run had no `GFX !! Outside range` flood at all, just `esp-aes: Failed to allocate memory`
   on a `GCM encrypt` call, seconds after a *fresh boot*, immediately followed by `abort()`. This

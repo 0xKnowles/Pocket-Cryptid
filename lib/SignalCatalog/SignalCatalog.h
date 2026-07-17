@@ -8,20 +8,6 @@
 
 #include "RfTypes.h"
 
-namespace {
-// Smallest power of two >= n — used to size each HashRing's open-addressing index table below.
-// A free function rather than a SignalCatalog member: GCC rejects a same-class static constexpr
-// member function used inside a nested class template's own static member initializer ("called in
-// a constant expression before its definition is complete"), even though it's fully defined
-// earlier in the same class body — the enclosing class isn't a "complete-class context" yet at
-// that point. Living outside the class entirely sidesteps that.
-constexpr size_t nextPowerOfTwo(size_t n) {
-  size_t p = 1;
-  while (p < n) p <<= 1;
-  return p;
-}
-}  // namespace
-
 // What kind of "first time we've ever seen this" event just happened. RubyManager listens
 // for these to update its expression and to unlock lore entries.
 enum class RfEventType : uint8_t {
@@ -86,81 +72,31 @@ class SignalCatalog : public PersistableStore<SignalCatalog> {
   // "new" again on rediscovery — an accepted tradeoff for keeping this RAM-bounded on a ~380 KB
   // heap budget instead of growing unbounded over a multi-day capture session.
   //
-  // `slots`/`occupied`/`nextSlot` are the ring itself (insertion order, oldest-slot eviction,
-  // unchanged from before). `table` is a separate open-addressing index — hash -> slot index,
-  // linear-probed with tombstones for removal — so contains()/insert() are an O(1) average hash
-  // lookup instead of an O(Capacity) scan over every slot on *every single observed packet*. Sized
-  // at 2x capacity (rounded up to a power of two) to keep the load factor under 50% even when the
-  // ring is completely full, which keeps probe chains short.
+  // contains()/insert() are an O(Capacity) linear scan rather than a hash-indexed lookup —
+  // deliberately simple. An open-addressing index was tried here to cut CPU time per observed
+  // packet, but its ~10 KB of extra static RAM (across all three rings) turned out to matter far
+  // more than the CPU savings on a device already running with only a few KB of free heap;
+  // reverted after that surfaced as "esp-aes: Failed to allocate memory" aborts on real hardware.
   template <size_t Capacity>
   struct HashRing {
-    static constexpr size_t kTableSize = nextPowerOfTwo(Capacity * 2);
-    static constexpr uint16_t kEmpty = 0xFFFF;
-    static constexpr uint16_t kTombstone = 0xFFFE;
-    static_assert(Capacity < kTombstone, "slot index must fit below the sentinel values");
-
     uint32_t slots[Capacity] = {};
     bool occupied[Capacity] = {};
     size_t nextSlot = 0;
     size_t count = 0;
-    uint16_t table[kTableSize];
-
-    HashRing() {
-      for (auto& entry : table) entry = kEmpty;
-    }
-
-    static size_t bucketFor(uint32_t hash) { return hash & (kTableSize - 1); }
 
     bool contains(uint32_t hash) const {
-      size_t b = bucketFor(hash);
-      for (size_t probes = 0; probes < kTableSize; probes++) {
-        const uint16_t entry = table[b];
-        if (entry == kEmpty) return false;
-        if (entry != kTombstone && slots[entry] == hash) return true;
-        b = (b + 1) & (kTableSize - 1);
+      for (size_t i = 0; i < Capacity; i++) {
+        if (occupied[i] && slots[i] == hash) return true;
       }
       return false;
-    }
-
-    // Removes slotIdx's entry from the index (found by re-deriving its bucket from its hash, the
-    // standard way to locate a specific entry in a linear-probed table without storing back-links).
-    void tableRemove(uint32_t hash, size_t slotIdx) {
-      const uint16_t target = static_cast<uint16_t>(slotIdx);
-      size_t b = bucketFor(hash);
-      for (size_t probes = 0; probes < kTableSize; probes++) {
-        if (table[b] == target) {
-          table[b] = kTombstone;
-          return;
-        }
-        if (table[b] == kEmpty) return;  // consistent state implies it isn't present
-        b = (b + 1) & (kTableSize - 1);
-      }
-    }
-
-    void tableInsert(uint32_t hash, size_t slotIdx) {
-      size_t b = bucketFor(hash);
-      for (size_t probes = 0; probes < kTableSize; probes++) {
-        if (table[b] == kEmpty || table[b] == kTombstone) {
-          table[b] = static_cast<uint16_t>(slotIdx);
-          return;
-        }
-        b = (b + 1) & (kTableSize - 1);
-      }
-      // Unreachable at <=50% max load factor; if it somehow triggers, the hash is just dropped
-      // from the index (a false-negative contains() next time, i.e. same as a ring eviction).
     }
 
     // Returns true if this was a new insertion.
     bool insert(uint32_t hash) {
       if (contains(hash)) return false;
-      if (occupied[nextSlot]) {
-        tableRemove(slots[nextSlot], nextSlot);  // evicting the oldest entry at this ring position
-      } else {
-        count++;
-      }
+      if (!occupied[nextSlot]) count++;
       slots[nextSlot] = hash;
       occupied[nextSlot] = true;
-      tableInsert(hash, nextSlot);
       nextSlot = (nextSlot + 1) % Capacity;
       return true;
     }
