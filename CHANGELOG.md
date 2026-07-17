@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+
+- GitHub Actions CI (`.github/workflows/ci.yml`): builds the `default` PlatformIO environment
+  and runs `pio check` static analysis on every push/PR.
+
 ## [0.1.0] - 2026-07-17
 
 Initial build of Pocket Cryptid, built on the CrossPlant/CrossInk hardware foundation

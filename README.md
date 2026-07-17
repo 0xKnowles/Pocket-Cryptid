@@ -88,6 +88,15 @@ pio run -e default          # compile
 pio run -e default -t upload  # flash over USB
 ```
 
+There is a single PlatformIO environment (`default`). Unlike upstream CrossPlant's `tiny`/
+`xlarge` split — which existed to omit different reading-font sizes depending on flash budget —
+Pocket Cryptid ships one fixed, small UI font set, so there's no equivalent tradeoff to build
+variants around. The same binary supports both X3 and X4: hardware is detected at runtime
+(`HalGPIO::deviceIsX3()`), not at build time.
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) builds this env and runs `pio check`
+static analysis on every push/PR.
+
 This firmware has **not been hardware-tested** as part of this port — it was written against the
 same APIs and patterns the upstream HAL/graphics/persistence code already uses, but the RF
 capture layer (`lib/RfCapture`) and the NimBLE-Arduino integration in particular should be

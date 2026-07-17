@@ -1,0 +1,64 @@
+name: CI (build)
+
+# Builds the firmware for the real ESP32-C3 target on GitHub-hosted runners. GitHub-hosted
+# runners have unrestricted network access, so the pioarduino toolchain (fetched from a GitHub
+# release) installs cleanly here.
+#
+# There is a single PlatformIO environment (`default`) — the firmware detects X3 vs X4 hardware
+# at runtime (HalGPIO::deviceIsX3()), so one compiled binary already covers both devices; there
+# is nothing device-specific to split into separate build variants.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-platformio-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-platformio-
+
+      - name: Install pioarduino PlatformIO Core
+        run: pip install -U https://github.com/pioarduino/platformio-core/archive/refs/tags/v6.1.19.zip
+
+      # platformio.ini pulls in a per-developer override via `extra_configs`; create an empty
+      # one so the config parses in CI.
+      - name: Create empty platformio.local.ini
+        run: touch platformio.local.ini
+
+      - name: Build firmware (covers X3 and X4 — single runtime-detected binary)
+        run: pio run -e default | tee pio.log
+
+      - name: Static analysis (cppcheck via pio check)
+        run: pio check -e default --fail-on-defect low --fail-on-defect medium --fail-on-defect high
+
+      - name: Firmware size summary
+        if: always()
+        run: |
+          {
+            echo "## default build stats"
+            grep -E "RAM:\s|Flash:\s" pio.log | while read -r line; do echo "- ${line}"; done
+          } >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-default
+          path: .pio/build/default/*.bin
+          if-no-files-found: warn
