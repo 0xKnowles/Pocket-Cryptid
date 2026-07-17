@@ -67,6 +67,10 @@ void SettingsActivity::adjustSelected(int direction) {
       SETTINGS.fullRefreshIntervalMin = kGhostClearSteps[next];
       break;
     }
+    case RowRawCapture:
+      SETTINGS.rawHandshakeCaptureEnabled = !SETTINGS.rawHandshakeCaptureEnabled;
+      wifiSniffer.setRawCaptureEnabled(SETTINGS.rawHandshakeCaptureEnabled);
+      break;
     default:
       break;
   }
@@ -78,6 +82,7 @@ void SettingsActivity::activateSelected() {
   switch (selected) {
     case RowWifiEnabled:
     case RowBleEnabled:
+    case RowRawCapture:
       adjustSelected(1);
       return;
     case RowRevealKey:
@@ -174,6 +179,8 @@ void SettingsActivity::render(RenderLock&&) {
     drawRow(RowGhostClearInterval, "Ghost-clear refresh", valueBuf);
   }
   y += kRowHeight;
+  drawRow(RowRawCapture, "Raw handshake capture", SETTINGS.rawHandshakeCaptureEnabled ? "ON" : "OFF");
+  y += kRowHeight;
   drawRow(RowRevealKey, "Reveal log key", "show >");
   y += kRowHeight;
   drawRow(RowWipeLog, "Wipe encrypted log", wipeArmed ? "confirm?" : "erase >");
@@ -199,6 +206,18 @@ void SettingsActivity::render(RenderLock&&) {
   } else if (wipeArmed) {
     renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y,
                       "Press Confirm again to permanently erase the log and its key.", true, EpdFontFamily::BOLD);
+  } else if (selected == RowRawCapture) {
+    const auto lines = renderer.wrappedText(
+        FONT_SMALL_ID,
+        "Saves WPA handshake frames unencrypted to /.ruby/pcap for cracking-tool auditing "
+        "(hashcat/hcxpcapngtool) of networks you own. Unlike the encrypted log, these files are "
+        "plaintext on the SD card.",
+        Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
+    const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
+    for (const auto& line : lines) {
+      renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
+      y += lineHeight;
+    }
   }
 
   Chrome::drawFooterHints(renderer, "Home", "Select", "-", "+");

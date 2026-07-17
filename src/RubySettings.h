@@ -13,6 +13,12 @@ class RubySettings : public PersistableStore<RubySettings> {
   bool wifiSniffEnabled = true;
   bool bleSniffEnabled = true;
 
+  // Off by default: captures verbatim WPA handshake bytes (ANonce/SNonce/MIC included) to a
+  // plaintext .pcap on SD for offline auditing with hashcat/hcxpcapngtool, instead of the
+  // metadata-only capture every other setting here governs. See WifiSniffer's class comment and
+  // SettingsActivity's on-screen warning before turning this on.
+  bool rawHandshakeCaptureEnabled = false;
+
   // Milliseconds spent on each WiFi channel before hopping to the next (see WifiSniffer). Lower
   // = catches more short-lived probe bursts but misses more beacons per channel; higher = the
   // reverse. 100-1000 is a sane range.

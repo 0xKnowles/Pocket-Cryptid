@@ -5,9 +5,31 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- **Raw handshake capture → crackable `.pcap` export.** A new opt-in, off-by-default setting
+  (`Settings > Raw handshake capture`) that captures WPA 4-way-handshake frames verbatim —
+  ANonce/SNonce/MIC and all — plus the SSID-bearing beacon for each network involved, and writes
+  them as a standard libpcap file (`/.ruby/pcap/YYYYMMDD.pcap`, link-layer type 105/raw 802.11)
+  that hashcat or hcxpcapngtool can attempt to crack offline. This is for auditing the password
+  strength of networks the device's owner controls. Every other capture path in Ruby is
+  deliberately metadata-only and AES-256-GCM-encrypted at rest (see `EncryptedLog`); this one
+  can't be, because a cracking tool needs the exact bytes that were sent over the air — so these
+  files are **plaintext** on the SD card, which is why the setting defaults off and the Settings
+  screen shows a warning explaining the tradeoff before it's turned on. `MaintenanceActivity` now
+  also shows raw-capture file count/size (only when files exist) alongside the encrypted log
+  stats, with the same plaintext callout.
+  - `WifiSniffer` gained a small (8-slot, ~3.3 KB, allocated only once the setting is actually
+    turned on) side queue and an 8-entry BSSID tracking cache to know which beacon to grab —
+    deliberately tiny given the RAM crisis fixed below; a user who never enables this pays zero
+    extra RAM for it.
+  - New `PcapWriter` module mirrors `EncryptedLog`'s day-rotation and open/write/close-per-record
+    pattern (see the Log Viewer regression entry below for why that pattern was chosen over a
+    persistent handle).
+
 ### Fixed
 
-- **Sleep crash, take 4 — found it (pending confirmation)**: the added heap diagnostics gave a
+- **Sleep crash, take 4 — found it, confirmed fixed.** The added heap diagnostics gave a
   concrete number — `free=2692` bytes of *general* heap right after capture starts, dropping to
   ~1400-1500 with the DMA-capable pool almost fully fragmented (`dmaLargest=0`), moments before
   the `esp-aes` allocation failure and abort. That's not a small dedicated pool running out — the

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -53,4 +54,23 @@ struct BleObservation {
   uint8_t nameLen = 0;
   uint8_t manufacturerDataLen = 0;   // length only is recorded, never the payload bytes
   uint16_t manufacturerId = 0;       // 0xFFFF if none present
+};
+
+// Bound on raw frame bytes preserved for .pcap export. EAPOL key frames run well under this;
+// beacons occasionally carry vendor IEs that push them close to it. Longer frames are truncated
+// rather than growing this per-slot size, since the raw-capture queue is sized off it — the SSID
+// element (what beacons are captured for) always sits near the front of the IE block, so a
+// truncated beacon still yields a usable SSID.
+constexpr size_t kRawFrameMaxLen = 400;
+
+// A verbatim copy of an over-the-air frame, produced only when RubySettings::rawHandshakeCaptureEnabled
+// is on, and only for EAPOL handshake frames plus the one beacon/probe-response per BSSID needed to
+// recover its SSID (see WifiSniffer::promiscuousRxCallback). This is the one observation type that
+// carries actual key material (ANonce/SNonce/MIC) — everything else Ruby captures is deliberately
+// metadata-only. That's why it's opt-in and written out as plaintext .pcap (see PcapWriter) rather
+// than through EncryptedLog: a cracking tool needs the exact bytes, which encryption would defeat.
+struct RawFrameCapture {
+  uint8_t bytes[kRawFrameMaxLen] = {};
+  uint16_t len = 0;
+  uint32_t unixTime = 0;
 };

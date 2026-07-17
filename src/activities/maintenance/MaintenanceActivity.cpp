@@ -7,6 +7,7 @@
 #include <cstdio>
 
 #include "EncryptedLog.h"
+#include "PcapWriter.h"
 #include "fontIds.h"
 #include "ui/Chrome.h"
 
@@ -18,9 +19,9 @@ struct LogDirSummary {
   uint64_t totalBytes = 0;
 };
 
-LogDirSummary summarizeLogDir() {
+LogDirSummary summarizeDir(const char* path) {
   LogDirSummary summary;
-  HalFile dir = Storage.open(kLogDir);
+  HalFile dir = Storage.open(path);
   if (!dir) return summary;
   for (HalFile entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
     if (!entry.isDirectory()) {
@@ -63,7 +64,7 @@ void MaintenanceActivity::render(RenderLock&&) {
   const int contentWidth = Chrome::contentRight(renderer) - Chrome::contentLeft();
   int y = Chrome::contentTop();
 
-  const LogDirSummary summary = summarizeLogDir();
+  const LogDirSummary summary = summarizeDir(kLogDir);
   char valueBuf[24];
 
   snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(summary.fileCount));
@@ -78,16 +79,40 @@ void MaintenanceActivity::render(RenderLock&&) {
   Chrome::drawDivider(renderer, y);
   y += 16;
 
-  const auto lines = renderer.wrappedText(
+  const auto logLines = renderer.wrappedText(
       FONT_UI_10_ID,
       "To export: power the device off, remove the SD card, and copy the files under "
       "/.ruby/log/ to a computer. Each file is AES-256-GCM encrypted — decrypt with "
       "scripts/decrypt_log.py and the key shown in Settings > Reveal log key.",
       contentWidth, 8);
   const int lineHeight = renderer.getLineHeight(FONT_UI_10_ID);
-  for (const auto& line : lines) {
+  for (const auto& line : logLines) {
     renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y, line.c_str());
     y += lineHeight;
+  }
+
+  const LogDirSummary pcapSummary = summarizeDir(PcapWriter::captureDirectory());
+  if (pcapSummary.fileCount > 0) {
+    y += 24;
+    Chrome::drawDivider(renderer, y);
+    y += 16;
+
+    snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(pcapSummary.fileCount));
+    y = Chrome::drawStatRow(renderer, y, "Raw capture files", valueBuf);
+    formatBytes(pcapSummary.totalBytes, sizeBuf, sizeof(sizeBuf));
+    y = Chrome::drawStatRow(renderer, y, "Raw capture size", sizeBuf);
+    y += 8;
+
+    const auto pcapLines = renderer.wrappedText(
+        FONT_UI_10_ID,
+        "Files under /.ruby/pcap/ are plaintext .pcap — NOT encrypted like the log above. Load "
+        "directly into hashcat/hcxpcapngtool. Turn off in Settings > Raw handshake capture when "
+        "not actively auditing.",
+        contentWidth, 8);
+    for (const auto& line : pcapLines) {
+      renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y, line.c_str());
+      y += lineHeight;
+    }
   }
 
   y += 16;

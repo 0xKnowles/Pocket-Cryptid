@@ -12,10 +12,17 @@
 //
 // WifiSniffer puts the ESP32-C3's radio into promiscuous (monitor) mode via the ESP-IDF
 // esp_wifi_* API — it never calls esp_wifi_connect()/associate, never transmits a frame, and
-// never starts an AP. It only listens, and only extracts metadata that is broadcast in the
-// clear by design (beacon/probe SSIDs, MAC addresses, the *presence* of an EAPOL handshake and
-// which message number it is) — it does not attempt to crack, decrypt, or store handshake key
-// material or payloads.
+// never starts an AP. It only listens. By default it only extracts metadata that is broadcast
+// in the clear by design (beacon/probe SSIDs, MAC addresses, the *presence* of an EAPOL
+// handshake and which message number it is) — it does not crack, decrypt, or store handshake
+// key material or payloads.
+//
+// The one exception is raw frame capture (see setRawCaptureEnabled/setRawFrameCallback): an
+// explicit opt-in, off by default, that preserves verbatim EAPOL handshake bytes (ANonce/
+// SNonce/MIC included) plus the SSID-bearing beacon for each BSSID, for export as a standard
+// .pcap that offline tools like hashcat/hcxpcapngtool can attempt to crack. This exists for
+// auditing the strength of networks the device's owner controls — see PcapWriter and
+// SettingsActivity for the rest of that path.
 //
 // The radio hardware can only listen to one channel at a time, so start() hops across the
 // configured channel list on a timer (tick() must be called regularly from the main loop to
@@ -23,6 +30,7 @@
 class WifiSniffer {
  public:
   using ObservationCallback = std::function<void(const WifiObservation&)>;
+  using RawFrameCallback = std::function<void(const RawFrameCapture&)>;
 
   // Default 2.4 GHz channel plan (1/6/11 are the non-overlapping US/EU channels; the rest catch
   // networks that ignore that convention).
@@ -33,9 +41,10 @@ class WifiSniffer {
   void end();
 
   // Starts monitor mode hopping across `channels` (kAllChannelsCount entries by default),
-  // spending `dwellMs` on each before moving to the next.
+  // spending `dwellMs` on each before moving to the next. `captureRawFrames` mirrors
+  // RubySettings::rawHandshakeCaptureEnabled — see setRawCaptureEnabled.
   bool start(const uint8_t* channels = kAllChannels, size_t channelCount = kAllChannelsCount,
-             uint32_t dwellMs = 300);
+             uint32_t dwellMs = 300, bool captureRawFrames = false);
   void stop();
   bool isRunning() const { return running; }
 
@@ -44,6 +53,16 @@ class WifiSniffer {
   void tick();
 
   void setObservationCallback(ObservationCallback cb) { callback = std::move(cb); }
+  void setRawFrameCallback(RawFrameCallback cb) { rawCallback = std::move(cb); }
+
+  // Turns raw-frame capture on/off at runtime (called both from start() and live from
+  // SettingsActivity when the owner flips the toggle). The backing queue is allocated lazily on
+  // first enable and, once allocated, kept for the rest of the boot — deleting a FreeRTOS queue
+  // out from under the promiscuous callback (a different task) is a use-after-free hazard, and
+  // this queue is small (a handful of frames' worth) so there's little to gain from reclaiming
+  // it on disable.
+  void setRawCaptureEnabled(bool enabled);
+  bool isRawCaptureEnabled() const { return rawCaptureEnabled; }
 
   uint8_t currentChannel() const { return channels[channelIndex]; }
   uint32_t framesSeen() const { return totalFrames; }
@@ -51,6 +70,13 @@ class WifiSniffer {
 
  private:
   static void promiscuousRxCallback(void* buf, wifi_promiscuous_pkt_type_t type);
+
+  static constexpr size_t kEapolBssidTrackCapacity = 8;
+  struct EapolBssidTrack {
+    uint32_t bssidHash = 0;
+    bool active = false;
+    bool ssidCaptured = false;
+  };
 
   bool running = false;
   bool initialized = false;
@@ -64,6 +90,14 @@ class WifiSniffer {
 
   ObservationCallback callback;
   void* rxQueue = nullptr;  // QueueHandle_t, opaque here to keep FreeRTOS headers out of this .h
+
+  RawFrameCallback rawCallback;
+  void* rawQueue = nullptr;  // QueueHandle_t of RawFrameCapture; null until first enabled
+  bool rawCaptureEnabled = false;
+  // Which BSSIDs currently have an in-progress/completed handshake worth capturing a raw EAPOL
+  // frame for, and whether we've already grabbed their SSID-bearing beacon. Tiny, fixed-size,
+  // and only meaningfully populated while raw capture is on — see the class comment.
+  EapolBssidTrack eapolBssidTracks[kEapolBssidTrackCapacity] = {};
 };
 
 extern WifiSniffer wifiSniffer;  // singleton, defined in WifiSniffer.cpp

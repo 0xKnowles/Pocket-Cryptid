@@ -20,6 +20,7 @@ class SettingsActivity final : public Activity {
     RowBleEnabled,
     RowWifiDwell,
     RowGhostClearInterval,
+    RowRawCapture,
     RowRevealKey,
     RowWipeLog,
     RowCount,

@@ -10,6 +10,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <ctime>
 
 WifiSniffer wifiSniffer;
 
@@ -87,6 +88,10 @@ uint8_t classifyEapolMessage(const uint8_t* eapolKeyFrame, size_t len) {
 
 constexpr uint8_t kLlcSnapEapol[] = {0xAA, 0xAA, 0x03, 0x00, 0x00, 0x00, 0x88, 0x8E};
 
+// EAPOL handshakes are 4 frames and a tracked BSSID's SSID beacon is captured once each — this
+// only ever needs to hold a handful of entries at a time even during a busy capture session.
+constexpr size_t kRawQueueCapacity = 8;
+
 }  // namespace
 
 bool WifiSniffer::begin() {
@@ -142,9 +147,30 @@ void WifiSniffer::end() {
     vQueueDelete(static_cast<QueueHandle_t>(rxQueue));
     rxQueue = nullptr;
   }
+  if (rawQueue) {
+    vQueueDelete(static_cast<QueueHandle_t>(rawQueue));
+    rawQueue = nullptr;
+  }
+  rawCaptureEnabled = false;
 }
 
-bool WifiSniffer::start(const uint8_t* chans, size_t count, uint32_t dwell) {
+void WifiSniffer::setRawCaptureEnabled(bool enabled) {
+  if (enabled && !rawQueue) {
+    rawQueue = xQueueCreate(kRawQueueCapacity, sizeof(RawFrameCapture));
+    if (!rawQueue) {
+      LOG_ERR("RFSNIFF", "Failed to allocate raw capture queue");
+      enabled = false;
+    } else {
+      memset(eapolBssidTracks, 0, sizeof(eapolBssidTracks));
+      LOG_INF("RFSNIFF", "Raw handshake capture enabled");
+    }
+  } else if (!enabled && rawCaptureEnabled) {
+    LOG_INF("RFSNIFF", "Raw handshake capture disabled");
+  }
+  rawCaptureEnabled = enabled && rawQueue != nullptr;
+}
+
+bool WifiSniffer::start(const uint8_t* chans, size_t count, uint32_t dwell, bool captureRawFrames) {
   if (!initialized && !begin()) return false;
   if (running) stop();
 
@@ -152,6 +178,7 @@ bool WifiSniffer::start(const uint8_t* chans, size_t count, uint32_t dwell) {
   channelCount = count;
   channelIndex = 0;
   dwellMs = dwell;
+  setRawCaptureEnabled(captureRawFrames);
 
   wifi_promiscuous_filter_t filter = {};
   filter.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA;
@@ -185,10 +212,18 @@ void WifiSniffer::tick() {
     }
   }
 
-  if (!rxQueue || !callback) return;
-  WifiObservation obs;
-  while (xQueueReceive(static_cast<QueueHandle_t>(rxQueue), &obs, 0) == pdTRUE) {
-    callback(obs);
+  if (rxQueue && callback) {
+    WifiObservation obs;
+    while (xQueueReceive(static_cast<QueueHandle_t>(rxQueue), &obs, 0) == pdTRUE) {
+      callback(obs);
+    }
+  }
+
+  if (rawQueue && rawCallback) {
+    RawFrameCapture frame;
+    while (xQueueReceive(static_cast<QueueHandle_t>(rawQueue), &frame, 0) == pdTRUE) {
+      rawCallback(frame);
+    }
   }
 }
 
@@ -267,6 +302,53 @@ void WifiSniffer::promiscuousRxCallback(void* buf, wifi_promiscuous_pkt_type_t t
   }
 
   if (!matched) return;
+
+  // Raw capture: only ever runs when the owner has explicitly opted in (see class comment /
+  // setRawCaptureEnabled). Captures every EAPOL handshake frame verbatim, plus the first
+  // SSID-bearing beacon/probe-response seen for each BSSID that has one, so the resulting .pcap
+  // carries enough context for hcxpcapngtool/hashcat to identify the network.
+  if (wifiSniffer.rawCaptureEnabled && wifiSniffer.rawQueue) {
+    const uint32_t bssidHash = obs.bssid.fnv1a();
+    bool captureThisFrame = false;
+
+    if (obs.kind == WifiFrameKind::EapolHandshake) {
+      int matchSlot = -1;
+      int freeSlot = -1;
+      for (size_t i = 0; i < kEapolBssidTrackCapacity; i++) {
+        EapolBssidTrack& track = wifiSniffer.eapolBssidTracks[i];
+        if (track.active && track.bssidHash == bssidHash) {
+          matchSlot = static_cast<int>(i);
+          break;
+        }
+        if (freeSlot < 0 && !track.active) freeSlot = static_cast<int>(i);
+      }
+      if (matchSlot < 0) {
+        // Not tracked yet — claim a free slot, or evict slot 0 if all are in use.
+        const int slot = (freeSlot >= 0) ? freeSlot : 0;
+        wifiSniffer.eapolBssidTracks[slot] = EapolBssidTrack{bssidHash, true, false};
+      }
+      captureThisFrame = true;
+    } else if (obs.kind == WifiFrameKind::Beacon || obs.kind == WifiFrameKind::ProbeResponse) {
+      for (size_t i = 0; i < kEapolBssidTrackCapacity; i++) {
+        EapolBssidTrack& track = wifiSniffer.eapolBssidTracks[i];
+        if (track.active && track.bssidHash == bssidHash && !track.ssidCaptured) {
+          track.ssidCaptured = true;
+          captureThisFrame = true;
+          break;
+        }
+      }
+    }
+
+    if (captureThisFrame) {
+      RawFrameCapture frame;
+      frame.len = static_cast<uint16_t>(len > kRawFrameMaxLen ? kRawFrameMaxLen : len);
+      memcpy(frame.bytes, payload, frame.len);
+      frame.unixTime = static_cast<uint32_t>(time(nullptr));
+      if (xQueueSend(static_cast<QueueHandle_t>(wifiSniffer.rawQueue), &frame, 0) != pdTRUE) {
+        wifiSniffer.droppedFrames++;  // reuses the existing drop counter; overflow here is rare
+      }
+    }
+  }
 
   BaseType_t queued = xQueueSend(static_cast<QueueHandle_t>(wifiSniffer.rxQueue), &obs, 0);
   if (queued != pdTRUE) {

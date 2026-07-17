@@ -24,6 +24,7 @@
 #include "BleScanner.h"
 #include "EncryptedLog.h"
 #include "MappedInputManager.h"
+#include "PcapWriter.h"
 #include "RecentSightings.h"
 #include "RubyAppState.h"
 #include "RubySettings.h"
@@ -96,7 +97,8 @@ LogRecordType mapWifiKindToLogType(WifiFrameKind kind) {
 
 void startCaptureIfEnabled() {
   if (SETTINGS.wifiSniffEnabled) {
-    wifiSniffer.start(WifiSniffer::kAllChannels, WifiSniffer::kAllChannelsCount, SETTINGS.wifiChannelDwellMs);
+    wifiSniffer.start(WifiSniffer::kAllChannels, WifiSniffer::kAllChannelsCount, SETTINGS.wifiChannelDwellMs,
+                       SETTINGS.rawHandshakeCaptureEnabled);
   }
   if (SETTINGS.bleSniffEnabled) {
     bleScanner.start();
@@ -255,6 +257,9 @@ void setup() {
   if (!encryptedLog.begin()) {
     LOG_ERR("MAIN", "Encrypted log failed to initialize — captures will not be persisted to disk");
   }
+  if (!pcapWriter.begin()) {
+    LOG_ERR("MAIN", "Pcap writer failed to initialize — raw handshake capture will not be persisted to disk");
+  }
 
   wifiSniffer.setObservationCallback([](const WifiObservation& obs) {
     const LogRecordType type = mapWifiKindToLogType(obs.kind);
@@ -262,6 +267,8 @@ void setup() {
     SIGNAL_CATALOG.observeWifi(obs);
     recentSightings.recordWifi(obs, type);
   });
+  wifiSniffer.setRawFrameCallback(
+      [](const RawFrameCapture& frame) { pcapWriter.writeFrame(frame.bytes, frame.len, frame.unixTime); });
   bleScanner.setObservationCallback([](const BleObservation& obs) {
     encryptedLog.appendBle(obs);
     SIGNAL_CATALOG.observeBle(obs);
@@ -305,6 +312,7 @@ void loop() {
   SIGNAL_CATALOG.tick();
   RUBY.tick();
   encryptedLog.tick();
+  pcapWriter.tick();
 
   if (Serial && millis() - lastMemPrint >= 15000) {
     LOG_INF("MEM", "Free: %d bytes, MinFree: %d bytes | WiFi frames dropped: %lu", ESP.getFreeHeap(),
