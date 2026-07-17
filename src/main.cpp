@@ -183,6 +183,26 @@ void setup() {
     return;
   }
 
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER) {
+    // Not a real wake — just the periodic timer redrawing the sleep screen to fight e-ink
+    // ghosting while parked (see HalPowerManager::startDeepSleep's SLEEP_SCREEN_REFRESH_INTERVAL_US;
+    // only fires on USB power, the battery latch circuit cuts RTC power too on battery). Redraw
+    // and go straight back to sleep — no capture restart, no dashboard, no bootCount/panic
+    // bookkeeping for what isn't really a boot.
+    SETTINGS.loadFromFile();
+    SIGNAL_CATALOG.loadFromFile();
+    setupDisplayAndFonts();
+    activityManager.goToSleep(false);
+    delay(400);  // let the refresh physically finish before cutting power again
+    if (halTiltSensor.isAvailable()) {
+      halTiltSensor.deepSleep();
+    }
+    display.deepSleep();
+    LOG_DBG("MAIN", "Periodic sleep-screen refresh done, re-entering deep sleep");
+    powerManager.startDeepSleep(gpio);
+    return;
+  }
+
   HalSystem::checkPanic();
 
   SETTINGS.loadFromFile();

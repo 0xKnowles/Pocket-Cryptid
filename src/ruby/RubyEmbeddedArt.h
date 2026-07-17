@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "RubyState.h"
+#include "embeddedArt/boot_bmp.h"
 #include "embeddedArt/bored_bmp.h"
 #include "embeddedArt/content_bmp.h"
 #include "embeddedArt/curious_bmp.h"
@@ -39,5 +40,9 @@ inline Asset forExpression(RubyExpression expression) {
   }
   return {nullptr, 0};
 }
+
+// The full-screen boot splash — not tied to a RubyExpression, so it's a separate accessor rather
+// than another switch case.
+inline Asset boot() { return {boot_bmp_data, sizeof(boot_bmp_data)}; }
 
 }  // namespace RubyEmbeddedArt

@@ -5,3 +5,7 @@
 #ifndef RUBY_VERSION
 #define RUBY_VERSION "dev"
 #endif
+
+#ifndef RUBY_BASE_VERSION
+#define RUBY_BASE_VERSION "0.0.0"
+#endif

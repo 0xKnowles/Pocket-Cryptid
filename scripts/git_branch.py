@@ -63,7 +63,12 @@ def inject_version(env):
     base_version = get_base_version(project_dir)
     branch = get_git_branch(project_dir)
     version_string = f'{base_version}-dev+{branch}'
-    env.Append(CPPDEFINES=[('RUBY_VERSION', f'\\"{version_string}\\"')])
+    env.Append(CPPDEFINES=[
+        ('RUBY_VERSION', f'\\"{version_string}\\"'),
+        # Just the plain "0.1.0" from platformio.ini, without the branch suffix — for places like
+        # the boot splash title where the full dev+branch string would be too long/noisy.
+        ('RUBY_BASE_VERSION', f'\\"{base_version}\\"'),
+    ])
     print(f'Ruby build version: {version_string}')
 
 

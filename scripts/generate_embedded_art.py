@@ -23,7 +23,7 @@ REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 SRC_DIR = os.path.join(REPO_ROOT, "bmp")
 OUT_DIR = os.path.join(REPO_ROOT, "src", "ruby", "embeddedArt")
 
-IMAGE_NAMES = ["excited", "curious", "content", "bored", "lonely", "sleep"]
+IMAGE_NAMES = ["excited", "curious", "content", "bored", "lonely", "sleep", "boot"]
 
 DIB_HEADER_SIZE = 40  # BITMAPINFOHEADER
 FILE_HEADER_SIZE = 14

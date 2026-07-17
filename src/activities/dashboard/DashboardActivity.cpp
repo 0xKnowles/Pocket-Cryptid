@@ -60,40 +60,54 @@ void formatAgo(unsigned long seenAtMs, char* out, size_t outSize) {
   }
 }
 
-constexpr int kCardOutsetX = 6;   // border stroke sits this far outside Chrome's text margin
+constexpr int kCardOutsetX = 6;   // border stroke sits this far outside the card's text column
 constexpr int kCardTitleGap = 6;  // space between the title rule and the first row
 constexpr int kCardTopPad = 6;
 constexpr int kCardBottomPad = 8;
-constexpr int kCardGap = 10;  // vertical gap between stacked cards
+constexpr int kCardGap = 10;    // vertical gap between stacked cards
+constexpr int kColumnGap = 14;  // horizontal gap between the top row's two columns
 
-// Draws a bold section caption + rule at `y`. Returns the y the first Chrome::drawStatRow() call
+// Draws a bold section caption + rule spanning [x, x + width) at `y`. Returns the y the first row
 // should land at. Pairs with endStatCard(), which closes the rounded outline once the caller
 // knows where the last row ended — the two are separate calls (rather than one that takes a row
-// count) because every card here has a different row count driven by runtime state.
-int beginStatCard(const GfxRenderer& renderer, int y, const char* title) {
-  renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y + kCardTopPad, title, true, EpdFontFamily::BOLD);
+// count) because every card here has a different row count driven by runtime state. Takes an
+// explicit x/width (rather than always spanning the full content width) so the same card chrome
+// works for both the full-width SIGNALS/CAPTURE STATUS cards and the narrower top-right device
+// column.
+int beginStatCard(const GfxRenderer& renderer, int x, int width, int y, const char* title) {
+  renderer.drawText(FONT_SMALL_ID, x, y + kCardTopPad, title, true, EpdFontFamily::BOLD);
   const int ruleY = y + kCardTopPad + renderer.getLineHeight(FONT_SMALL_ID) + 2;
-  renderer.drawLine(Chrome::contentLeft(), ruleY, Chrome::contentRight(renderer), ruleY, true);
+  renderer.drawLine(x, ruleY, x + width, ruleY, true);
   return ruleY + kCardTitleGap;
 }
 
-void endStatCard(const GfxRenderer& renderer, int cardTop, int rowsEndY) {
-  const int x = Chrome::contentLeft() - kCardOutsetX;
-  const int width = Chrome::contentRight(renderer) - Chrome::contentLeft() + kCardOutsetX * 2;
+void endStatCard(const GfxRenderer& renderer, int x, int width, int cardTop, int rowsEndY) {
+  const int rectX = x - kCardOutsetX;
+  const int rectWidth = width + kCardOutsetX * 2;
   const int height = (rowsEndY + kCardBottomPad) - cardTop;
-  renderer.drawRoundedRect(x, cardTop, width, height, 1, Chrome::kCardRadius, true);
+  renderer.drawRoundedRect(rectX, cardTop, rectWidth, height, 1, Chrome::kCardRadius, true);
+}
+
+// drawCenteredText() centers against the full screen width, which only works for the old
+// full-width layout — the specimen name/mood text now sits under a left-aligned box, so it needs
+// centering within just that column.
+void drawCenteredTextIn(const GfxRenderer& renderer, int x, int width, int fontId, int y, const char* text,
+                        EpdFontFamily::Style style = EpdFontFamily::REGULAR) {
+  const int textW = renderer.getTextWidth(fontId, text, style);
+  renderer.drawText(fontId, x + (width - textW) / 2, y, text, true, style);
 }
 }  // namespace
 
 void DashboardActivity::onEnter() {
   Activity::onEnter();
 
-  // Portrait layout: the creature gets a prominent "specimen card" box centered at the top of
-  // the screen, with its name/expression line directly beneath it, then the RF stats fill the
-  // rest of the tall screen full-width below that. See DashboardActivity.h for why this is
-  // portrait and not landscape — the physical buttons are laid out for this orientation.
-  rubyBoxSize = 170;
-  rubyBoxX = (renderer.getScreenWidth() - rubyBoxSize) / 2;
+  // Portrait layout: the creature is a large specimen box pinned top-left (~1/4 of the screen),
+  // a live "RECENT DEVICES" window sits beside it to the right at the same height, name/mood text
+  // sits under the box, and SIGNALS + CAPTURE STATUS fill the bottom half full-width. See
+  // DashboardActivity.h for why this is portrait and not landscape — the physical buttons are
+  // laid out for this orientation.
+  rubyBoxSize = 230;
+  rubyBoxX = Chrome::contentLeft();
   rubyBoxY = Chrome::contentTop();
 
   pendingRenderKind = RenderKind::Full;
@@ -174,23 +188,60 @@ void DashboardActivity::renderFull() {
   const int battery = powerManager.getBatteryPercentage();
   Chrome::drawHeader(renderer, "RUBY", battery);
 
-  // Specimen card: box, then name/expression directly beneath it.
+  // Top row: specimen box pinned top-left, "RECENT DEVICES" window beside it to the right at the
+  // same height.
+  const int deviceColX = rubyBoxX + rubyBoxSize + kColumnGap;
+  const int deviceColWidth = Chrome::contentRight(renderer) - deviceColX;
+  const int topRowBottom = rubyBoxY + rubyBoxSize;
+
+  int cardTop = rubyBoxY;
+  int y = beginStatCard(renderer, deviceColX, deviceColWidth, cardTop, "RECENT DEVICES");
+  const size_t liveCount = recentSightings.count();
+  const int deviceRowsBottom = topRowBottom - kCardBottomPad;  // don't overrun the box's height
+  if (liveCount == 0) {
+    renderer.drawText(FONT_SMALL_ID, deviceColX, y, "Nothing heard yet.");
+  } else {
+    const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
+    for (size_t i = 0; i < liveCount; i++) {
+      if (y + lineHeight * 2 + 6 > deviceRowsBottom) break;  // out of room in this box's height
+      const auto& entry = recentSightings.at(i);
+      char macBuf[18];
+      formatMac(entry.mac, macBuf);
+      char agoBuf[16];
+      formatAgo(entry.seenAtMs, agoBuf, sizeof(agoBuf));
+      char line1[32];
+      snprintf(line1, sizeof(line1), "%-6s %s", logRecordTypeShortName(entry.type), macBuf);
+      renderer.drawText(FONT_SMALL_ID, deviceColX, y, line1);
+      y += lineHeight + 2;
+      char line2[32];
+      snprintf(line2, sizeof(line2), "  %d dBm  %s", entry.rssi, agoBuf);
+      renderer.drawText(FONT_SMALL_ID, deviceColX, y, line2);
+      y += lineHeight + 6;
+    }
+  }
+  endStatCard(renderer, deviceColX, deviceColWidth, cardTop, deviceRowsBottom);
+
+  // Name/mood/lore text sits under the box, centered within the box's own column (not the whole
+  // screen — the box is left-aligned now, not centered).
   const RubyState& state = RUBY.getState();
   const RubyExpression expression = RUBY.currentExpression(false);
-  int y = rubyBoxY + rubyBoxSize + 10;
-  renderer.drawCenteredText(FONT_UI_12_ID, y, state.designation, true, EpdFontFamily::BOLD);
+  y = topRowBottom + 8;
+  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_UI_12_ID, y, state.designation, EpdFontFamily::BOLD);
   y += 20;
-  renderer.drawCenteredText(FONT_SMALL_ID, y, RubyBehavior::expressionLabel(expression));
-  y += 18;
+  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, y, RubyBehavior::expressionLabel(expression));
+  y += 16;
 
   const size_t loreTotal = RubyManager::loreEntryCount();
   char loreBuf[32];
-  snprintf(loreBuf, sizeof(loreBuf), "%u/%zu lore entries unlocked", state.unlockedLoreCount, loreTotal);
-  renderer.drawCenteredText(FONT_SMALL_ID, y, loreBuf);
-  y += 18;
+  snprintf(loreBuf, sizeof(loreBuf), "%u/%zu lore unlocked", state.unlockedLoreCount, loreTotal);
+  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, y, loreBuf);
+  y += 16;
 
-  int cardTop = y;
-  y = beginStatCard(renderer, y, "SIGNALS");
+  // Bottom half: SIGNALS + CAPTURE STATUS, full width.
+  y += kCardGap;
+  cardTop = y;
+  y = beginStatCard(renderer, Chrome::contentLeft(), Chrome::contentRight(renderer) - Chrome::contentLeft(), y,
+                    "SIGNALS");
   const auto& stats = SIGNAL_CATALOG.getStats();
   char buf[32];
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueWifiAPs));
@@ -201,11 +252,12 @@ void DashboardActivity::renderFull() {
   y = Chrome::drawStatRow(renderer, y, "Unique BLE devices", buf);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.handshakesCaptured));
   y = Chrome::drawStatRow(renderer, y, "Handshakes captured", buf);
-  endStatCard(renderer, cardTop, y);
+  endStatCard(renderer, Chrome::contentLeft(), Chrome::contentRight(renderer) - Chrome::contentLeft(), cardTop, y);
   y += kCardGap;
 
   cardTop = y;
-  y = beginStatCard(renderer, y, "CAPTURE STATUS");
+  y = beginStatCard(renderer, Chrome::contentLeft(), Chrome::contentRight(renderer) - Chrome::contentLeft(), y,
+                    "CAPTURE STATUS");
   if (wifiSniffer.isRunning()) {
     char chbuf[16];
     snprintf(chbuf, sizeof(chbuf), "ch %u", wifiSniffer.currentChannel());
@@ -222,35 +274,7 @@ void DashboardActivity::renderFull() {
   char uptimeBuf[24];
   formatUptime(millis(), uptimeBuf, sizeof(uptimeBuf));
   y = Chrome::drawStatRow(renderer, y, "Uptime this session", uptimeBuf);
-  endStatCard(renderer, cardTop, y);
-  y += kCardGap;
-
-  // Live preview of what's actually being heard, not just aggregate counts — the full 16-entry
-  // feed is still one Up press away (DeviceListActivity), this is just "what just happened" at a
-  // glance without leaving the dashboard.
-  cardTop = y;
-  y = beginStatCard(renderer, y, "RECENT DEVICES  (Up: more  Down: log)");
-  const size_t liveCount = recentSightings.count();
-  if (liveCount == 0) {
-    renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Nothing heard yet.");
-    y += renderer.getLineHeight(FONT_SMALL_ID) + 2;
-  } else {
-    constexpr size_t kPreviewCount = 3;
-    const size_t shown = liveCount < kPreviewCount ? liveCount : kPreviewCount;
-    const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
-    for (size_t i = 0; i < shown; i++) {
-      const auto& entry = recentSightings.at(i);
-      char macBuf[18];
-      formatMac(entry.mac, macBuf);
-      char agoBuf[16];
-      formatAgo(entry.seenAtMs, agoBuf, sizeof(agoBuf));
-      char line[56];
-      snprintf(line, sizeof(line), "%-6s %s  %s", logRecordTypeShortName(entry.type), macBuf, agoBuf);
-      renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line);
-      y += lineHeight + 4;
-    }
-  }
-  endStatCard(renderer, cardTop, y);
+  endStatCard(renderer, Chrome::contentLeft(), Chrome::contentRight(renderer) - Chrome::contentLeft(), cardTop, y);
 
   drawRubyPanel(true);
 

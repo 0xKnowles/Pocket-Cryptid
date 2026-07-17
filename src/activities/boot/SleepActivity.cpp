@@ -16,27 +16,30 @@ void SleepActivity::onEnter() {
   const int pageHeight = renderer.getScreenHeight();
   renderer.clearScreen();
 
-  constexpr int kPortraitSize = 96;
+  // Much bigger across the board than the original 96px/all-FONT_SMALL_ID layout — this screen
+  // sits untouched for potentially hours, so it should read clearly from across a room, not just
+  // up close.
+  constexpr int kPortraitSize = 280;
   const int portraitX = (pageWidth - kPortraitSize) / 2;
-  const int portraitY = 60;
+  const int portraitY = 90;
   RubySpriteRenderer::drawPortrait(renderer, portraitX, portraitY, kPortraitSize);
 
-  const int textTop = portraitY + kPortraitSize + 20;
-  renderer.drawCenteredText(FONT_UI_12_ID, textTop, "GONE QUIET", true, EpdFontFamily::BOLD);
-  renderer.drawCenteredText(FONT_UI_10_ID, textTop + 26,
-                            fromTimeout ? "Auto-sleep — capture paused" : "Capture paused");
+  int y = portraitY + kPortraitSize + 30;
+  renderer.drawCenteredText(FONT_UI_12_ID, y, "GONE QUIET", true, EpdFontFamily::BOLD);
+  y += 32;
+  renderer.drawCenteredText(FONT_UI_12_ID, y, fromTimeout ? "Auto-sleep - capture paused" : "Capture paused");
+  y += 42;
 
   const auto& stats = SIGNAL_CATALOG.getStats();
   char line[64];
-  int y = textTop + 60;
   snprintf(line, sizeof(line), "%lu unique devices catalogued", static_cast<unsigned long>(stats.uniqueWifiAPs +
                                                                                             stats.uniqueWifiClients +
                                                                                             stats.uniqueBleDevices));
-  renderer.drawCenteredText(FONT_SMALL_ID, y, line);
-  y += 18;
+  renderer.drawCenteredText(FONT_UI_10_ID, y, line);
+  y += 26;
   snprintf(line, sizeof(line), "%lu handshakes captured", static_cast<unsigned long>(stats.handshakesCaptured));
-  renderer.drawCenteredText(FONT_SMALL_ID, y, line);
+  renderer.drawCenteredText(FONT_UI_10_ID, y, line);
 
-  renderer.drawCenteredText(FONT_SMALL_ID, pageHeight - 30, "Hold power to wake");
+  renderer.drawCenteredText(FONT_UI_10_ID, pageHeight - 50, "Hold power to wake", true, EpdFontFamily::BOLD);
   renderer.displayBuffer();
 }

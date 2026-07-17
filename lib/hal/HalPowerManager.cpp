@@ -11,6 +11,14 @@
 HalPowerManager powerManager;  // Singleton instance
 
 namespace {
+// How often to wake purely to redraw the screen and fight e-ink ghosting while parked — main.cpp
+// detects a timer-caused wake via esp_sleep_get_wakeup_cause() and redraws + re-sleeps without
+// doing a real wake (no capture restart, no dashboard). Only takes effect on USB power: per the
+// "GPIO13 battery latch" comment below, the MCU (including the RTC domain this timer needs) is
+// completely powered off between sleeps on battery, so this can't fire there — only the power
+// button, which is hard-wired to briefly re-apply power, survives that.
+constexpr uint64_t SLEEP_SCREEN_REFRESH_INTERVAL_US = 15ULL * 60 * 1000000;
+
 void disableWiFiBeforeDeepSleep() {
   const wifi_mode_t wifiMode = WiFi.getMode();
   if (wifiMode == WIFI_MODE_NULL) {
@@ -112,6 +120,7 @@ void HalPowerManager::startDeepSleep(HalGPIO& gpio) const {
   // power button is hard-wired to briefly provide power to the MCU, waking it up regardless of the wakeup source
   // configuration
   esp_deep_sleep_enable_gpio_wakeup(1ULL << InputManager::POWER_BUTTON_PIN, ESP_GPIO_WAKEUP_GPIO_LOW);
+  esp_sleep_enable_timer_wakeup(SLEEP_SCREEN_REFRESH_INTERVAL_US);
   // Enter Deep Sleep
   esp_deep_sleep_start();
 }

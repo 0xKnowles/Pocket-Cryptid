@@ -7,6 +7,19 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
+- **Full-screen boot splash** (`boot.bmp`, baked in the same way as the expression art) replaces
+  the old small-portrait boot screen, with a "RUBY vX.Y.Z" title band overlaid on top (white text
+  on a black band, so it stays legible regardless of what's under it) — `RUBY_BASE_VERSION`, a new
+  build macro alongside `RUBY_VERSION`, supplies the plain version number without the `-dev+branch`
+  suffix. `sleep.bmp` is no longer reused for the boot splash; it's sleep-screen-only now.
+- **Sleep screen refreshes itself every 15 minutes** while parked, to clear e-ink ghosting instead
+  of leaving the same static frame up indefinitely (`HalPowerManager::startDeepSleep`,
+  `SLEEP_SCREEN_REFRESH_INTERVAL_US`). **USB power only** — the board's battery-latch circuit cuts
+  the MCU's power entirely between sleeps on battery (see the existing GPIO13 comment in that
+  file), which also kills the RTC timer domain this relies on, so on battery only the physical
+  power button can wake the device, same as before. When the timer does fire, `main.cpp` detects
+  it via `esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER` and does a silent redraw-and-
+  resleep — no capture restart, no dashboard, doesn't count as a boot.
 - **Bitmap art for Ruby, baked into the firmware** (`RubySpriteRenderer::draw()`,
   `RubyEmbeddedArt.h`): each expression's art (`bmp/*.bmp`) is re-encoded at build-prep time
   (`scripts/generate_embedded_art.py`, needs `Pillow`) into an 8bpp-grayscale C header and
@@ -15,15 +28,25 @@ All notable changes to this project are documented here. Format loosely follows
   `/bmp/<expression>.bmp` (see `bmp/README.md`) is still checked first and overrides the built-in
   art when present, for anyone who wants to swap in their own without recompiling. Falls back
   further still to the procedural silhouette only if a bitmap somehow fails to parse.
-- **Dashboard "RECENT DEVICES" card**: a live 4-entry preview of `RecentSightings` (type, MAC,
-  time-ago) embedded directly on the main screen next to Ruby, so seeing what's actually been
-  found doesn't require leaving the dashboard. The full 16-entry feed is still available via
-  `Up` (now titled "DEVICE LOG" to distinguish it from the new inline preview).
+- **Dashboard "RECENT DEVICES" window**: a live preview of `RecentSightings` (type, MAC, RSSI,
+  time-ago) embedded directly on the main screen beside Ruby, so seeing what's actually been found
+  doesn't require leaving the dashboard. The full 16-entry feed is still available via `Up` (now
+  titled "DEVICE LOG" to distinguish it from the new inline preview).
 - Log Viewer records now show the WiFi channel / BLE address-kind (`extra`) and the EAPOL message
   number for handshake records, in addition to what was already shown.
 
 ### Changed
 
+- **Dashboard relayout**: the specimen box moved from centered-at-top to pinned top-left and grew
+  from 170×170 to 230×230 (roughly a quarter of the screen), the "RECENT DEVICES" window sits
+  beside it to the right at the same height instead of as a third full-width card below, and
+  SIGNALS + CAPTURE STATUS now fill the bottom half full-width with the extra room that frees up.
+  `Chrome`'s stat-card helpers (`beginStatCard`/`endStatCard`, local to `DashboardActivity.cpp`)
+  now take an explicit x/width instead of always spanning the full content width, so the same card
+  chrome works for both the full-width bottom cards and the narrower top-right column.
+- **Sleep screen made much bigger**: portrait 96px → 280px, most text bumped from `FONT_SMALL_ID`
+  to `FONT_UI_10_ID`/`FONT_UI_12_ID` — it sits untouched for potentially hours, so it should read
+  from across a room, not just up close.
 - Log Viewer rewritten from two packed, abbreviated lines per record to a bordered three-line
   card per record (type+MAC, time/RSSI/channel, label), and the page size dropped from 8 to 5
   records so each has room to breathe — both directly in response to "hard to read."
