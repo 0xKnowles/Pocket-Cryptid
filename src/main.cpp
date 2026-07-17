@@ -112,7 +112,6 @@ void enterDeepSleep() {
   APP_STATE.saveToFile();
   SIGNAL_CATALOG.saveToFile();
   RUBY.tick();
-  encryptedLog.flush();  // deep sleep never returns, so no destructor will get a chance to do this
   // Temporary checkpoint logging while tracking down a crash-on-sleep bug — bracketing each step
   // so the last line printed before a reboot pinpoints exactly where it happens. Remove once
   // confirmed fixed.

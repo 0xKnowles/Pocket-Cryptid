@@ -7,6 +7,14 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **Log Viewer showed "Could not decrypt this page."** Regression from keeping `EncryptedLog`'s
+  file handle open across writes (see the responsiveness entry below): `LogViewerActivity` opens
+  a *separate* read handle to the same file to decrypt it for viewing, and that concurrent-handle
+  interaction was producing stale/incomplete reads while the write handle was still open. Reverted
+  to open/write/close per record — correctness of reading back what was captured matters more than
+  the filesystem-overhead savings, and a proper fix (routing LogViewer's reads through the same
+  open handle) isn't worth the complexity right now. `currentFileSizeBytes()` also reverted to a
+  fresh open() per call rather than reading the (now-gone) persistent handle's size.
 - **Device crash-loops when entering sleep**: serial logs showed a flood of `GFX !! Outside range`
   errors (a draw call computing wildly out-of-bounds coordinates — traced to *not* be the sleep
   portrait, procedural silhouette, or any rounded-rect/corner drawing, all of which are
