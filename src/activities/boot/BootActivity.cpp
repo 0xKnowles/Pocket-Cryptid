@@ -14,7 +14,8 @@
 #include "ruby/RubySpriteRenderer.h"
 
 namespace {
-constexpr int kTitleBandHeight = 34;
+constexpr int kTitleMarginX = 16;
+constexpr int kTitleMarginY = 14;
 
 // Scales bitmap to fit the whole screen (shrink-only) and anchors it to the top-left, so the
 // title band drawn afterwards overlays its top edge predictably regardless of aspect ratio.
@@ -82,10 +83,12 @@ void BootActivity::onEnter() {
   const bool hasFullArt = tryDrawBootArtFromSd(renderer) || tryDrawBootArtFromEmbedded(renderer);
 
   if (hasFullArt) {
-    // boot.bmp's aspect ratio doesn't quite match the screen's, so shrink-to-fit leaves a blank
-    // margin at the bottom — a natural spot for these two lines without needing an opaque band.
-    renderer.drawCenteredText(FONT_SMALL_ID, pageHeight - 72, "passive RF analyzer");
-    renderer.drawCenteredText(FONT_SMALL_ID, pageHeight - 50, "listening...");
+    // boot.bmp is now exactly screen-sized (792x528) so it renders edge-to-edge with no blank
+    // letterboxing margin — the bottom third is the dark e-waste pile in the art itself, so these
+    // two lines are drawn white (false) rather than the plain black used everywhere else, or
+    // they'd be unreadable against it.
+    renderer.drawCenteredText(FONT_SMALL_ID, pageHeight - 72, "passive RF analyzer", false);
+    renderer.drawCenteredText(FONT_SMALL_ID, pageHeight - 50, "listening...", false);
   } else {
     // No boot art at all (e.g. the generator never ran) — the small procedural portrait this
     // screen used before boot.bmp existed.
@@ -98,16 +101,21 @@ void BootActivity::onEnter() {
     renderer.drawCenteredText(FONT_SMALL_ID, textTop + 26, "listening...");
   }
 
-  // Title band overlays the top edge of the art (or the blank top of the fallback layout) so
-  // "RUBY vX.Y.Z" stays legible no matter what's underneath — same white-on-black technique as
-  // the dashboard's "HANDSHAKE CAPTURED" flash.
-  renderer.fillRect(0, 0, pageWidth, kTitleBandHeight, true);
-  char title[24];
-  snprintf(title, sizeof(title), "RUBY v%s", RUBY_BASE_VERSION);
-  const int titleTextY = (kTitleBandHeight - renderer.getLineHeight(FONT_UI_12_ID)) / 2;
-  renderer.drawCenteredText(FONT_UI_12_ID, titleTextY, title, false, EpdFontFamily::BOLD);
+  // "Ruby" / version sit directly on whatever's underneath rather than an opaque band. With
+  // full art, boot.bmp's own composition leaves the top corners open white space (above the
+  // character's shoulders); without it, the whole background is the plain white clearScreen()
+  // fill. Either way plain black text reads fine without covering anything.
+  char versionLabel[16];
+  snprintf(versionLabel, sizeof(versionLabel), "v%s", RUBY_BASE_VERSION);
+  renderer.drawText(FONT_UI_12_ID, kTitleMarginX, kTitleMarginY, "Ruby", true, EpdFontFamily::BOLD);
+  const int versionW = renderer.getTextWidth(FONT_UI_12_ID, versionLabel, EpdFontFamily::BOLD);
+  renderer.drawText(FONT_UI_12_ID, pageWidth - kTitleMarginX - versionW, kTitleMarginY, versionLabel, true,
+                    EpdFontFamily::BOLD);
 
-  renderer.drawCenteredText(FONT_SMALL_ID, pageHeight - 24, RUBY_VERSION);
+  // Full build string (includes branch/dev suffix, e.g. "0.1.0-dev+branch-name") — distinct from
+  // the clean "vX.Y.Z" above, useful for identifying exactly which build is flashed. White over
+  // the art's dark bottom third, black over the fallback layout's plain white background.
+  renderer.drawCenteredText(FONT_SMALL_ID, pageHeight - 24, RUBY_VERSION, !hasFullArt);
 
   renderer.displayBuffer();
 }
