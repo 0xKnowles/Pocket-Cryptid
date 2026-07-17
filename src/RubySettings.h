@@ -6,8 +6,8 @@
 // All user-configurable behavior lives here. Deliberately small: there is no theming, no button
 // remap, no per-book anything — just the knobs that affect what the radios do and how the log is
 // protected. See SettingsActivity for the UI that edits these.
-class SkinwalkerSettings : public PersistableStore<SkinwalkerSettings> {
-  friend class PersistableStore<SkinwalkerSettings>;
+class RubySettings : public PersistableStore<RubySettings> {
+  friend class PersistableStore<RubySettings>;
 
  public:
   bool wifiSniffEnabled = true;
@@ -27,12 +27,12 @@ class SkinwalkerSettings : public PersistableStore<SkinwalkerSettings> {
   // from the mostly-partial-refresh pet corner. 0 disables.
   uint8_t fullRefreshIntervalMin = 20;
 
-  static const char* getFilePath() { return "/.skinwalker/settings.json"; }
+  static const char* getFilePath() { return "/.ruby/settings.json"; }
   void toJson(JsonDocument& doc) const;
   bool fromJson(JsonVariantConst doc);
 
  private:
-  SkinwalkerSettings() = default;
+  RubySettings() = default;
 };
 
-#define SETTINGS SkinwalkerSettings::getInstance()
+#define SETTINGS RubySettings::getInstance()

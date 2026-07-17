@@ -8,7 +8,7 @@
 
 #include "RfTypes.h"
 
-// What kind of "first time we've ever seen this" event just happened. SkinwalkerManager listens
+// What kind of "first time we've ever seen this" event just happened. RubyManager listens
 // for these to update its expression and to unlock lore entries.
 enum class RfEventType : uint8_t {
   NewWifiAP,
@@ -24,7 +24,7 @@ enum class RfEventType : uint8_t {
 //
 // Dedup state is bounded, in-RAM only (see kCapacity below) — it exists to avoid double-counting
 // and double-logging within a session, not as a permanent record. The lifetime counters below are
-// what's persisted to survive reboots and drive the skinwalker's expression.
+// what's persisted to survive reboots and drive Ruby's expression.
 class SignalCatalog : public PersistableStore<SignalCatalog> {
   friend class PersistableStore<SignalCatalog>;
 
@@ -60,7 +60,7 @@ class SignalCatalog : public PersistableStore<SignalCatalog> {
  private:
   SignalCatalog() = default;
 
-  static constexpr const char* kStatePath = "/.skinwalker/signal_catalog.json";
+  static constexpr const char* kStatePath = "/.ruby/signal_catalog.json";
   static constexpr uint32_t kSaveIntervalMs = 15000;
   static constexpr size_t kApCapacity = 768;
   static constexpr size_t kClientCapacity = 768;

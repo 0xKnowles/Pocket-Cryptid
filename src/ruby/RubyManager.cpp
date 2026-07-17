@@ -1,4 +1,4 @@
-#include "SkinwalkerManager.h"
+#include "RubyManager.h"
 
 #include <Arduino.h>
 #include <Logging.h>
@@ -35,9 +35,9 @@ constexpr size_t kLoreEntryCount = sizeof(kLoreEntries) / sizeof(kLoreEntries[0]
 
 }  // namespace
 
-void SkinwalkerManager::begin() {
+void RubyManager::begin() {
   if (!loadFromFile()) {
-    state = SkinwalkerState{};
+    state = RubyState{};
   }
 
   if (!state.initialized) {
@@ -55,20 +55,20 @@ void SkinwalkerManager::begin() {
   lastCaptureMillis = millis();  // start CONTENT rather than immediately LONELY after a reboot
   // Deliberately far in the past (relying on unsigned wraparound, safe across a millis() rollover
   // too): a fresh boot must not look like a handshake just happened.
-  lastHandshakeMillis = millis() - SkinwalkerConfig::kExcitedWindowMs - 1;
+  lastHandshakeMillis = millis() - RubyConfig::kExcitedWindowMs - 1;
 }
 
-void SkinwalkerManager::onSignalEvent(RfEventType type) {
+void RubyManager::onSignalEvent(RfEventType type) {
   state.totalCaptures++;
   lastCaptureMillis = millis();
   if (type == RfEventType::HandshakeCaptured) {
     lastHandshakeMillis = millis();
     justCapturedHandshake = true;
-    LOG_INF("SKINWALKER", "%s: handshake captured", state.designation);
+    LOG_INF("RUBY", "%s: handshake captured", state.designation);
   }
 
   const uint16_t unlockable =
-      static_cast<uint16_t>(state.totalCaptures / SkinwalkerConfig::kCapturesPerLoreUnlock);
+      static_cast<uint16_t>(state.totalCaptures / RubyConfig::kCapturesPerLoreUnlock);
   if (unlockable > state.unlockedLoreCount && state.unlockedLoreCount < kLoreEntryCount) {
     state.unlockedLoreCount = unlockable > kLoreEntryCount ? kLoreEntryCount : unlockable;
   }
@@ -76,7 +76,7 @@ void SkinwalkerManager::onSignalEvent(RfEventType type) {
   dirty = true;
 }
 
-void SkinwalkerManager::tick() {
+void RubyManager::tick() {
   if (!dirty) return;
   const unsigned long now = millis();
   if (now - lastSaveMs < kSaveIntervalMs) return;
@@ -86,30 +86,30 @@ void SkinwalkerManager::tick() {
   }
 }
 
-SkinwalkerExpression SkinwalkerManager::currentExpression(bool deviceSleeping) const {
-  if (deviceSleeping) return SkinwalkerExpression::SLEEPING;
-  return SkinwalkerBehavior::expressionFor(millis() - lastCaptureMillis, millis() - lastHandshakeMillis);
+RubyExpression RubyManager::currentExpression(bool deviceSleeping) const {
+  if (deviceSleeping) return RubyExpression::SLEEPING;
+  return RubyBehavior::expressionFor(millis() - lastCaptureMillis, millis() - lastHandshakeMillis);
 }
 
-bool SkinwalkerManager::consumeJustCapturedHandshake() {
+bool RubyManager::consumeJustCapturedHandshake() {
   const bool result = justCapturedHandshake;
   justCapturedHandshake = false;
   return result;
 }
 
-uint8_t SkinwalkerManager::animFrame() const {
+uint8_t RubyManager::animFrame() const {
   constexpr unsigned long kFrameMs = 1200;
   return static_cast<uint8_t>((millis() / kFrameMs) % 2);
 }
 
-size_t SkinwalkerManager::loreEntryCount() { return kLoreEntryCount; }
+size_t RubyManager::loreEntryCount() { return kLoreEntryCount; }
 
-const char* SkinwalkerManager::loreEntry(size_t index) const {
+const char* RubyManager::loreEntry(size_t index) const {
   if (index >= state.unlockedLoreCount || index >= kLoreEntryCount) return nullptr;
   return kLoreEntries[index];
 }
 
-void SkinwalkerManager::toJson(JsonDocument& doc) const {
+void RubyManager::toJson(JsonDocument& doc) const {
   doc["initialized"] = state.initialized;
   doc["birthUnixTime"] = state.birthUnixTime;
   doc["totalCaptures"] = state.totalCaptures;
@@ -117,7 +117,7 @@ void SkinwalkerManager::toJson(JsonDocument& doc) const {
   doc["designation"] = state.designation;
 }
 
-bool SkinwalkerManager::fromJson(JsonVariantConst doc) {
+bool RubyManager::fromJson(JsonVariantConst doc) {
   state.initialized = doc["initialized"] | false;
   state.birthUnixTime = doc["birthUnixTime"] | 0;
   state.totalCaptures = doc["totalCaptures"] | 0;

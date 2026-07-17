@@ -6,7 +6,7 @@
 
 #include "SignalCatalog.h"
 #include "fontIds.h"
-#include "skinwalker/SkinwalkerSpriteRenderer.h"
+#include "ruby/RubySpriteRenderer.h"
 #include "ui/Chrome.h"
 
 void SleepActivity::onEnter() {
@@ -19,7 +19,7 @@ void SleepActivity::onEnter() {
   constexpr int kPortraitSize = 96;
   const int portraitX = (pageWidth - kPortraitSize) / 2;
   const int portraitY = 60;
-  SkinwalkerSpriteRenderer::drawPortrait(renderer, portraitX, portraitY, kPortraitSize);
+  RubySpriteRenderer::drawPortrait(renderer, portraitX, portraitY, kPortraitSize);
 
   const int textTop = portraitY + kPortraitSize + 20;
   renderer.drawCenteredText(FONT_UI_12_ID, textTop, "GONE QUIET", true, EpdFontFamily::BOLD);

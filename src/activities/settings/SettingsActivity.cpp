@@ -9,7 +9,7 @@
 
 #include "BleScanner.h"
 #include "EncryptedLog.h"
-#include "SkinwalkerSettings.h"
+#include "RubySettings.h"
 #include "WifiSniffer.h"
 #include "fontIds.h"
 #include "ui/Chrome.h"

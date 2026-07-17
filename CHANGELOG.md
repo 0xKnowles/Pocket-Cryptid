@@ -7,28 +7,30 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Changed
 
-- **Renamed the project from Pocket Cryptid to Skinwalker** — README/CHANGELOG/AGENTS.md, the
+- **Renamed the project from Pocket Cryptid to Ruby** — README/CHANGELOG/AGENTS.md, the
   on-screen title, the boot splash, the panic-report string, every `Cryptid*` class and macro
-  (`CryptidManager` → `SkinwalkerManager`, `CRYPTID` → `SKINWALKER`, `CryptidSettings` →
-  `SkinwalkerSettings`, etc.), `src/cryptid/` → `src/skinwalker/`, `lib/CryptidLog/` →
-  `lib/SkinwalkerLog/`, and the `POCKET_CRYPTID_VERSION` build macro → `SKINWALKER_VERSION`.
-  **This changes on-disk paths and NVS namespaces** (`/.pocketcryptid/` → `/.skinwalker/`, the
+  (`CryptidManager` → `RubyManager`, `CRYPTID` → `RUBY`, `CryptidSettings` →
+  `RubySettings`, etc.), `src/cryptid/` → `src/ruby/`, `lib/CryptidLog/` →
+  `lib/RubyLog/`, and the `POCKET_CRYPTID_VERSION` build macro → `RUBY_VERSION`.
+  **This changes on-disk paths and NVS namespaces** (`/.pocketcryptid/` → `/.ruby/`, the
   `EncryptedLog` NVS namespace and AES key domain tag both changed) — existing settings, stats,
   and previously-captured `.pclog` files from before this update will not carry forward; the
   device effectively re-initializes as if freshly flashed, and old logs become permanently
   undecryptable (same category of change as the existing "wipe log" action).
 - **Reworked the creature's core mechanic**: instead of eating XP to evolve through five permanent
   stages, it's now a single fixed shape whose *expression* reacts to recent findings — closer to
-  Pwnagotchi's mood faces. New `SkinwalkerExpression` states: `EXCITED` (handshake captured in the
+  Pwnagotchi's mood faces. New `RubyExpression` states: `EXCITED` (handshake captured in the
   last ~30s, the biggest find), `CURIOUS` (any new unique device in the last ~90s), then the
   familiar drought-based `CONTENT` → `BORED` → `LONELY` → `SLEEPING`. Each expression now also
-  drives a distinct eye + mouth combination (`SkinwalkerSpriteRenderer::drawFace()`), not just eye
+  drives a distinct eye + mouth combination (`RubySpriteRenderer::drawFace()`), not just eye
   state. `CryptidStage`/XP/the evolution banner are gone entirely; the old "IT HAS CHANGED: X"
   banner is now a "HANDSHAKE CAPTURED" flash instead. Lore entries still unlock progressively, now
-  paced by lifetime capture count rather than XP (`SkinwalkerConfig::kCapturesPerLoreUnlock`).
+  paced by lifetime capture count rather than XP (`RubyConfig::kCapturesPerLoreUnlock`).
 
 ### Added
 
+- `bmp/` — empty directory for manually-added bitmap image assets (not yet wired into the
+  firmware; `RubySpriteRenderer` still draws Ruby procedurally, see `src/ruby`).
 - GitHub Actions CI (`.github/workflows/ci.yml`): builds the `default` PlatformIO environment
   and runs `pio check` static analysis on every push/PR.
 - Verified on real X4 hardware for the first time.
@@ -54,7 +56,7 @@ All notable changes to this project are documented here. Format loosely follows
   style (`Chrome::kCardRadius`) instead of plain dividers and solid inverted-fill highlights:
   the footer is now four separated pill-shaped tabs instead of a flat row of labels, the header's
   battery readout is a pill badge, the specimen creature box has a rounded frame
-  (`SkinwalkerSpriteRenderer::draw()`), the two dashboard stat groups are boxed into "SIGNALS" /
+  (`RubySpriteRenderer::draw()`), the two dashboard stat groups are boxed into "SIGNALS" /
   "CAPTURE STATUS" cards, and the Settings selected-row highlight is an outlined box instead of a
   solid black fill.
 

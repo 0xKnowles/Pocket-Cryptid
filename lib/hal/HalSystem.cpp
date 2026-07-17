@@ -116,7 +116,7 @@ std::string getPanicInfo(bool full) {
   } else {
     std::string info;
 
-    info += "Skinwalker version: " SKINWALKER_VERSION;
+    info += "Ruby version: " RUBY_VERSION;
     info += "\n\nPanic reason: " + std::string(panicMessage);
     info += "\n\nLast logs:\n" + getLastLogs();
     info += "\n\nStack memory:\n";

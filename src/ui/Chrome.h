@@ -2,7 +2,7 @@
 
 #include <GfxRenderer.h>
 
-// Shared dashboard chrome — header bar, footer tab bar, section dividers. Skinwalker has
+// Shared dashboard chrome — header bar, footer tab bar, section dividers. Ruby has
 // exactly one visual theme (an analog-horror "instrument readout" look: monospace type, rounded
 // outline cards, pill-shaped tabs/badges), so unlike upstream CrossPlant's UITheme this is not a
 // themeable/JSON-configurable system — just a handful of small drawing helpers so every screen
@@ -36,7 +36,7 @@ void drawDivider(const GfxRenderer& renderer, int y);
 
 // A single "label ......... value" stat row, value right-aligned to `rightX` (screen width minus
 // margin if <= 0 — pass an explicit column edge when the row must not run under other content,
-// e.g. DashboardActivity's skinwalker corner panel). Returns the y of the next row (y + row height)
+// e.g. DashboardActivity's Ruby corner panel). Returns the y of the next row (y + row height)
 // so callers can chain calls without recomputing layout by hand.
 int drawStatRow(const GfxRenderer& renderer, int y, const char* label, const char* value, bool bold = false,
                 int rightX = -1);

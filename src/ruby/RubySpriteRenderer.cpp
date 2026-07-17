@@ -1,4 +1,4 @@
-#include "SkinwalkerSpriteRenderer.h"
+#include "RubySpriteRenderer.h"
 
 #include <cmath>
 
@@ -29,8 +29,8 @@ int jitter(uint32_t seed, int amplitude) {
   return r - amplitude;
 }
 
-// One fixed silhouette — unlike a pet that grows through stages, the skinwalker is already fully
-// itself; what changes frame to frame is the *expression* (see drawFace), and what changes every
+// One fixed silhouette — unlike a pet that grows through stages, Ruby is already fully herself;
+// what changes frame to frame is the *expression* (see drawFace), and what changes every
 // redraw regardless of expression is a small amount of per-vertex jitter so the outline never
 // looks perfectly static.
 constexpr int kPointCount = 10;
@@ -59,19 +59,19 @@ void drawSilhouette(const GfxRenderer& renderer, int cx, int cy, int radiusPx, u
 }
 
 // Eyes + a short mouth — together "the face," the only part of the drawing that actually carries
-// SkinwalkerExpression. Both are cut into the silhouette as white (state=false) shapes.
-void drawFace(const GfxRenderer& renderer, int cx, int cy, int radiusPx, SkinwalkerExpression expression,
+// RubyExpression. Both are cut into the silhouette as white (state=false) shapes.
+void drawFace(const GfxRenderer& renderer, int cx, int cy, int radiusPx, RubyExpression expression,
              uint8_t animFrame) {
   const int spread = (radiusPx * kEyeSpreadPct) / 100;
   const int eyeY = cy - radiusPx / 6;
   const int mouthY = cy + radiusPx / 4;
 
-  const bool wideOpen = expression == SkinwalkerExpression::EXCITED || expression == SkinwalkerExpression::CURIOUS;
-  const bool activeBlink = wideOpen || expression == SkinwalkerExpression::CONTENT;
+  const bool wideOpen = expression == RubyExpression::EXCITED || expression == RubyExpression::CURIOUS;
+  const bool activeBlink = wideOpen || expression == RubyExpression::CONTENT;
   const bool blinkClosed = activeBlink && (animFrame % 2 == 1);
-  const bool halfLidded = expression == SkinwalkerExpression::BORED;
-  const bool droopy = expression == SkinwalkerExpression::LONELY;
-  const bool fullyClosed = expression == SkinwalkerExpression::SLEEPING;
+  const bool halfLidded = expression == RubyExpression::BORED;
+  const bool droopy = expression == RubyExpression::LONELY;
+  const bool fullyClosed = expression == RubyExpression::SLEEPING;
 
   for (int side = -1; side <= 1; side += 2) {
     const int ex = cx + side * spread;
@@ -91,47 +91,47 @@ void drawFace(const GfxRenderer& renderer, int cx, int cy, int radiusPx, Skinwal
   if (fullyClosed) return;  // asleep: no mouth, just closed eyes
 
   switch (expression) {
-    case SkinwalkerExpression::EXCITED:
+    case RubyExpression::EXCITED:
       renderer.fillRect(cx - 2, mouthY - 1, 4, 3, /*state=*/false);  // small open "o" — startled
       break;
-    case SkinwalkerExpression::CURIOUS:
+    case RubyExpression::CURIOUS:
       renderer.drawLine(cx - 3, mouthY + 1, cx + 3, mouthY - 1, /*state=*/false);  // tilted, alert
       break;
-    case SkinwalkerExpression::CONTENT:
+    case RubyExpression::CONTENT:
       renderer.drawLine(cx - 3, mouthY, cx + 3, mouthY, /*state=*/false);
       break;
-    case SkinwalkerExpression::BORED:
+    case RubyExpression::BORED:
       renderer.drawLine(cx - 2, mouthY, cx + 2, mouthY, /*state=*/false);
       break;
-    case SkinwalkerExpression::LONELY:
+    case RubyExpression::LONELY:
       renderer.drawLine(cx - 3, mouthY + 2, cx, mouthY, /*state=*/false);  // downturned corners
       renderer.drawLine(cx, mouthY, cx + 3, mouthY + 2, /*state=*/false);
       break;
-    case SkinwalkerExpression::SLEEPING:
+    case RubyExpression::SLEEPING:
       break;  // unreachable (handled above); kept so this switch stays exhaustive
   }
 }
 
-void drawStaticNoise(const GfxRenderer& renderer, int x, int y, int boxSize, SkinwalkerExpression expression,
+void drawStaticNoise(const GfxRenderer& renderer, int x, int y, int boxSize, RubyExpression expression,
                      uint8_t animFrame) {
   int density = 0;
   switch (expression) {
-    case SkinwalkerExpression::EXCITED:
+    case RubyExpression::EXCITED:
       density = 14;
       break;
-    case SkinwalkerExpression::CURIOUS:
+    case RubyExpression::CURIOUS:
       density = 9;
       break;
-    case SkinwalkerExpression::CONTENT:
+    case RubyExpression::CONTENT:
       density = 6;
       break;
-    case SkinwalkerExpression::BORED:
+    case RubyExpression::BORED:
       density = 3;
       break;
-    case SkinwalkerExpression::LONELY:
+    case RubyExpression::LONELY:
       density = 1;
       break;
-    case SkinwalkerExpression::SLEEPING:
+    case RubyExpression::SLEEPING:
       density = 0;
       break;
   }
@@ -146,7 +146,7 @@ void drawStaticNoise(const GfxRenderer& renderer, int x, int y, int boxSize, Ski
 
 }  // namespace
 
-void SkinwalkerSpriteRenderer::draw(GfxRenderer& renderer, int x, int y, int boxSize, SkinwalkerExpression expression,
+void RubySpriteRenderer::draw(GfxRenderer& renderer, int x, int y, int boxSize, RubyExpression expression,
                                     uint8_t animFrame) {
   renderer.fillRect(x, y, boxSize, boxSize, /*state=*/false);  // clear to white before redrawing
 
@@ -156,16 +156,16 @@ void SkinwalkerSpriteRenderer::draw(GfxRenderer& renderer, int x, int y, int box
   const int cy = y + halfBox;
 
   int jitterAmplitude = 1;
-  if (expression == SkinwalkerExpression::EXCITED) jitterAmplitude = 4;
-  if (expression == SkinwalkerExpression::CURIOUS) jitterAmplitude = 2;
-  if (expression == SkinwalkerExpression::BORED) jitterAmplitude = 0;
-  if (expression == SkinwalkerExpression::LONELY) jitterAmplitude = 0;
-  if (expression == SkinwalkerExpression::SLEEPING) jitterAmplitude = 0;
+  if (expression == RubyExpression::EXCITED) jitterAmplitude = 4;
+  if (expression == RubyExpression::CURIOUS) jitterAmplitude = 2;
+  if (expression == RubyExpression::BORED) jitterAmplitude = 0;
+  if (expression == RubyExpression::LONELY) jitterAmplitude = 0;
+  if (expression == RubyExpression::SLEEPING) jitterAmplitude = 0;
 
   const uint32_t frameSeed = hash32(static_cast<uint32_t>(expression) * 4001 + animFrame * 17);
   drawSilhouette(renderer, cx, cy, radiusPx, animFrame, jitterAmplitude, frameSeed);
   drawFace(renderer, cx, cy, radiusPx, expression, animFrame);
-  if (expression != SkinwalkerExpression::SLEEPING) {
+  if (expression != RubyExpression::SLEEPING) {
     drawStaticNoise(renderer, x, y, boxSize, expression, animFrame);
   }
 
@@ -178,6 +178,6 @@ void SkinwalkerSpriteRenderer::draw(GfxRenderer& renderer, int x, int y, int box
   renderer.drawRoundedRect(x, y, boxSize, boxSize, 1, 10, /*state=*/true);
 }
 
-void SkinwalkerSpriteRenderer::drawPortrait(GfxRenderer& renderer, int x, int y, int boxSize) {
-  draw(renderer, x, y, boxSize, SkinwalkerExpression::SLEEPING, 0);
+void RubySpriteRenderer::drawPortrait(GfxRenderer& renderer, int x, int y, int boxSize) {
+  draw(renderer, x, y, boxSize, RubyExpression::SLEEPING, 0);
 }

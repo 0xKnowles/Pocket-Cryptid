@@ -1,18 +1,18 @@
-# Skinwalker
+# Ruby
 
-**Skinwalker** is open-source custom firmware for the **Xteink X3 and X4** e-ink readers that
-turns the hardware into something else entirely: a stealthy, long-battery-life passive RF signal
-analyzer with a shadowy digital creature living in the corner of the screen.
+**Ruby** is open-source custom firmware for the **Xteink X3 and X4** e-ink readers that turns the
+hardware into something else entirely: a stealthy, long-battery-life passive RF signal analyzer
+with a small digital companion living in the corner of the screen.
 
 It is not a book reader. It does not read EPUBs, sync with KOReader, or talk to OPDS catalogs.
 It listens — passively, receive-only — to the WiFi and Bluetooth Low Energy traffic already in
-the air around it, catalogs what it hears into an encrypted on-device log, and reacts with a
+the air around it, catalogs what it hears into an encrypted on-device log, and Ruby reacts with a
 changing expression as a visual front-end for that catalog — closer to Pwnagotchi's mood faces
 than to a pet that eats XP to level up.
 
 ## Where this comes from
 
-Skinwalker is built on [CrossPlant](https://github.com/0xKnowles/CrossPlant)'s hardware
+Ruby is built on [CrossPlant](https://github.com/0xKnowles/CrossPlant)'s hardware
 foundation — the same e-ink display driver, input handling, power management, SD storage, font
 rendering, and activity/screen framework that make CrossPlant (and its own ancestor, CrossInk)
 boot and draw on real Xteink hardware. Everything above that foundation — the RF capture layer,
@@ -23,8 +23,8 @@ the encrypted log, the creature, every screen — is new.
 | `freeink-sdk/`, `lib/hal`, `lib/GfxRenderer`, `lib/EpdFont` | Hardware bring-up: display driver, buttons, power, SD card, fonts, graphics primitives. Carried over from CrossPlant/CrossInk largely unmodified — this is what makes the firmware boot on real hardware. |
 | `lib/RfCapture` | **New.** Passive 802.11 monitor-mode WiFi sniffing and passive BLE advertisement scanning. |
 | `lib/SignalCatalog` | **New.** Deduplicates observations into "have I seen this MAC before" and lifetime unique-device counters, plus a small RAM-only ring of recent sightings for the Recent Devices screen. |
-| `lib/SkinwalkerLog` | **New.** AES-256-GCM encrypted append-only capture log. |
-| `src/skinwalker` | **New.** The creature: procedurally-rendered (no bitmap art pipeline), fed by `SignalCatalog`. |
+| `lib/RubyLog` | **New.** AES-256-GCM encrypted append-only capture log. |
+| `src/ruby` | **New.** The creature: procedurally-rendered (no bitmap art pipeline), fed by `SignalCatalog`. |
 | `src/activities/*` | **New.** Dashboard, Settings, Lore, and Maintenance screens replace CrossPlant's reader/browser/pet activities entirely. |
 
 Reading-specific subsystems (EPUB/TXT/XTC rendering, the file browser, OPDS, KOReader sync,
@@ -52,7 +52,7 @@ not disabled — there is no code path for them left in this repo.
    dozen APs beaconing every ~100ms) can write a meaningful volume of records per hour. That's
    intentional for a capture tool, but budget SD card space and export/rotate accordingly. See
    [Exporting the log](#exporting-the-log).
-4. **React.** The creature (`SkinwalkerManager`) doesn't level up or grow — it's one fixed shape,
+4. **React.** The creature (`RubyManager`) doesn't level up or grow — it's one fixed shape,
    already fully itself, and what changes is its **expression**: `EXCITED` for a few seconds right
    after a handshake capture (rare, the biggest find), `CURIOUS` for a shorter flash after any new
    unique device, settling into `CONTENT` → `BORED` → `LONELY` the longer the RF environment stays
@@ -61,7 +61,7 @@ not disabled — there is no code path for them left in this repo.
 5. **Display.** The dashboard is mostly static: a header, a specimen card, boxed RF stat panels, a
    footer. The creature lives in a fixed corner box that redraws on its own ~1.2s cadence using
    `HalDisplay::FAST_REFRESH` without ever touching (or `clearScreen()`-ing) any pixel outside
-   that box — see `SkinwalkerSpriteRenderer.h` and `DashboardActivity.h` for the full explanation
+   that box — see `RubySpriteRenderer.h` and `DashboardActivity.h` for the full explanation
    of why that reads as a genuine partial refresh on hardware that has no windowed-update API.
 
 ## Screens
@@ -125,7 +125,7 @@ pio run -e default -t upload  # flash over USB
 
 There is a single PlatformIO environment (`default`). Unlike upstream CrossPlant's `tiny`/
 `xlarge` split — which existed to omit different reading-font sizes depending on flash budget —
-Skinwalker ships one fixed, small UI font set, so there's no equivalent tradeoff to build variants
+Ruby ships one fixed, small UI font set, so there's no equivalent tradeoff to build variants
 around. The same binary supports both X3 and X4: hardware is detected at runtime
 (`HalGPIO::deviceIsX3()`), not at build time.
 
@@ -160,7 +160,7 @@ python3 scripts/decrypt_log.py --key <64 hex chars> 20260717.pclog
 ## Exporting the log
 
 There is no USB/WiFi transfer protocol — power the device off, pull the SD card, and copy the
-files under `/.skinwalker/log/*.pclog` to a computer, then decrypt with the command above and
+files under `/.ruby/log/*.pclog` to a computer, then decrypt with the command above and
 the key from **Settings → Reveal log key**.
 
 ## What "encrypted" means here

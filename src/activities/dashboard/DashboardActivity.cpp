@@ -9,14 +9,14 @@
 
 #include "BleScanner.h"
 #include "EncryptedLog.h"
+#include "RubyAppState.h"
+#include "RubySettings.h"
 #include "SignalCatalog.h"
-#include "SkinwalkerAppState.h"
-#include "SkinwalkerSettings.h"
 #include "WifiSniffer.h"
 #include "fontIds.h"
-#include "skinwalker/SkinwalkerBehavior.h"
-#include "skinwalker/SkinwalkerManager.h"
-#include "skinwalker/SkinwalkerSpriteRenderer.h"
+#include "ruby/RubyBehavior.h"
+#include "ruby/RubyManager.h"
+#include "ruby/RubySpriteRenderer.h"
 #include "ui/Chrome.h"
 
 namespace {
@@ -77,9 +77,9 @@ void DashboardActivity::onEnter() {
   // the screen, with its name/expression line directly beneath it, then the RF stats fill the
   // rest of the tall screen full-width below that. See DashboardActivity.h for why this is
   // portrait and not landscape — the physical buttons are laid out for this orientation.
-  skinwalkerBoxSize = 200;
-  skinwalkerBoxX = (renderer.getScreenWidth() - skinwalkerBoxSize) / 2;
-  skinwalkerBoxY = Chrome::contentTop();
+  rubyBoxSize = 200;
+  rubyBoxX = (renderer.getScreenWidth() - rubyBoxSize) / 2;
+  rubyBoxY = Chrome::contentTop();
 
   pendingRenderKind = RenderKind::Full;
   lastFullRenderMs = 0;
@@ -115,7 +115,7 @@ void DashboardActivity::loop() {
     return;
   }
 
-  if (SKINWALKER.consumeJustCapturedHandshake()) {
+  if (RUBY.consumeJustCapturedHandshake()) {
     handshakeBannerActive = true;
     handshakeBannerUntilMs = millis() + kHandshakeBannerMs;
     pendingRenderKind = RenderKind::Full;
@@ -133,23 +133,23 @@ void DashboardActivity::loop() {
   if (now - lastFullRenderMs >= kFullRedrawIntervalMs) {
     pendingRenderKind = RenderKind::Full;
     requestUpdate();
-  } else if (now - lastPetRenderMs >= kPetRedrawIntervalMs && SKINWALKER.animFrame() != lastAnimFrameRendered) {
-    pendingRenderKind = RenderKind::SkinwalkerOnly;
+  } else if (now - lastPetRenderMs >= kPetRedrawIntervalMs && RUBY.animFrame() != lastAnimFrameRendered) {
+    pendingRenderKind = RenderKind::RubyOnly;
     requestUpdate();
   }
 }
 
-void DashboardActivity::drawSkinwalkerPanel(bool withNoise) {
-  const SkinwalkerExpression expression = SKINWALKER.currentExpression(false);
-  const uint8_t frame = SKINWALKER.animFrame();
-  SkinwalkerSpriteRenderer::draw(renderer, skinwalkerBoxX, skinwalkerBoxY, skinwalkerBoxSize,
-                                 withNoise ? expression : SkinwalkerExpression::SLEEPING, frame);
+void DashboardActivity::drawRubyPanel(bool withNoise) {
+  const RubyExpression expression = RUBY.currentExpression(false);
+  const uint8_t frame = RUBY.animFrame();
+  RubySpriteRenderer::draw(renderer, rubyBoxX, rubyBoxY, rubyBoxSize,
+                           withNoise ? expression : RubyExpression::SLEEPING, frame);
   lastAnimFrameRendered = frame;
   lastPetRenderMs = millis();
 }
 
-void DashboardActivity::renderSkinwalkerBoxOnly() {
-  drawSkinwalkerPanel(true);
+void DashboardActivity::renderRubyBoxOnly() {
+  drawRubyPanel(true);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
 }
 
@@ -157,18 +157,18 @@ void DashboardActivity::renderFull() {
   renderer.clearScreen();
 
   const int battery = powerManager.getBatteryPercentage();
-  Chrome::drawHeader(renderer, "SKINWALKER", battery);
+  Chrome::drawHeader(renderer, "RUBY", battery);
 
   // Specimen card: box, then name/expression directly beneath it.
-  const SkinwalkerState& state = SKINWALKER.getState();
-  const SkinwalkerExpression expression = SKINWALKER.currentExpression(false);
-  int y = skinwalkerBoxY + skinwalkerBoxSize + 14;
+  const RubyState& state = RUBY.getState();
+  const RubyExpression expression = RUBY.currentExpression(false);
+  int y = rubyBoxY + rubyBoxSize + 14;
   renderer.drawCenteredText(FONT_UI_12_ID, y, state.designation, true, EpdFontFamily::BOLD);
   y += 22;
-  renderer.drawCenteredText(FONT_SMALL_ID, y, SkinwalkerBehavior::expressionLabel(expression));
+  renderer.drawCenteredText(FONT_SMALL_ID, y, RubyBehavior::expressionLabel(expression));
   y += 24;
 
-  const size_t loreTotal = SkinwalkerManager::loreEntryCount();
+  const size_t loreTotal = RubyManager::loreEntryCount();
   char loreBuf[32];
   snprintf(loreBuf, sizeof(loreBuf), "%u/%zu lore entries unlocked", state.unlockedLoreCount, loreTotal);
   renderer.drawCenteredText(FONT_SMALL_ID, y, loreBuf);
@@ -221,7 +221,7 @@ void DashboardActivity::renderFull() {
 
   renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Up: recent devices    Down: decrypt log");
 
-  drawSkinwalkerPanel(true);
+  drawRubyPanel(true);
 
   if (handshakeBannerActive) {
     constexpr int kBannerH = 28;
@@ -248,6 +248,6 @@ void DashboardActivity::render(RenderLock&&) {
   if (pendingRenderKind == RenderKind::Full) {
     renderFull();
   } else {
-    renderSkinwalkerBoxOnly();
+    renderRubyBoxOnly();
   }
 }

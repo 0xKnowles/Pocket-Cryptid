@@ -11,7 +11,7 @@
 #include "ui/Chrome.h"
 
 namespace {
-constexpr char kLogDir[] = "/.skinwalker/log";
+constexpr char kLogDir[] = "/.ruby/log";
 
 struct LogDirSummary {
   uint32_t fileCount = 0;
@@ -81,7 +81,7 @@ void MaintenanceActivity::render(RenderLock&&) {
   const auto lines = renderer.wrappedText(
       FONT_UI_10_ID,
       "To export: power the device off, remove the SD card, and copy the files under "
-      "/.skinwalker/log/ to a computer. Each file is AES-256-GCM encrypted — decrypt with "
+      "/.ruby/log/ to a computer. Each file is AES-256-GCM encrypted — decrypt with "
       "scripts/decrypt_log.py and the key shown in Settings > Reveal log key.",
       contentWidth, 8);
   const int lineHeight = renderer.getLineHeight(FONT_UI_10_ID);

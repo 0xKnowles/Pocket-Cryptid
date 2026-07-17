@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Decrypts a Skinwalker capture log (.pclog) and prints one line per record.
+Decrypts a Ruby capture log (.pclog) and prints one line per record.
 
 The AES-256 key is never stored on the SD card — read it off the device once via
 Settings > Reveal log key, then pass it here as 64 hex characters.
@@ -8,7 +8,7 @@ Settings > Reveal log key, then pass it here as 64 hex characters.
 Usage:
     python3 decrypt_log.py --key <64-hex-char key> path/to/20260717.pclog [more.pclog ...]
 
-Record layout matches lib/SkinwalkerLog/LogRecord.h — keep the two in sync if that ever changes,
+Record layout matches lib/RubyLog/LogRecord.h — keep the two in sync if that ever changes,
 and bump kLogFormatVersion on the firmware side so old logs stay readable by old copies of this
 script.
 """

@@ -12,11 +12,11 @@
 // Two update cadences share one framebuffer:
 //   - A slow (~5s) full redraw of the header + specimen card + RF stat rows + footer, using
 //     FAST_REFRESH.
-//   - A faster (~1.2s) redraw of *only* the skinwalker's fixed box, also FAST_REFRESH.
+//   - A faster (~1.2s) redraw of *only* Ruby's fixed box, also FAST_REFRESH.
 // Because the box-only tick never calls clearScreen() or touches any pixel outside its box, the
 // panel's differential refresh only actually changes that box on screen — everything else stays
 // visually static between the slower full redraws even though both paths share the same refresh
-// mode. See SkinwalkerSpriteRenderer.h for more on why this is the "partial refresh" here.
+// mode. See RubySpriteRenderer.h for more on why this is the "partial refresh" here.
 class DashboardActivity final : public Activity {
  public:
   explicit DashboardActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -28,10 +28,10 @@ class DashboardActivity final : public Activity {
 
  private:
   void renderFull();
-  void renderSkinwalkerBoxOnly();
-  void drawSkinwalkerPanel(bool withNoise);
+  void renderRubyBoxOnly();
+  void drawRubyPanel(bool withNoise);
 
-  enum class RenderKind { Full, SkinwalkerOnly };
+  enum class RenderKind { Full, RubyOnly };
   RenderKind pendingRenderKind = RenderKind::Full;
 
   unsigned long lastFullRenderMs = 0;
@@ -41,7 +41,7 @@ class DashboardActivity final : public Activity {
   bool handshakeBannerActive = false;
   unsigned long handshakeBannerUntilMs = 0;
 
-  int skinwalkerBoxX = 0;
-  int skinwalkerBoxY = 0;
-  int skinwalkerBoxSize = 0;
+  int rubyBoxX = 0;
+  int rubyBoxY = 0;
+  int rubyBoxSize = 0;
 };

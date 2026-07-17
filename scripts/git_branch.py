@@ -1,5 +1,5 @@
 """
-PlatformIO pre-build script: inject git branch/version info as SKINWALKER_VERSION,
+PlatformIO pre-build script: inject git branch/version info as RUBY_VERSION,
 e.g. "0.1.0-dev+claude/pocket-cryptid-firmware-a7td6q".
 """
 
@@ -52,10 +52,10 @@ def get_base_version(project_dir):
     config = configparser.ConfigParser()
     if os.path.isfile(ini_path):
         config.read(ini_path)
-    if not config.has_option('skinwalker', 'version'):
-        warn('No [skinwalker] version in platformio.ini; base version will be "0.0.0"')
+    if not config.has_option('ruby', 'version'):
+        warn('No [ruby] version in platformio.ini; base version will be "0.0.0"')
         return '0.0.0'
-    return config.get('skinwalker', 'version')
+    return config.get('ruby', 'version')
 
 
 def inject_version(env):
@@ -63,8 +63,8 @@ def inject_version(env):
     base_version = get_base_version(project_dir)
     branch = get_git_branch(project_dir)
     version_string = f'{base_version}-dev+{branch}'
-    env.Append(CPPDEFINES=[('SKINWALKER_VERSION', f'\\"{version_string}\\"')])
-    print(f'Skinwalker build version: {version_string}')
+    env.Append(CPPDEFINES=[('RUBY_VERSION', f'\\"{version_string}\\"')])
+    print(f'Ruby build version: {version_string}')
 
 
 try:

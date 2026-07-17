@@ -4,8 +4,8 @@
 
 #include "activities/Activity.h"
 
-// Single-entry viewer over SkinwalkerManager's unlocked lore table. Up/Down move between unlocked
-// entries; locked entries (beyond SKINWALKER.getState().unlockedLoreCount) aren't shown at all —
+// Single-entry viewer over RubyManager's unlocked lore table. Up/Down move between unlocked
+// entries; locked entries (beyond RUBY.getState().unlockedLoreCount) aren't shown at all —
 // no teasing "???" placeholders, since the point is that new entries surface naturally as it
 // hears more of the RF environment, not that there's a checklist to grind.
 class LoreActivity final : public Activity {

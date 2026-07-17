@@ -6,11 +6,11 @@ Default outputs:
   .pio/build/tiny/firmware-tiny.bin
   .pio/build/xlarge/firmware-xlarge.bin
 
-Release-candidate outputs when SKINWALKER_RC_ARTIFACTS=1:
+Release-candidate outputs when RUBY_RC_ARTIFACTS=1:
   .pio/build/tiny/firmware-tiny-<branch>-<hash>-RC.bin
   .pio/build/xlarge/firmware-xlarge-<branch>-<hash>-RC.bin
 
-Release outputs when SKINWALKER_RELEASE_VERSION is set:
+Release outputs when RUBY_RELEASE_VERSION is set:
   .pio/build/tiny/firmware-tiny-v<version>.bin
   .pio/build/xlarge/firmware-xlarge-v<version>.bin
 """
@@ -81,12 +81,12 @@ def _get_rc_artifact_name(project_dir, env):
     env_name = _get_project_option(env, 'custom_rc_variant') or env['PIOENV']
     branch = (
         _get_project_option(env, 'custom_rc_branch')
-        or os.environ.get('SKINWALKER_RC_BRANCH')
+        or os.environ.get('RUBY_RC_BRANCH')
         or _get_git_branch(project_dir)
     )
     short_hash = (
         _get_project_option(env, 'custom_rc_hash')
-        or os.environ.get('SKINWALKER_RC_HASH')
+        or os.environ.get('RUBY_RC_HASH')
         or _get_git_value(
         project_dir,
         'rev-parse',
@@ -101,12 +101,12 @@ def _get_rc_artifact_name(project_dir, env):
 
 
 def _is_rc_artifact_build(env):
-    flag = _get_project_option(env, 'custom_rc_artifacts') or os.environ.get('SKINWALKER_RC_ARTIFACTS')
+    flag = _get_project_option(env, 'custom_rc_artifacts') or os.environ.get('RUBY_RC_ARTIFACTS')
     return str(flag).strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
 def _get_release_version(env):
-    version = _get_project_option(env, 'custom_release_version') or os.environ.get('SKINWALKER_RELEASE_VERSION')
+    version = _get_project_option(env, 'custom_release_version') or os.environ.get('RUBY_RELEASE_VERSION')
     if not version:
         return None
     version = version.strip()

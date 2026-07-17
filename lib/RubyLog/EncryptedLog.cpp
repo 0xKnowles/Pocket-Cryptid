@@ -16,13 +16,13 @@
 EncryptedLog encryptedLog;
 
 namespace {
-constexpr char kLogDir[] = "/.skinwalker/log";
-constexpr char kPrefsNamespace[] = "skinwalker";
+constexpr char kLogDir[] = "/.ruby/log";
+constexpr char kPrefsNamespace[] = "ruby";
 constexpr char kPrefsKeySeed[] = "keyseed";
 constexpr char kPrefsNonceBlock[] = "noncenext";
 constexpr size_t kSeedLen = 32;
 constexpr uint64_t kNonceBlockSize = 4096;  // values reserved per NVS write; bounds flash wear
-constexpr char kKeyDomainTag[] = "skinwalker-log-v1";
+constexpr char kKeyDomainTag[] = "ruby-log-v1";
 
 void hexEncode(const uint8_t* data, size_t len, char* out) {
   static const char kHex[] = "0123456789abcdef";

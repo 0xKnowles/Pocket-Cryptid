@@ -1,6 +1,6 @@
-#include "SkinwalkerSettings.h"
+#include "RubySettings.h"
 
-void SkinwalkerSettings::toJson(JsonDocument& doc) const {
+void RubySettings::toJson(JsonDocument& doc) const {
   doc["wifiSniffEnabled"] = wifiSniffEnabled;
   doc["bleSniffEnabled"] = bleSniffEnabled;
   doc["wifiChannelDwellMs"] = wifiChannelDwellMs;
@@ -8,7 +8,7 @@ void SkinwalkerSettings::toJson(JsonDocument& doc) const {
   doc["fullRefreshIntervalMin"] = fullRefreshIntervalMin;
 }
 
-bool SkinwalkerSettings::fromJson(JsonVariantConst doc) {
+bool RubySettings::fromJson(JsonVariantConst doc) {
   wifiSniffEnabled = doc["wifiSniffEnabled"] | true;
   bleSniffEnabled = doc["bleSniffEnabled"] | true;
   wifiChannelDwellMs = doc["wifiChannelDwellMs"] | 300;

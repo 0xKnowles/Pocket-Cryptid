@@ -1,4 +1,4 @@
-# Skinwalker — Agent Guide
+# Ruby — Agent Guide
 
 Canonical repo instruction file for AI coding agents working in this repo.
 
@@ -52,7 +52,7 @@ README.md for the full layer breakdown.
 - The AES key is derived from a random seed (NVS, internal flash, not the SD card) + the chip's
   eFuse MAC. There is no user passphrase/keyboard UI by design — don't add one without checking
   with the user first, since it changes the recovery story (`revealDecryptionKeyHex()`).
-- Keep `lib/SkinwalkerLog/LogRecord.h` and `scripts/decrypt_log.py` in sync. If the on-disk record
+- Keep `lib/RubyLog/LogRecord.h` and `scripts/decrypt_log.py` in sync. If the on-disk record
   layout changes, bump `kLogFormatVersion` first and update both sides together.
 
 ## Resource Rules

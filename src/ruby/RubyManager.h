@@ -4,19 +4,19 @@
 
 #include <cstddef>
 
+#include "RubyBehavior.h"
+#include "RubyState.h"
 #include "SignalCatalog.h"
-#include "SkinwalkerBehavior.h"
-#include "SkinwalkerState.h"
 
-// Owns the skinwalker's persistent state and the small bit of live session state (capture/
+// Owns Ruby's persistent state and the small bit of live session state (capture/
 // handshake timers, animation clock) needed to render it. Wire it up once at boot:
 //
-//   SKINWALKER.begin();
-//   SIGNAL_CATALOG.setNewUniqueCallback([](RfEventType t) { SKINWALKER.onSignalEvent(t); });
+//   RUBY.begin();
+//   SIGNAL_CATALOG.setNewUniqueCallback([](RfEventType t) { RUBY.onSignalEvent(t); });
 //
-// and call SKINWALKER.tick() from the main loop alongside SIGNAL_CATALOG.tick().
-class SkinwalkerManager : public PersistableStore<SkinwalkerManager> {
-  friend class PersistableStore<SkinwalkerManager>;
+// and call RUBY.tick() from the main loop alongside SIGNAL_CATALOG.tick().
+class RubyManager : public PersistableStore<RubyManager> {
+  friend class PersistableStore<RubyManager>;
 
  public:
   void begin();
@@ -28,11 +28,11 @@ class SkinwalkerManager : public PersistableStore<SkinwalkerManager> {
   // Debounced persistence, call once per loop iteration.
   void tick();
 
-  const SkinwalkerState& getState() const { return state; }
+  const RubyState& getState() const { return state; }
 
   // deviceSleeping short-circuits straight to SLEEPING regardless of activity timers — used by
   // SleepActivity so the creature visibly "goes quiet" the instant the screen does.
-  SkinwalkerExpression currentExpression(bool deviceSleeping) const;
+  RubyExpression currentExpression(bool deviceSleeping) const;
 
   // True exactly once, the first time this is polled after a handshake capture. Callers
   // (DashboardActivity) use this to trigger a one-off "flash" banner instead of a silent update.
@@ -42,19 +42,19 @@ class SkinwalkerManager : public PersistableStore<SkinwalkerManager> {
   // refresh cadence, fast enough to read as "alive" rather than a slideshow.
   uint8_t animFrame() const;
 
-  // Lore entries unlock progressively with lifetime captures; see SkinwalkerManager.cpp for the
+  // Lore entries unlock progressively with lifetime captures; see RubyManager.cpp for the
   // table. Returns nullptr for an out-of-range index.
   static size_t loreEntryCount();
   const char* loreEntry(size_t index) const;  // nullptr if index >= unlocked count
 
-  static const char* getFilePath() { return SkinwalkerConfig::kStatePath; }
+  static const char* getFilePath() { return RubyConfig::kStatePath; }
   void toJson(JsonDocument& doc) const;
   bool fromJson(JsonVariantConst doc);
 
  private:
-  SkinwalkerManager() = default;
+  RubyManager() = default;
 
-  SkinwalkerState state;
+  RubyState state;
   unsigned long lastCaptureMillis = 0;
   unsigned long lastHandshakeMillis = 0;
   unsigned long birthMillis = 0;
@@ -63,4 +63,4 @@ class SkinwalkerManager : public PersistableStore<SkinwalkerManager> {
   unsigned long lastSaveMs = 0;
 };
 
-#define SKINWALKER SkinwalkerManager::getInstance()
+#define RUBY RubyManager::getInstance()
