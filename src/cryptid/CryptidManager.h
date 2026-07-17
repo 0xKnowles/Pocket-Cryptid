@@ -2,6 +2,8 @@
 
 #include <PersistableStore.h>
 
+#include <cstddef>
+
 #include "CryptidEvolution.h"
 #include "CryptidState.h"
 #include "SignalCatalog.h"

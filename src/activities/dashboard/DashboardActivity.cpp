@@ -4,6 +4,7 @@
 #include <HalDisplay.h>
 #include <HalPowerManager.h>
 
+#include <cstddef>
 #include <cstdio>
 
 #include "BleScanner.h"

@@ -3,6 +3,7 @@
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 
+#include <cstddef>
 #include <cstdio>
 
 #include "EncryptedLog.h"

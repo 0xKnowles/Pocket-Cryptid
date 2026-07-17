@@ -8,6 +8,7 @@
 #include <mbedtls/gcm.h>
 #include <mbedtls/sha256.h>
 
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <ctime>

@@ -3,6 +3,7 @@
 #include <Logging.h>
 #include <NimBLEDevice.h>
 
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 

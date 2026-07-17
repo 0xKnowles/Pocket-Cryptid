@@ -4,6 +4,7 @@
 #include <Logging.h>
 #include <esp_mac.h>
 
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <ctime>

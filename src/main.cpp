@@ -17,6 +17,7 @@
 #include <esp_system.h>
 
 #include <ctime>
+#include <sys/time.h>  // struct timeval / settimeofday() — not part of <ctime>
 
 #include "AppVersion.h"
 #include "BleScanner.h"

@@ -4,6 +4,7 @@
 #include <Logging.h>
 
 #include <climits>
+#include <cstddef>
 
 SignalCatalog::HandshakeTracker& SignalCatalog::trackerFor(uint32_t bssidHash) {
   int oldestIdx = 0;

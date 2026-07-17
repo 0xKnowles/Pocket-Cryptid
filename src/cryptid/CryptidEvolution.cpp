@@ -1,5 +1,7 @@
 #include "CryptidEvolution.h"
 
+#include <cstddef>
+
 namespace CryptidEvolution {
 
 CryptidStage stageForXp(uint32_t xp) {

@@ -8,6 +8,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
+#include <cstddef>
 #include <cstring>
 
 WifiSniffer wifiSniffer;

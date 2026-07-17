@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 #include "activities/Activity.h"
 
 // Single-entry viewer over CryptidManager's unlocked lore table. Up/Down move between unlocked

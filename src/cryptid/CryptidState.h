@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 // Growth stages. Unlike CrossPlant's pet (which decays if neglected), the cryptid never dies —
