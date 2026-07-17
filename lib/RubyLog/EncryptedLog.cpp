@@ -3,7 +3,6 @@
 #include <HalStorage.h>
 #include <Logging.h>
 #include <Preferences.h>
-#include <esp_heap_caps.h>
 #include <esp_mac.h>
 #include <esp_random.h>
 #include <mbedtls/gcm.h>
@@ -102,13 +101,24 @@ bool EncryptedLog::openTodaysFile() {
   gmtime_r(&now, &tmNow);
   const int32_t dayOfEpoch = static_cast<int32_t>(now / 86400);
 
-  if (dayOfEpoch == currentFileDay && !currentFilePath.empty()) {
-    return true;  // already on the right day's file
+  if (dayOfEpoch == currentFileDay && logFile.isOpen()) {
+    return true;  // already on the right day's file, handle still good
   }
 
   char path[64];
   snprintf(path, sizeof(path), "%s/%04d%02d%02d.pclog", kLogDir, tmNow.tm_year + 1900, tmNow.tm_mon + 1,
            tmNow.tm_mday);
+
+  if (logFile.isOpen()) {
+    logFile.close();
+  }
+  logFile = Storage.open(path, O_WRONLY | O_CREAT | O_APPEND);
+  if (!logFile) {
+    LOG_ERR("ENCLOG", "Failed to open log file for append: %s", path);
+    currentFilePath.clear();
+    currentFileDay = -1;
+    return false;
+  }
   currentFilePath = path;
   currentFileDay = dayOfEpoch;
   return true;
@@ -121,6 +131,7 @@ void EncryptedLog::tick() {
 
 bool EncryptedLog::writeEnvelope(const LogRecordPlaintext& plaintext) {
   if (!ready) return false;
+  if (!openTodaysFile()) return false;  // cheap check normally; also self-heals a closed handle
   if (nonceCounter >= nonceBlockEnd && !reserveNonceBlock()) return false;
 
   uint8_t nonce[kLogNonceLen];
@@ -135,13 +146,7 @@ bool EncryptedLog::writeEnvelope(const LogRecordPlaintext& plaintext) {
   mbedtls_gcm_init(&gcm);
   if (mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, aesKey, 256) != 0) {
     mbedtls_gcm_free(&gcm);
-    // Temporary diagnostic while tracking down an "esp-aes: Failed to allocate memory" abort —
-    // the hardware AES engine allocates from a small DMA-capable pool, distinct from (and much
-    // smaller than) general heap, so seeing both numbers at the exact failure point matters.
-    // Remove once diagnosed.
-    LOG_ERR("ENCLOG", "GCM setkey failed; heap free=%u dmaFree=%u dmaLargest=%u",
-            static_cast<unsigned>(ESP.getFreeHeap()), static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_DMA)),
-            static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_DMA)));
+    LOG_ERR("ENCLOG", "GCM setkey failed");
     return false;
   }
   const int rc = mbedtls_gcm_crypt_and_tag(&gcm, MBEDTLS_GCM_ENCRYPT, sizeof(plaintext), nonce, kLogNonceLen, nullptr,
@@ -149,31 +154,25 @@ bool EncryptedLog::writeEnvelope(const LogRecordPlaintext& plaintext) {
                                            tag);
   mbedtls_gcm_free(&gcm);
   if (rc != 0) {
-    LOG_ERR("ENCLOG", "GCM encrypt failed: %d; heap free=%u dmaFree=%u dmaLargest=%u", rc,
-            static_cast<unsigned>(ESP.getFreeHeap()), static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_DMA)),
-            static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_DMA)));
+    LOG_ERR("ENCLOG", "GCM encrypt failed: %d", rc);
     return false;
   }
 
-  // Deliberately open/write/close per record rather than holding the file open across writes:
-  // an earlier attempt at the latter (to cut per-record filesystem overhead) caused
-  // LogViewerActivity's separate read handle to see stale/incomplete data for today's file while
-  // this handle held it open — "Could not decrypt this page." Correctness of reading back what
-  // was captured matters more than shaving the open() cost, so this reverts to the known-good
-  // approach until a proper fix (e.g. routing LogViewerActivity's reads through this same open
-  // handle) is worth the complexity.
-  HalFile file = Storage.open(currentFilePath.c_str(), O_WRONLY | O_CREAT | O_APPEND);
-  if (!file) {
-    LOG_ERR("ENCLOG", "Failed to open log file for append: %s", currentFilePath.c_str());
-    return false;
-  }
+  // Held open across writes and flushed with sync() rather than closed — cuts the per-record
+  // Storage.open() cost (a heap allocation for the file handle plus a directory-entry lookup)
+  // that was a real contributor to DMA-pool fragmentation crashes during long capture sessions
+  // (see CHANGELOG). This used to be a straight close()-per-record specifically because a held-
+  // open handle caused LogViewerActivity's separate read handle to see stale/incomplete data —
+  // sync() is the fix for that: it flushes both the written bytes and the updated file size to
+  // the card without closing, so a freshly opened read handle sees exactly what's been written
+  // so far, the same guarantee close() gave, without paying to reopen every time.
   const uint16_t ctLen = sizeof(ciphertext);
-  file.write(&kLogFormatVersion, 1);
-  file.write(nonce, kLogNonceLen);
-  file.write(&ctLen, 2);
-  file.write(ciphertext, sizeof(ciphertext));
-  file.write(tag, kLogTagLen);
-  file.close();
+  logFile.write(&kLogFormatVersion, 1);
+  logFile.write(nonce, kLogNonceLen);
+  logFile.write(&ctLen, 2);
+  logFile.write(ciphertext, sizeof(ciphertext));
+  logFile.write(tag, kLogTagLen);
+  logFile.sync();
 
   recordsWritten++;
   return true;
@@ -218,12 +217,8 @@ bool EncryptedLog::appendBle(const BleObservation& obs) {
 }
 
 uint64_t EncryptedLog::currentFileSizeBytes() const {
-  if (currentFilePath.empty() || !Storage.exists(currentFilePath.c_str())) return 0;
-  HalFile file = Storage.open(currentFilePath.c_str());
-  if (!file) return 0;
-  const uint64_t size = file.fileSize64();
-  file.close();
-  return size;
+  if (!logFile.isOpen()) return 0;
+  return logFile.fileSize64();
 }
 
 bool EncryptedLog::revealDecryptionKeyHex(char* out, size_t outSize) const {
@@ -282,6 +277,11 @@ bool EncryptedLog::wipeAndResetKey() {
   if (prefs.begin(kPrefsNamespace, false)) {
     prefs.clear();
     prefs.end();
+  }
+
+  // Must close before deleting today's file out from under it.
+  if (logFile.isOpen()) {
+    logFile.close();
   }
 
   HalFile dir = Storage.open(kLogDir);

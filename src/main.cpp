@@ -127,21 +127,14 @@ void enterDeepSleep() {
   APP_STATE.saveToFile();
   SIGNAL_CATALOG.saveToFile();
   RUBY.tick();
-  // Temporary checkpoint logging while tracking down a crash-on-sleep bug — bracketing each step
-  // so the last line printed before a reboot pinpoints exactly where it happens. Remove once
-  // confirmed fixed.
-  LOG_INF("MAIN", "enterDeepSleep: pre-goToSleep");
 
   activityManager.goToSleep(false);
-  LOG_INF("MAIN", "enterDeepSleep: post-goToSleep");
   delay(400);  // let the sleep screen's refresh physically finish before cutting power to radios/CPU
 
   if (halTiltSensor.isAvailable()) {
     halTiltSensor.deepSleep();
   }
-  LOG_INF("MAIN", "enterDeepSleep: post-tiltSensor");
   display.deepSleep();
-  LOG_INF("MAIN", "enterDeepSleep: post-display.deepSleep, calling startDeepSleep");
   powerManager.startDeepSleep(gpio);
 }
 
@@ -291,15 +284,6 @@ void setup() {
   SIGNAL_CATALOG.setNewUniqueCallback([](RfEventType type) { RUBY.onSignalEvent(type); });
 
   startCaptureIfEnabled();
-
-  // Temporary diagnostic while tracking down an "esp-aes: Failed to allocate memory" abort that
-  // fires within seconds of boot — need real numbers on general heap vs. the much smaller
-  // DMA-capable pool the hardware AES engine allocates from, since "plenty of free heap overall"
-  // and "DMA pool exhausted" look identical from ESP.getFreeHeap() alone. Remove once diagnosed.
-  LOG_INF("MAIN", "post-capture-start heap: free=%u minFree=%u dmaFree=%u dmaLargest=%u",
-         static_cast<unsigned>(ESP.getFreeHeap()), static_cast<unsigned>(ESP.getMinFreeHeap()),
-         static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_DMA)),
-         static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_DMA)));
 
   if (HalSystem::isRebootFromPanic()) {
     activityManager.goToCrashReport();

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <HalStorage.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -84,6 +86,12 @@ class EncryptedLog {
   int32_t currentFileDay = -1;  // day-of-epoch the open file was rotated for; -1 = none open
   uint32_t recordsWritten = 0;
   bool ready = false;
+
+  // Held open across writes and flushed with sync() (not closed) after each one — see
+  // writeEnvelope()'s comment for why this is safe for LogViewerActivity's separate concurrent
+  // reader. mutable: currentFileSizeBytes() is logically a const query but needs to read this
+  // handle's live size.
+  mutable HalFile logFile;
 };
 
 extern EncryptedLog encryptedLog;  // singleton, defined in EncryptedLog.cpp

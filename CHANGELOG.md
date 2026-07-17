@@ -5,6 +5,14 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Removed
+
+- Temporary checkpoint/diagnostic logging left over from tonight's crash investigations
+  (`enterDeepSleep`, `HalPowerManager::startDeepSleep`, the post-capture-start heap dump) — all
+  marked "remove once confirmed/diagnosed" in their own comments, and now superseded by the
+  heap-health circuit breaker below, which is a permanent, useful replacement rather than a
+  one-off log line.
+
 ### Fixed
 
 - **Real overnight crash with raw handshake capture on: heap/DMA-pool fragmentation abort after
@@ -29,12 +37,32 @@ All notable changes to this project are documented here. Format loosely follows
     capture produces. `WifiSniffer::tick()` now drains everything queued into one batch and hands
     it to `PcapWriter::writeFrames()` (replacing the old single-frame `writeFrame()`) as a single
     open/write-many/close cycle.
-  - Deliberately not done yet, pending further investigation: disabling hardware AES acceleration
-    for `EncryptedLog` (would remove its DMA-pool dependency entirely — the most direct fix, but
-    unclear yet whether this Arduino-framework build lets that be reconfigured without deeper
-    toolchain surgery), and revisiting `EncryptedLog`'s open/write/close-per-record pattern with a
-    proper fix for the concurrent-reader bug that caused it to be reverted from a persistent
-    handle earlier.
+  - The two items deferred when this was first mitigated are now both done — see the next two
+    entries.
+
+- **EncryptedLog now uses software AES-256-GCM instead of this chip's hardware accelerator.**
+  This is the direct fix for the DMA-pool dependency above, rather than a workaround for it:
+  `mbedtls_gcm_*` defaults to hardware acceleration, which needs a contiguous chunk of the small
+  DMA-capable pool per call — software AES/GCM only needs ordinary heap, which this device has
+  tens of KB of free even under load. Set via `custom_sdkconfig` in `platformio.ini`
+  (`CONFIG_MBEDTLS_HARDWARE_AES=n`, `CONFIG_MBEDTLS_HARDWARE_GCM=n`) — confirmed pioarduino's
+  `platform-espressif32` supports per-project sdkconfig overrides even for plain
+  `framework = arduino` (not just an `espidf` hybrid) by reading the builder script directly, since
+  it isn't documented anywhere. Same `mbedtls_gcm_*` API either way, so this is a backend swap, not
+  a change to `EncryptedLog`'s own code — no correctness risk beyond "does this build option
+  actually take," which CI now confirms it does. Slower per call, but negligible: still well under
+  a millisecond for the 39-byte plaintext blocks this encrypts, at a rate of at most a few writes
+  per second even in a busy RF environment.
+
+- **`EncryptedLog` holds a persistent write handle again, with a proper fix this time.** The
+  open/write/close-per-record pattern (reverted to earlier tonight after a persistent handle broke
+  Log Viewer) was itself a real contributor to the DMA-pool fragmentation above: every
+  `Storage.open()` heap-allocates a file-handle object, and that churn adds up over a long capture
+  session. The original bug was that a held-open write handle's buffered data wasn't visible yet to
+  `LogViewerActivity`'s separate read handle. Fix: call `sync()` after every write instead of
+  `close()` — `HalFile::sync()` flushes both the written bytes and the updated file size to the
+  card without closing, so a freshly opened reader sees exactly what's been written so far, the
+  same guarantee `close()` gave, without paying to reopen on every single record.
 
 ### Changed
 
