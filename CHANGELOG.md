@@ -7,6 +7,10 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
+- **Dashboard: "Handshake Capture" and "DeAuth" ON/OFF readouts**, to the right of the Mood block
+  in what was previously dead whitespace (the RECENT DEVICES card above it ends at the box's
+  height; SIGNALS/CAPTURE STATUS don't start until below the mood text) — surfaces both opt-in
+  capture settings without a trip into Settings.
 - **On-device network picker for the whitelist/blacklist** (`TargetPickerActivity`) — no more
   hand-editing `/.ruby/targets.txt` on a PC to manage active-deauth targets. `Settings →
   Whitelist` / `Settings → Blacklist` each open a live scan (`ApScanCache`, a new dedup-by-BSSID
@@ -45,6 +49,11 @@ All notable changes to this project are documented here. Format loosely follows
   those fields still load fine; ArduinoJson just ignores keys the struct no longer has.
 
 ### Fixed
+
+- **Dashboard: "Mood" and its value (e.g. "Curious") visibly overlapped.** The line spacing
+  between them was a hardcoded guess (20px) rather than the actual font metric — `FONT_UI_12_ID`
+  BOLD's real glyph height runs taller than that guess. Switched to
+  `renderer.getLineHeight(fontId)` per line so the spacing always matches what's actually drawn.
 
 - **Low raw-capture yield: real-world testing showed 14 EAPOL M1 messages captured against only
   1 M2 and 1 M3 over ~2 hours, with `hcxpcapngtool` extracting only 1 crackable pair.** Root

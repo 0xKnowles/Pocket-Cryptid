@@ -112,8 +112,9 @@ When the device is asleep, it shows a different, much larger piece of art instea
 
 ## Screens
 
-- **Dashboard** (home) — the creature, its current Mood, unique AP/client/BLE/handshake counts,
-  capture status, log size, and session uptime. `Confirm` → Settings, `Left` → toggle Pause (same
+- **Dashboard** (home) — the creature, its current Mood, whether handshake capture/deauth are on,
+  unique AP/client/BLE/handshake counts, capture status, log size, and session uptime.
+  `Confirm` → Settings, `Left` → toggle Pause (same
   button pauses and resumes WiFi/BLE capture — no screen change), `Right` → Export/Maintenance,
   `Up` → Recent Devices, `Down` → Log Viewer, `Back` → force a full ghost-clearing refresh.
 - **Settings** — toggle WiFi/BLE capture, adjust WiFi channel dwell time, set the ghost-clear

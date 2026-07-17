@@ -266,17 +266,34 @@ void DashboardActivity::renderFull() {
   // "SPECIMEN-XXXX" designation (RubyManager::begin(), still used in log messages) as a bold
   // headline, but on the dashboard itself that read as unexplained noise rather than useful
   // status — a plain "Mood" label over the actual mood value is clearer.
+  //
+  // Line spacing here used to be hardcoded guesses (20px/16px) rather than the fonts' actual
+  // metrics — close enough most of the time, but FONT_UI_12_ID BOLD's real glyph height runs
+  // taller than the guessed 20px, so "Mood" and its value ("Curious", etc.) visibly overlapped.
+  // Using renderer.getLineHeight() per font fixes that at its source instead of just padding the
+  // guess further.
   const RubyExpression expression = RUBY.currentExpression(false);
-  y = topRowBottom + 6;
-  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_UI_12_ID, y, "Mood", EpdFontFamily::BOLD);
-  y += 20;
-  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, y, RubyBehavior::expressionLabel(expression));
-  y += 16;
+  int moodY = topRowBottom + 6;
+  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_UI_12_ID, moodY, "Mood", EpdFontFamily::BOLD);
+  moodY += renderer.getLineHeight(FONT_UI_12_ID);
+  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, moodY, RubyBehavior::expressionLabel(expression));
+  moodY += renderer.getLineHeight(FONT_SMALL_ID);
 
   if (captureIsPaused()) {
-    drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, y, "-- PAUSED --", EpdFontFamily::BOLD);
-    y += 16;
+    drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, moodY, "-- PAUSED --", EpdFontFamily::BOLD);
+    moodY += renderer.getLineHeight(FONT_SMALL_ID);
   }
+
+  // Same row, to the right of the mood block: this was dead whitespace before (the RECENT DEVICES
+  // card above it ends at topRowBottom, and SIGNALS/CAPTURE STATUS don't start until bottomY) —
+  // put it to use surfacing the two opt-in capture settings that most change what this device is
+  // actually doing, so the owner doesn't have to go into Settings to check.
+  int infoY = topRowBottom + 6;
+  infoY = Chrome::drawStatRow(renderer, infoY, "Handshake Capture",
+                              SETTINGS.rawHandshakeCaptureEnabled ? "ON" : "OFF", false,
+                              deviceColX + deviceColWidth, deviceColX);
+  infoY = Chrome::drawStatRow(renderer, infoY, "DeAuth", SETTINGS.activeDeauthEnabled ? "ON" : "OFF", false,
+                              deviceColX + deviceColWidth, deviceColX);
 
   // Bottom half: SIGNALS + CAPTURE STATUS. Landscape's 792x528 canvas has much less spare height
   // below the top row than the old portrait canvas did, but a lot more spare width — so these
@@ -285,7 +302,7 @@ void DashboardActivity::renderFull() {
   // extend all the way to the bottom of the content area (there's room to spare below 4 rows of
   // stats now), rather than shrink-wrapping tightly around their rows the way a single full-width
   // card used to.
-  y += kCardGap;
+  y = std::max(moodY, infoY) + kCardGap;
   const int bottomY = y;
   const int colWidth = (Chrome::contentRight(renderer) - Chrome::contentLeft() - kColumnGap) / 2;
   const int leftColX = Chrome::contentLeft();
