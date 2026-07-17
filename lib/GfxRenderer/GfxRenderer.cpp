@@ -650,7 +650,18 @@ void GfxRenderer::drawPixel(const int x, const int y, const bool state) const {
 
   // Bounds checking against runtime panel dimensions
   if (phyX < 0 || phyX >= panelWidth || phyY < 0 || phyY >= panelHeight) {
-    LOG_ERR("GFX", "!! Outside range (%d, %d) -> (%d, %d)", x, y, phyX, phyY);
+    // A caller computing wildly wrong coordinates (e.g. a runaway scanline fill) can hit this
+    // hundreds/thousands of times in a row; each LOG_ERR is a blocking call over ~115200 baud USB
+    // CDC serial, and enough of them back-to-back can stall this task long enough to starve the
+    // idle task and trip the watchdog — turning a merely-wrong-looking render into a hard crash.
+    // Capped so the safety net stays a safety net instead of becoming the actual problem.
+    static uint32_t outOfRangeLogCount = 0;
+    if (outOfRangeLogCount < 5) {
+      LOG_ERR("GFX", "!! Outside range (%d, %d) -> (%d, %d)", x, y, phyX, phyY);
+    } else if (outOfRangeLogCount == 5) {
+      LOG_ERR("GFX", "!! Outside range: suppressing further occurrences");
+    }
+    outOfRangeLogCount++;
     return;
   }
 

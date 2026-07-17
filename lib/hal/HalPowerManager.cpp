@@ -97,13 +97,12 @@ void HalPowerManager::startDeepSleep(HalGPIO& gpio) const {
     gpio.update();
   }
 
-#ifdef ENABLE_SERIAL_LOG
-  // Tear down HWCDC so the host sees a clean disconnect and the peripheral
-  // doesn't hold power domains that interfere with USB-powered GPIO wake.
-  // logSerial is the raw HWCDC reference; Serial is the MySerialImpl proxy
-  // (which doesn't expose end()).
-  logSerial.end();
-#endif
+  // Temporary checkpoint logging while tracking down a crash-on-sleep bug — bracketing each step
+  // so the last line printed before a reboot pinpoints exactly where it happens. Also moved
+  // logSerial.end() (see below) as late as possible so these actually have a chance to reach the
+  // host instead of being silently dropped once HWCDC is torn down. Remove both once confirmed
+  // fixed.
+  LOG_INF("PWR", "startDeepSleep: pre GPIO isolate");
 
   // Pre-sleep routines from the original firmware
   // GPIO13 is connected to battery latch MOSFET, we need to make sure it's low during sleep
@@ -112,15 +111,29 @@ void HalPowerManager::startDeepSleep(HalGPIO& gpio) const {
   gpio_set_direction(GPIO_SPIWP, GPIO_MODE_OUTPUT);
   gpio_set_level(GPIO_SPIWP, 0);
   esp_sleep_config_gpio_isolate();
+  LOG_INF("PWR", "startDeepSleep: post GPIO isolate");
   gpio_deep_sleep_hold_en();
   gpio_hold_en(GPIO_SPIWP);
   pinMode(InputManager::POWER_BUTTON_PIN, INPUT_PULLUP);
+  LOG_INF("PWR", "startDeepSleep: post GPIO hold/pinMode");
   // Arm the wakeup trigger *after* the button is released
   // Note: this is only useful for waking up on USB power. On battery, the MCU will be completely powered off, so the
   // power button is hard-wired to briefly provide power to the MCU, waking it up regardless of the wakeup source
   // configuration
   esp_deep_sleep_enable_gpio_wakeup(1ULL << InputManager::POWER_BUTTON_PIN, ESP_GPIO_WAKEUP_GPIO_LOW);
+  LOG_INF("PWR", "startDeepSleep: post GPIO wakeup arm");
   esp_sleep_enable_timer_wakeup(SLEEP_SCREEN_REFRESH_INTERVAL_US);
+  LOG_INF("PWR", "startDeepSleep: post timer wakeup arm, entering deep sleep now");
+
+#ifdef ENABLE_SERIAL_LOG
+  // Tear down HWCDC so the host sees a clean disconnect and the peripheral doesn't hold power
+  // domains that interfere with USB-powered GPIO wake. Deliberately as late as possible (right
+  // before the point of no return) rather than at the top of this function, so any failure in the
+  // GPIO isolation/wakeup-arming sequence above still has a chance to log before serial dies.
+  // logSerial is the raw HWCDC reference; Serial is the MySerialImpl proxy (no end()).
+  logSerial.end();
+#endif
+
   // Enter Deep Sleep
   esp_deep_sleep_start();
 }

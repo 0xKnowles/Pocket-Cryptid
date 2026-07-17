@@ -113,15 +113,21 @@ void enterDeepSleep() {
   SIGNAL_CATALOG.saveToFile();
   RUBY.tick();
   encryptedLog.flush();  // deep sleep never returns, so no destructor will get a chance to do this
+  // Temporary checkpoint logging while tracking down a crash-on-sleep bug — bracketing each step
+  // so the last line printed before a reboot pinpoints exactly where it happens. Remove once
+  // confirmed fixed.
+  LOG_INF("MAIN", "enterDeepSleep: pre-goToSleep");
 
   activityManager.goToSleep(false);
+  LOG_INF("MAIN", "enterDeepSleep: post-goToSleep");
   delay(400);  // let the sleep screen's refresh physically finish before cutting power to radios/CPU
 
   if (halTiltSensor.isAvailable()) {
     halTiltSensor.deepSleep();
   }
+  LOG_INF("MAIN", "enterDeepSleep: post-tiltSensor");
   display.deepSleep();
-  LOG_DBG("MAIN", "Entering deep sleep");
+  LOG_INF("MAIN", "enterDeepSleep: post-display.deepSleep, calling startDeepSleep");
   powerManager.startDeepSleep(gpio);
 }
 

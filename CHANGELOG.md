@@ -7,6 +7,21 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **Device crash-loops when entering sleep**: serial logs showed a flood of `GFX !! Outside range`
+  errors (a draw call computing wildly out-of-bounds coordinates — traced to *not* be the sleep
+  portrait, procedural silhouette, or any rounded-rect/corner drawing, all of which are
+  mathematically bounded well within the screen; still unconfirmed which call it actually is)
+  immediately followed by `abort()` and a reboot into the crash screen. Each `LOG_ERR` for a
+  rejected pixel is a blocking call over ~115200 baud USB CDC serial; enough of them back-to-back
+  can stall the task long enough to starve the idle task and trip the watchdog — turning a
+  cosmetic bug into a hard crash. `GfxRenderer::drawPixel` now caps that log to the first 5
+  occurrences instead of logging unboundedly. Also added temporary `LOG_INF` checkpoints through
+  `SleepActivity::onEnter()` and the deep-sleep entry sequence
+  (`enterDeepSleep()`/`HalPowerManager::startDeepSleep()`), and moved the HWCDC serial teardown in
+  `startDeepSleep()` as late as possible (right before `esp_deep_sleep_start()` instead of at the
+  top of the function) so a failure anywhere in the GPIO-isolation/wakeup-arming sequence still has
+  a chance to log before serial dies — needed to actually pin down the exact call site if the log
+  cap alone doesn't resolve it. All temporary — will be removed once confirmed fixed.
 - CI build failure: `SignalCatalog::nextPowerOfTwo` was a `SignalCatalog` member used inside the
   nested `HashRing` template's own static member initializer — GCC rejects that ("called in a
   constant expression before its definition is complete") even though it's lexically defined
