@@ -215,7 +215,12 @@ void SettingsActivity::render(RenderLock&&) {
 
   drawRow(RowWifiEnabled, "WiFi monitor", SETTINGS.wifiSniffEnabled ? "ON" : "OFF");
   y += kRowHeight;
-  drawRow(RowBleEnabled, "BLE passive scan", SETTINGS.bleSniffEnabled ? "ON" : "OFF");
+  // Distinguish "the setting is on but the radio actually failed to start" from a plain "ON" —
+  // NimBLE's controller init can fail silently (see BleScanner::begin()'s isInitialized() check),
+  // most often from memory contention with WiFi monitor capture already running, and this row is
+  // the one place an owner without a serial monitor attached would ever see that happened.
+  drawRow(RowBleEnabled, "BLE passive scan",
+          SETTINGS.bleSniffEnabled ? (bleScanner.isRunning() ? "ON" : "FAILED") : "OFF");
   y += kRowHeight;
   snprintf(valueBuf, sizeof(valueBuf), "%u ms/channel", SETTINGS.wifiChannelDwellMs);
   drawRow(RowWifiDwell, "WiFi channel dwell", valueBuf);

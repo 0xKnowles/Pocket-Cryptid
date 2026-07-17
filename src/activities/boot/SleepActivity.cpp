@@ -44,5 +44,11 @@ void SleepActivity::onEnter() {
 
   renderer.drawText(FONT_UI_10_ID, textLeft, y, "Hold power to wake", true, EpdFontFamily::BOLD);
 
-  renderer.displayBuffer();
+  // Full, not fast, refresh — this is the one screen meant to sit unchanged on the panel for
+  // hours at a time (until a long power-button press wakes it), so it's worth the slower flash to
+  // actually clear whatever was on screen before (typically the Dashboard) via a complete waveform
+  // cycle. FAST_REFRESH's partial-update LUT leaves exactly that kind of prior content visible as
+  // ghosting/burn-in for the entire time the device sits asleep, which is what this was doing
+  // before this fix — see periodic-wake comment above for the same fight-ghosting intent.
+  renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 }

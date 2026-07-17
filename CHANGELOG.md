@@ -103,6 +103,27 @@ All notable changes to this project are documented here. Format loosely follows
   owner had off in Settings before pausing. A "-- PAUSED --" line shows under Ruby's mood while
   active, and the footer hint switches between "Pause"/"Resume".
 
+### Fixed
+
+- **BLE passive scan silently failing to start when toggled on with WiFi monitor capture already
+  running, with no indication anywhere why.** `NimBLEDevice::init()` returns `void` and can fail
+  internally (most plausibly `esp_bt_controller_init()` unable to claim its memory pool on this
+  chip's ~380 KB RAM with no PSRAM, already under pressure from WiFi's own continuous promiscuous
+  capture) without throwing or logging anywhere visible without a serial monitor attached.
+  `BleScanner::begin()` used to mark itself successful regardless, so a subsequent failed
+  `start()` looked identical to the setting simply being off. Now checks
+  `NimBLEDevice::isInitialized()` and fails loudly (`LOG_ERR`) instead. `Settings → BLE passive
+  scan` also now shows **FAILED** rather than a plain **ON** when the setting is on but the radio
+  didn't actually start, since that row (not just the Dashboard's live status) is the one place an
+  owner without a serial monitor would ever see this happened.
+- **Sleep screen ghosting/burn-in for the entire time the device sat asleep.** `SleepActivity`
+  drew its one-time "GONE QUIET" screen with a bare `displayBuffer()`, defaulting to
+  `FAST_REFRESH` — the partial-update waveform, which doesn't fully clear whatever was on screen
+  before (typically the Dashboard). Since this screen is meant to sit unchanged on the panel for
+  hours, it's exactly the case that needs `FULL_REFRESH`'s complete waveform cycle instead, same
+  as the existing manual Screen-Refresh action and the Dashboard's own ghost-clear interval both
+  already use for the same reason.
+
 ### Removed
 
 - **The Lore feature, completely** — screen, unlock progression, and all supporting state. It

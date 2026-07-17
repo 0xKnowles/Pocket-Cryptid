@@ -67,6 +67,18 @@ bool BleScanner::begin() {
   // GATT read triggered by a future maintenance feature).
   NimBLEDevice::init("");
 
+  // init() returns void — it can fail silently underneath (e.g. esp_bt_controller_init() unable
+  // to claim its memory pool because WiFi monitor capture, on by default, already has a good
+  // chunk of this chip's ~380 KB RAM in continuous use with no PSRAM to fall back on) without
+  // throwing or logging anywhere we'd see it without a serial monitor attached. isInitialized()
+  // is the one way to actually confirm the controller/host came up before treating this as ready
+  // — without this check, begin() used to mark itself successful regardless, so a failed start()
+  // right after looked identical to the setting simply being off.
+  if (!NimBLEDevice::isInitialized()) {
+    LOG_ERR("BLESCAN", "NimBLE failed to initialize (often low memory while WiFi capture is running)");
+    return false;
+  }
+
   auto* forwarder = new ObservationForwarder();
   scanCallbacks = forwarder;
 
