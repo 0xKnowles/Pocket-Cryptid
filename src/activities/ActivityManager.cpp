@@ -7,6 +7,8 @@
 #include "boot/BootActivity.h"
 #include "boot/SleepActivity.h"
 #include "dashboard/DashboardActivity.h"
+#include "devices/DeviceListActivity.h"
+#include "logviewer/LogViewerActivity.h"
 #include "lore/LoreActivity.h"
 #include "maintenance/MaintenanceActivity.h"
 #include "settings/SettingsActivity.h"
@@ -169,6 +171,14 @@ void ActivityManager::goToLore() { replaceActivity(std::make_unique<LoreActivity
 
 void ActivityManager::goToMaintenance() {
   replaceActivity(std::make_unique<MaintenanceActivity>(renderer, mappedInput));
+}
+
+void ActivityManager::goToDeviceList() {
+  replaceActivity(std::make_unique<DeviceListActivity>(renderer, mappedInput));
+}
+
+void ActivityManager::goToLogViewer() {
+  replaceActivity(std::make_unique<LogViewerActivity>(renderer, mappedInput));
 }
 
 void ActivityManager::goToSleep(bool fromTimeout) {

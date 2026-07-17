@@ -77,6 +77,14 @@ void DashboardActivity::loop() {
     activityManager.goToMaintenance();
     return;
   }
+  if (mappedInput.wasReleased(MappedInputManager::Button::Up)) {
+    activityManager.goToDeviceList();
+    return;
+  }
+  if (mappedInput.wasReleased(MappedInputManager::Button::Down)) {
+    activityManager.goToLogViewer();
+    return;
+  }
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     pendingRenderKind = RenderKind::Full;
     lastPeriodicFullRefreshMs = 0;  // force a FULL_REFRESH ghost-clear pass this cycle
@@ -198,7 +206,12 @@ void DashboardActivity::renderFull() {
 
   char sessionBuf[24];
   snprintf(sessionBuf, sizeof(sessionBuf), "#%lu", static_cast<unsigned long>(APP_STATE.bootCount));
-  Chrome::drawStatRow(renderer, y, "Session", sessionBuf);
+  y = Chrome::drawStatRow(renderer, y, "Session", sessionBuf);
+
+  y += 10;
+  renderer.drawLine(Chrome::contentLeft(), y, Chrome::contentRight(renderer), y, true);
+  y += 16;
+  renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Up: recent devices    Down: decrypt log");
 
   drawCryptidPanel(true);
 

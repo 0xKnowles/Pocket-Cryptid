@@ -216,6 +216,51 @@ bool EncryptedLog::revealDecryptionKeyHex(char* out, size_t outSize) const {
   return true;
 }
 
+const char* EncryptedLog::logDirectory() { return kLogDir; }
+
+uint32_t EncryptedLog::recordCountForFileSize(uint64_t fileSizeBytes) {
+  return static_cast<uint32_t>(fileSizeBytes / kLogRecordEnvelopeSize);
+}
+
+size_t EncryptedLog::decryptRecordRange(const char* path, uint32_t startIndex, LogRecordPlaintext* out,
+                                        size_t maxCount) const {
+  HalFile file = Storage.open(path);
+  if (!file) return 0;
+  if (!file.seek64(static_cast<uint64_t>(startIndex) * kLogRecordEnvelopeSize)) {
+    file.close();
+    return 0;
+  }
+
+  size_t decrypted = 0;
+  for (; decrypted < maxCount; decrypted++) {
+    uint8_t version = 0;
+    uint8_t nonce[kLogNonceLen];
+    uint16_t ctLen = 0;
+    if (file.read(&version, 1) != 1 || file.read(nonce, kLogNonceLen) != static_cast<int>(kLogNonceLen) ||
+        file.read(&ctLen, 2) != 2) {
+      break;  // EOF or short read — no more complete records
+    }
+    if (version != kLogFormatVersion || ctLen != sizeof(LogRecordPlaintext)) break;
+
+    uint8_t ciphertext[sizeof(LogRecordPlaintext)];
+    uint8_t tag[kLogTagLen];
+    if (file.read(ciphertext, ctLen) != ctLen || file.read(tag, kLogTagLen) != static_cast<int>(kLogTagLen)) break;
+
+    mbedtls_gcm_context gcm;
+    mbedtls_gcm_init(&gcm);
+    bool ok = mbedtls_gcm_setkey(&gcm, MBEDTLS_CIPHER_ID_AES, aesKey, 256) == 0;
+    if (ok) {
+      ok = mbedtls_gcm_auth_decrypt(&gcm, ctLen, nonce, kLogNonceLen, nullptr, 0, tag, kLogTagLen, ciphertext,
+                                    reinterpret_cast<uint8_t*>(&out[decrypted])) == 0;
+    }
+    mbedtls_gcm_free(&gcm);
+    if (!ok) break;
+  }
+
+  file.close();
+  return decrypted;
+}
+
 bool EncryptedLog::wipeAndResetKey() {
   Preferences prefs;
   if (prefs.begin(kPrefsNamespace, false)) {

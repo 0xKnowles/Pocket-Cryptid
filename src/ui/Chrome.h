@@ -15,11 +15,11 @@ constexpr int kFooterHeight = 22;
 
 // Draws the title bar: bold title on the left, battery percentage on the right, thin rule below.
 // batteryPercent < 0 hides the battery readout (used on screens where it'd be visual noise).
-void drawHeader(GfxRenderer& renderer, const char* title, int batteryPercent = -1);
+void drawHeader(const GfxRenderer& renderer, const char* title, int batteryPercent = -1);
 
 // Draws a bottom row of up to 4 short button-hint labels, evenly spaced, in a small font. Pass
 // nullptr/"" to skip a slot.
-void drawFooterHints(GfxRenderer& renderer, const char* back, const char* confirm, const char* left,
+void drawFooterHints(const GfxRenderer& renderer, const char* back, const char* confirm, const char* left,
                      const char* right);
 
 // A short horizontal rule, full content width, at logical y.

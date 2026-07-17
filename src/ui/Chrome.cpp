@@ -6,7 +6,7 @@
 
 namespace Chrome {
 
-void drawHeader(GfxRenderer& renderer, const char* title, int batteryPercent) {
+void drawHeader(const GfxRenderer& renderer, const char* title, int batteryPercent) {
   renderer.drawText(FONT_UI_12_ID, kMarginX, 6, title, true, EpdFontFamily::BOLD);
 
   if (batteryPercent >= 0) {
@@ -19,7 +19,7 @@ void drawHeader(GfxRenderer& renderer, const char* title, int batteryPercent) {
   drawDivider(renderer, kHeaderHeight);
 }
 
-void drawFooterHints(GfxRenderer& renderer, const char* back, const char* confirm, const char* left,
+void drawFooterHints(const GfxRenderer& renderer, const char* back, const char* confirm, const char* left,
                      const char* right) {
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();

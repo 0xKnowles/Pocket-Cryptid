@@ -25,6 +25,7 @@
 #include "CryptidSettings.h"
 #include "EncryptedLog.h"
 #include "MappedInputManager.h"
+#include "RecentSightings.h"
 #include "SignalCatalog.h"
 #include "WifiSniffer.h"
 #include "activities/Activity.h"
@@ -229,12 +230,15 @@ void setup() {
   }
 
   wifiSniffer.setObservationCallback([](const WifiObservation& obs) {
-    encryptedLog.appendWifi(obs, mapWifiKindToLogType(obs.kind));
+    const LogRecordType type = mapWifiKindToLogType(obs.kind);
+    encryptedLog.appendWifi(obs, type);
     SIGNAL_CATALOG.observeWifi(obs);
+    recentSightings.recordWifi(obs, type);
   });
   bleScanner.setObservationCallback([](const BleObservation& obs) {
     encryptedLog.appendBle(obs);
     SIGNAL_CATALOG.observeBle(obs);
+    recentSightings.recordBle(obs);
   });
   SIGNAL_CATALOG.setNewUniqueCallback([](RfEventType type) { CRYPTID.onSignalEvent(type); });
 

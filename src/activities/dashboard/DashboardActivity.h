@@ -5,7 +5,9 @@
 // Home screen. Portrait (480x800 logical) — that's the orientation the X3/X4's physical
 // Back/Confirm/Left/Right/Up/Down buttons are actually laid out for; a rotated landscape
 // dashboard would need the orientation-aware button remapping layer this port doesn't carry
-// (see main.cpp's setupDisplayAndFonts()).
+// (see main.cpp's setupDisplayAndFonts()). Confirm/Left/Right open Settings/Lore/Maintenance;
+// Up/Down open DeviceListActivity (live recent sightings) and LogViewerActivity (on-device
+// decrypt of the encrypted capture log) respectively.
 //
 // Two update cadences share one framebuffer:
 //   - A slow (~5s) full redraw of the header + specimen card + RF stat rows + footer, using

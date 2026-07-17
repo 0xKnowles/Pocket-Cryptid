@@ -15,6 +15,22 @@ enum class LogRecordType : uint8_t {
   BleDevice = 3,
 };
 
+// Shared short label used by both the live RecentSightings view and the on-device log viewer, so
+// the two screens describe record types the same way.
+inline const char* logRecordTypeShortName(LogRecordType type) {
+  switch (type) {
+    case LogRecordType::WifiAp:
+      return "AP";
+    case LogRecordType::WifiClient:
+      return "CLIENT";
+    case LogRecordType::WifiHandshake:
+      return "EAPOL";
+    case LogRecordType::BleDevice:
+      return "BLE";
+  }
+  return "?";
+}
+
 // Fixed-size plaintext payload, AES-256-GCM encrypted as a single unit before it ever reaches
 // the SD card. 39 bytes today; keep it POD and packed so the size is portable across compilers.
 #pragma pack(push, 1)
@@ -37,3 +53,9 @@ static_assert(sizeof(LogRecordPlaintext) == 39, "LogRecordPlaintext layout chang
 constexpr size_t kLogNonceLen = 12;
 constexpr size_t kLogTagLen = 16;
 constexpr size_t kLogEnvelopeOverhead = 1 + kLogNonceLen + 2 + kLogTagLen;
+
+// Every record is written back-to-back at this exact size (LogRecordPlaintext never varies in
+// length, so ciphertext length never varies either) — that constant stride is what lets a reader
+// seek directly to record N as `N * kLogRecordEnvelopeSize` instead of scanning the file from the
+// start. See EncryptedLog::decryptRecordRange().
+constexpr size_t kLogRecordEnvelopeSize = kLogEnvelopeOverhead + sizeof(LogRecordPlaintext);

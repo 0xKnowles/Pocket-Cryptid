@@ -21,7 +21,7 @@ the encrypted log, the creature, every screen — is new.
 | --- | --- |
 | `freeink-sdk/`, `lib/hal`, `lib/GfxRenderer`, `lib/EpdFont` | Hardware bring-up: display driver, buttons, power, SD card, fonts, graphics primitives. Carried over from CrossPlant/CrossInk largely unmodified — this is what makes the firmware boot on real hardware. |
 | `lib/RfCapture` | **New.** Passive 802.11 monitor-mode WiFi sniffing and passive BLE advertisement scanning. |
-| `lib/SignalCatalog` | **New.** Deduplicates observations into "have I seen this MAC before" and lifetime unique-device counters. |
+| `lib/SignalCatalog` | **New.** Deduplicates observations into "have I seen this MAC before" and lifetime unique-device counters, plus a small RAM-only ring of recent sightings for the Recent Devices screen. |
 | `lib/CryptidLog` | **New.** AES-256-GCM encrypted append-only capture log. |
 | `src/cryptid` | **New.** The creature: procedurally-rendered (no bitmap art pipeline), fed by `SignalCatalog`. |
 | `src/activities/*` | **New.** Dashboard, Settings, Lore, and Maintenance screens replace CrossPlant's reader/browser/pet activities entirely. |
@@ -65,12 +65,22 @@ not disabled — there is no code path for them left in this repo.
 
 - **Dashboard** (home) — unique AP/client/BLE/handshake counts, capture status, log size,
   session uptime, and the creature. `Confirm` → Settings, `Left` → Lore, `Right` → Export/
-  Maintenance, `Back` → force a full ghost-clearing refresh.
+  Maintenance, `Up` → Recent Devices, `Down` → Log Viewer, `Back` → force a full ghost-clearing
+  refresh.
 - **Settings** — toggle WiFi/BLE capture, adjust WiFi channel dwell time, set the ghost-clear
   refresh interval, reveal the log's AES key, wipe the log.
 - **Lore** — flavor text unlocked progressively with XP, mixed with a few real running stats.
 - **Export/Maintenance** — how to pull the log off the SD card and decrypt it, plus the current
   session's record count.
+- **Recent Devices** — a live, RAM-only feed of the last 16 WiFi/BLE observations (type, MAC,
+  RSSI, SSID/name, time since seen), newest first. This is separate from both `SignalCatalog`
+  (which deliberately never retains which specific MACs it has seen — only dedup counts) and the
+  encrypted log (which retains everything, but only ever encrypted at rest). Nothing shown here
+  is persisted; it's lost on reboot along with the rest of RAM.
+- **Log Viewer** — browses the encrypted capture log *on the device itself*, no PC required. See
+  [On-device log decryption](#on-device-log-decryption) below for how that's possible without any
+  key-entry UI. `Left`/`Right` switch between daily log files, `Up`/`Down` page through records
+  within a file (8 at a time, newest first).
 
 ## Hardware
 
@@ -107,16 +117,36 @@ capture layer (`lib/RfCapture`) and the NimBLE-Arduino integration in particular
 verified against real hardware and the exact `NimBLE-Arduino` version PlatformIO resolves before
 relying on it. `pio run` (compile only, no device needed) is the first thing to check.
 
-## Exporting the log
+## On-device log decryption
 
-There is no USB/WiFi transfer protocol — power the device off, pull the SD card, and copy the
-files under `/.pocketcryptid/log/*.pclog` to a computer. Then, with the key from
-**Settings → Reveal log key**:
+The **Log Viewer** screen (Dashboard → `Down`) decrypts and browses the log right on the device,
+with no key ever typed in. This works because the AES-256 key that encrypted a given file never
+actually left the device that wrote it: `EncryptedLog` derives it once at boot (hardware TRNG seed
++ eFuse MAC, see [What "encrypted" means here](#what-encrypted-means-here)) and keeps it resident
+in RAM for as long as the firmware is running. Reading a record back is just
+`mbedtls_gcm_auth_decrypt` with that same in-memory key — the same primitive `writeEnvelope` uses
+in reverse, plus GCM's built-in authentication tag check, which doubles as corruption/tamper
+detection for free.
+
+Random access to record N is O(1) rather than a scan from the start of the file: every record is
+encrypted from a fixed-size 39-byte `LogRecordPlaintext`, so every on-disk envelope is exactly the
+same 70 bytes (`kLogRecordEnvelopeSize`), and record N always starts at byte `N * 70`. That's what
+lets the Log Viewer jump straight to "the last 8 records" or "the 8 before that" via
+`EncryptedLog::decryptRecordRange()` without touching anything else in the file.
+
+The PC-side path still exists and is still the only way to get the *plaintext* off the device
+entirely (Log Viewer only ever displays it on-screen):
 
 ```sh
 pip install -r scripts/requirements.txt
 python3 scripts/decrypt_log.py --key <64 hex chars> 20260717.pclog
 ```
+
+## Exporting the log
+
+There is no USB/WiFi transfer protocol — power the device off, pull the SD card, and copy the
+files under `/.pocketcryptid/log/*.pclog` to a computer, then decrypt with the command above and
+the key from **Settings → Reveal log key**.
 
 ## What "encrypted" means here
 

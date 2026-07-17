@@ -10,6 +10,17 @@ All notable changes to this project are documented here. Format loosely follows
 - GitHub Actions CI (`.github/workflows/ci.yml`): builds the `default` PlatformIO environment
   and runs `pio check` static analysis on every push/PR.
 - Verified on real X4 hardware for the first time.
+- **Recent Devices** screen (Dashboard → `Up`): a live, RAM-only feed of the last 16 WiFi/BLE
+  observations — type, MAC, RSSI, SSID/name, time since seen — so the device shows what it's
+  actually hearing, not just aggregate counts (`lib/SignalCatalog/RecentSightings`,
+  `src/activities/devices`).
+- **Log Viewer** screen (Dashboard → `Down`): browses and decrypts the encrypted capture log
+  on-device, no PC or key entry required — the AES key is already resident in RAM from boot.
+  `Left`/`Right` switch between daily log files, `Up`/`Down` page through records 8 at a time.
+  Backed by two new `EncryptedLog` methods, `decryptRecordRange()` and
+  `recordCountForFileSize()`, which exploit the log's fixed 70-byte-per-record envelope size for
+  O(1) random-access seeking instead of scanning from the start of the file
+  (`src/activities/logviewer`).
 
 ### Fixed
 
@@ -19,6 +30,9 @@ All notable changes to this project are documented here. Format loosely follows
   page-turning, which this port intentionally doesn't have. Reworked the dashboard layout for a
   tall screen in the process: the creature is now a centered "specimen card" at the top with its
   name/stage/mood/XP bar beneath it, RF stats fill the rest of the screen full-width below that.
+- Two remaining `cppcheck` `constParameterReference` findings in `Chrome::drawHeader` and
+  `Chrome::drawFooterHints` (both now take `const GfxRenderer&`), the last thing blocking a fully
+  green CI run.
 
 ## [0.1.0] - 2026-07-17
 

@@ -48,6 +48,24 @@ class EncryptedLog {
   // Used by the "wipe capture history" settings action.
   bool wipeAndResetKey();
 
+  // On-device decryption. The AES key never leaves this device (it's derived from the hardware
+  // TRNG + eFuse MAC, see the class comment above) and is already resident in `aesKey` once
+  // begin() has run — so reading a log back doesn't require any key entry UI, unlike
+  // scripts/decrypt_log.py which needs the hex key typed in by hand on a PC.
+
+  // Directory log files live in, e.g. for listing available dates to browse.
+  static const char* logDirectory();
+
+  // How many complete records a file of this size holds. O(1): every on-disk record is exactly
+  // kLogRecordEnvelopeSize bytes (see LogRecord.h), so this is just a division, not a scan.
+  static uint32_t recordCountForFileSize(uint64_t fileSizeBytes);
+
+  // Decrypts up to `maxCount` consecutive records starting at `startIndex` (0 = oldest record in
+  // the file) from `path` into `out`. Returns how many were actually decrypted: fewer than
+  // `maxCount` at end of file, 0 if the file couldn't be opened or the first record failed GCM
+  // authentication (wrong key or corrupted/truncated data — the tag check catches both).
+  size_t decryptRecordRange(const char* path, uint32_t startIndex, LogRecordPlaintext* out, size_t maxCount) const;
+
  private:
   bool loadOrCreateKeySeed();
   void deriveKey();
