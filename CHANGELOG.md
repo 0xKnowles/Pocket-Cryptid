@@ -40,22 +40,24 @@ All notable changes to this project are documented here. Format loosely follows
   - Of the two items deferred when this was first mitigated, one is done (see below); the other
     (software AES) was attempted and reverted — also below, so it isn't silently retried later.
 
-- **Investigated forcing software AES-256-GCM instead of this chip's hardware accelerator —
-  reverted, left as a documented dead end.** This would have been the direct fix for the DMA-pool
+- **Forcing software AES-256-GCM instead of this chip's hardware accelerator, take two: strip the
+  unused component tree instead of giving up on it.** This is the direct fix for the DMA-pool
   dependency above rather than a workaround for it: `mbedtls_gcm_*` defaults to hardware
   acceleration, which needs a contiguous chunk of the small DMA-capable pool per call, while
-  software AES/GCM only needs ordinary heap. Confirmed pioarduino's `platform-espressif32` supports
-  per-project sdkconfig overrides even for plain `framework = arduino` (undocumented, found by
-  reading the builder script directly) and set `CONFIG_MBEDTLS_HARDWARE_AES=n` /
-  `CONFIG_MBEDTLS_HARDWARE_GCM=n` via `custom_sdkconfig` in `platformio.ini`. CI caught a real
-  problem before it ever reached a device: setting `custom_sdkconfig` *at all* forces this pinned
-  pioarduino release into a full from-source rebuild of the entire ESP-IDF managed-component tree
-  — including components this project never uses (esp-modbus, esp-zigbee, esp_insights, an HTTPS
-  server) — and that path fails outright on a missing generated file (`https_server.crt.S`)
-  unrelated to the mbedtls setting itself. That's a pioarduino/esp-idf component-packaging bug, not
-  something fixable from the application side. Reverted rather than fought further; the heap-health
-  circuit breaker above remains the real safety net for the DMA-pool exhaustion this was meant to
-  prevent at the source.
+  software AES/GCM only needs ordinary heap. The first attempt (`CONFIG_MBEDTLS_HARDWARE_AES=n` /
+  `CONFIG_MBEDTLS_HARDWARE_GCM=n` via `custom_sdkconfig`) was reverted after CI showed that setting
+  `custom_sdkconfig` at all forces this pinned pioarduino release into a full from-source rebuild of
+  the entire ESP-IDF managed-component tree, which failed outright on a missing generated file
+  (`https_server.crt.S`) from a component this project never uses. Traced that file to
+  arduino-esp32's own `idf_component.yml`: it pulls in the full RainMaker cloud-agent suite
+  (`esp_rainmaker`, `rmaker_common`, `esp_insights`, `esp_diag_data_store`, `esp_diagnostics`,
+  `network_provisioning`) plus Zigbee, Modbus, esp-dsp and esp_modem — none referenced anywhere in
+  this codebase (grep-confirmed), all pulled in unconditionally by the from-source rebuild path.
+  Found pioarduino's sibling `custom_component_remove` mechanism by reading
+  `builder/frameworks/component_manager.py` directly: it exact-matches full `owner/name` keys
+  against the resolved dependency manifest and deletes them *before* the rebuild compiles anything.
+  Re-added `custom_sdkconfig` alongside a `custom_component_remove` list stripping the above
+  components in `platformio.ini`. Pending CI confirmation.
 
 - **`EncryptedLog` holds a persistent write handle again, with a proper fix this time.** The
   open/write/close-per-record pattern (reverted to earlier tonight after a persistent handle broke
