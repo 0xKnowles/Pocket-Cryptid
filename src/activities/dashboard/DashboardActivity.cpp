@@ -228,7 +228,7 @@ void DashboardActivity::renderFull() {
   // useful status — a plain "Mood" label over the actual mood value is clearer.
   const RubyState& state = RUBY.getState();
   const RubyExpression expression = RUBY.currentExpression(false);
-  y = topRowBottom + 8;
+  y = topRowBottom + 6;
   drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_UI_12_ID, y, "Mood", EpdFontFamily::BOLD);
   y += 20;
   drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, y, RubyBehavior::expressionLabel(expression));

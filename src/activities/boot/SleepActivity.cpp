@@ -18,10 +18,12 @@ void SleepActivity::onEnter() {
 
   // Much bigger across the board than the original 96px/all-FONT_SMALL_ID layout — this screen
   // sits untouched for potentially hours, so it should read clearly from across a room, not just
-  // up close.
-  constexpr int kPortraitSize = 280;
+  // up close. 400px matches sleep.bmp's native 400x400 resolution exactly — RubySpriteRenderer's
+  // scale-to-fit never scales up, only down, so this is the largest size that stays pixel-crisp
+  // instead of adding blank padding around a smaller image.
+  constexpr int kPortraitSize = 400;
   const int portraitX = (pageWidth - kPortraitSize) / 2;
-  const int portraitY = 90;
+  const int portraitY = 40;
   RubySpriteRenderer::drawPortrait(renderer, portraitX, portraitY, kPortraitSize);
 
   int y = portraitY + kPortraitSize + 30;

@@ -5,8 +5,20 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+
+- CI build failure: `SignalCatalog::nextPowerOfTwo` was a `SignalCatalog` member used inside the
+  nested `HashRing` template's own static member initializer — GCC rejects that ("called in a
+  constant expression before its definition is complete") even though it's lexically defined
+  earlier in the same class body, because the enclosing class isn't yet a "complete-class context"
+  at that point. Moved it to a free function ahead of the class instead.
+
 ### Changed
 
+- Sleep screen portrait bumped from 280px to 400px to match the new, larger `sleep.bmp` (400×400)
+  at native resolution — RubySpriteRenderer only ever scales art down, never up, so 400px is the
+  largest size that stays pixel-crisp instead of padding a smaller image.
+- Dashboard's "Mood" label nudged 2px closer to the specimen box.
 - **Responsiveness: encrypted log writes no longer open/write/close the SD file per record.**
   `EncryptedLog` previously did a full file open (a directory scan on FAT — the expensive part),
   five `write()` calls, and a close for *every single* WiFi frame or BLE advertisement, called

@@ -8,6 +8,20 @@
 
 #include "RfTypes.h"
 
+namespace {
+// Smallest power of two >= n — used to size each HashRing's open-addressing index table below.
+// A free function rather than a SignalCatalog member: GCC rejects a same-class static constexpr
+// member function used inside a nested class template's own static member initializer ("called in
+// a constant expression before its definition is complete"), even though it's fully defined
+// earlier in the same class body — the enclosing class isn't a "complete-class context" yet at
+// that point. Living outside the class entirely sidesteps that.
+constexpr size_t nextPowerOfTwo(size_t n) {
+  size_t p = 1;
+  while (p < n) p <<= 1;
+  return p;
+}
+}  // namespace
+
 // What kind of "first time we've ever seen this" event just happened. RubyManager listens
 // for these to update its expression and to unlock lore entries.
 enum class RfEventType : uint8_t {
@@ -66,13 +80,6 @@ class SignalCatalog : public PersistableStore<SignalCatalog> {
   static constexpr size_t kClientCapacity = 768;
   static constexpr size_t kBleCapacity = 512;
   static constexpr size_t kHandshakeTrackerCapacity = 32;
-
-  // Smallest power of two >= n — used to size each ring's open-addressing index table below.
-  static constexpr size_t nextPowerOfTwo(size_t n) {
-    size_t p = 1;
-    while (p < n) p <<= 1;
-    return p;
-  }
 
   // Fixed-capacity ring of FNV hashes: membership test + insert-with-oldest-eviction. Once full,
   // the oldest entry is overwritten, so a MAC that scrolled out of the ring can register as

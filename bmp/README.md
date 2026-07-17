@@ -17,7 +17,7 @@ art without recompiling, not something you need to do to see the built-in art.
 | `content.bmp` | Ruby is `CONTENT` — steady recent activity | 230×230 on the dashboard |
 | `bored.bmp` | Ruby is `BORED` — quiet for a while | 230×230 on the dashboard |
 | `lonely.bmp` | Ruby is `LONELY` — quiet for a long while | 230×230 on the dashboard |
-| `sleep.bmp` | Ruby is `SLEEPING` — device is on the sleep screen | 280×280 on the sleep screen |
+| `sleep.bmp` | Ruby is `SLEEPING` — device is on the sleep screen | 400×400 on the sleep screen |
 
 Format: standard Windows BMP (`BM` signature), 1/2/4/8/24/32 bpp all work; 32bpp may be either
 `BI_RGB` or `BI_BITFIELDS` compression (common from tools that export a `BITMAPV5HEADER` for
