@@ -91,6 +91,37 @@ uint8_t classifyEapolMessage(const uint8_t* eapolKeyFrame, size_t len) {
   return 0;
 }
 
+// Scans a message-1 EAPOL-Key frame's (unencrypted, since no PTK exists yet) Key Data field for
+// the vendor-specific PMKID KDE: a 0xDD element, OUI 00:0F:AC, OUI type 4, followed by a 16-byte
+// PMKID. When present, hashcat's -m 22000 PMKID mode can recover a PSK from this one frame alone
+// — no client, no completed 4-way handshake needed. Same offset convention as
+// classifyEapolMessage (`eapolKeyFrame` based at the Descriptor Type byte, i.e. `eapol + 4`).
+bool eapolKeyDataHasPmkid(const uint8_t* eapolKeyFrame, size_t len) {
+  constexpr size_t kKeyDataLenOffset = 93;
+  constexpr size_t kKeyDataOffset = 95;
+  constexpr uint8_t kPmkidElementLen = 20;  // OUI(3) + OUI type(1) + PMKID(16)
+  constexpr uint8_t kVendorSpecificTag = 0xDD;
+  constexpr uint8_t kPmkidOui[] = {0x00, 0x0F, 0xAC, 0x04};
+
+  if (len < kKeyDataOffset + 2) return false;
+  const uint16_t keyDataLen = (eapolKeyFrame[kKeyDataLenOffset] << 8) | eapolKeyFrame[kKeyDataLenOffset + 1];
+  if (keyDataLen < static_cast<uint16_t>(kPmkidElementLen) + 2 || len < kKeyDataOffset + keyDataLen) return false;
+
+  const uint8_t* keyData = eapolKeyFrame + kKeyDataOffset;
+  size_t i = 0;
+  while (i + 2 <= keyDataLen) {
+    const uint8_t elementTag = keyData[i];
+    const uint8_t elementLen = keyData[i + 1];
+    if (i + 2 + elementLen > keyDataLen) break;
+    if (elementTag == kVendorSpecificTag && elementLen == kPmkidElementLen &&
+        memcmp(&keyData[i + 2], kPmkidOui, sizeof(kPmkidOui)) == 0) {
+      return true;
+    }
+    i += 2 + elementLen;
+  }
+  return false;
+}
+
 constexpr uint8_t kLlcSnapEapol[] = {0xAA, 0xAA, 0x03, 0x00, 0x00, 0x00, 0x88, 0x8E};
 
 // EAPOL handshakes are 4 frames and a tracked BSSID's SSID beacon is captured once each — this
@@ -326,6 +357,13 @@ void WifiSniffer::promiscuousRxCallback(void* buf, wifi_promiscuous_pkt_type_t t
           // Stay on this channel a while instead of hopping away mid-handshake — see
           // kHandshakeChannelLockMs's comment on WifiSniffer.h.
           wifiSniffer.channelLockUntilMs = millis() + kHandshakeChannelLockMs;
+
+          // PMKID accounting: only counts frames that will actually reach raw capture below (same
+          // condition captureThisFrame uses for EapolHandshake) — see pmkidCapableFrames' comment.
+          if (obs.eapolMessageNum == 1 && wifiSniffer.rawCaptureEnabled && wifiSniffer.rawQueue &&
+              eapolKeyDataHasPmkid(eapol + 4, eapolLen - 4)) {
+            wifiSniffer.totalPmkidCapableFrames++;
+          }
         }
       }
     }

@@ -10,6 +10,7 @@
 #include "DeauthEngine.h"
 #include "EncryptedLog.h"
 #include "PcapWriter.h"
+#include "WifiSniffer.h"
 #include "fontIds.h"
 #include "ui/Chrome.h"
 
@@ -140,6 +141,8 @@ void MaintenanceActivity::render(RenderLock&&) {
     rightY = Chrome::drawStatRow(renderer, rightY, "Files", valueBuf, false, rightColX + colWidth, rightColX);
     formatBytes(pcapSummary.totalBytes, sizeBuf, sizeof(sizeBuf));
     rightY = Chrome::drawStatRow(renderer, rightY, "Size", sizeBuf, false, rightColX + colWidth, rightColX);
+    snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(wifiSniffer.pmkidCapableFrames()));
+    rightY = Chrome::drawStatRow(renderer, rightY, "PMKID-capable", valueBuf, false, rightColX + colWidth, rightColX);
     rightY += 4;
     const auto pcapLines = renderer.wrappedText(
         FONT_SMALL_ID, "Plaintext .pcap under /.ruby/pcap/ — load into hashcat/hcxpcapngtool.", colWidth, 4);

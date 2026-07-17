@@ -81,6 +81,13 @@ class WifiSniffer {
   uint32_t framesSeen() const { return totalFrames; }
   uint32_t framesDropped() const { return droppedFrames; }  // queue overflow — capture rate exceeded processing rate
 
+  // Count of raw-captured EAPOL message-1 frames whose Key Data field carries the vendor-specific
+  // PMKID KDE (OUI 00:0F:AC, type 4) — hashcat's -m 22000 PMKID mode can recover a PSK straight
+  // from one of these, without ever needing the rest of the 4-way handshake to complete. Only
+  // incremented for frames actually written to raw .pcap (see setRawCaptureEnabled) — purely
+  // informational, doesn't change what's captured either way.
+  uint32_t pmkidCapableFrames() const { return totalPmkidCapableFrames; }
+
  private:
   static void promiscuousRxCallback(void* buf, wifi_promiscuous_pkt_type_t type);
 
@@ -114,6 +121,7 @@ class WifiSniffer {
   volatile unsigned long channelLockUntilMs = 0;
   uint32_t totalFrames = 0;
   uint32_t droppedFrames = 0;
+  uint32_t totalPmkidCapableFrames = 0;
 
   ObservationCallback callback;
   void* rxQueue = nullptr;  // QueueHandle_t, opaque here to keep FreeRTOS headers out of this .h

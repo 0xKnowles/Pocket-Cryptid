@@ -157,6 +157,9 @@ strength of networks you own, offline, with tools like [hashcat](https://hashcat
   the exact bytes that went over the air, so this one path can't be routed through the AES-256-GCM
   encrypted log the way every other observation is. `MaintenanceActivity` calls this out
   explicitly whenever raw-capture files exist.
+- The Export screen also shows a **PMKID-capable** count — how many captured message-1 frames
+  carry the PMKID key-data element, each one independently crackable via hashcat's `-m 22000`
+  PMKID mode without needing the rest of the handshake at all.
 - Turn it back off when you're not actively auditing — it's meant to be run deliberately, not left
   on as a background default.
 

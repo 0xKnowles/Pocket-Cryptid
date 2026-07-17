@@ -7,6 +7,13 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
+- **PMKID-capable capture counter** (`WifiSniffer::pmkidCapableFrames`, shown on the Export
+  screen's RAW CAPTURE card). Scans each raw-captured EAPOL message-1 frame's Key Data field for
+  the vendor-specific PMKID KDE (OUI `00:0F:AC`, type 4) — when present, hashcat's `-m 22000`
+  PMKID mode can recover a PSK from that single frame, without ever needing a client to complete
+  the rest of the 4-way handshake. Ruby was already capturing these bytes verbatim as part of
+  every M1 frame; this just makes that fact visible on-device instead of only discoverable by
+  running `hcxpcapngtool` on a PC afterward.
 - **Configurable Power button short-press action** (`Settings → Power button (tap)`). A long hold
   is always Sleep, unconditionally — only the short tap is configurable now, cycling between
   Refresh (the previous, only behavior — a manual ghost-clearing full refresh), Screenshot (new —
