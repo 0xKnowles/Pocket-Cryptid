@@ -5,6 +5,14 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- Dashboard's headline under the specimen box was the auto-generated per-device "SPECIMEN-XXXX"
+  designation (`RubyManager::begin()`, derived from the MAC address) — meant as flavor, but with
+  no explanation on-screen it just read as unexplained noise. Replaced with a plain "Mood" label
+  over the actual mood/expression value; the designation itself is unchanged and still used in log
+  messages, just no longer given top billing on the dashboard.
+
 ### Added
 
 - **Full-screen boot splash** (`boot.bmp`, baked in the same way as the expression art) replaces

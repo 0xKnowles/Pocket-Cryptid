@@ -221,12 +221,15 @@ void DashboardActivity::renderFull() {
   }
   endStatCard(renderer, deviceColX, deviceColWidth, cardTop, deviceRowsBottom);
 
-  // Name/mood/lore text sits under the box, centered within the box's own column (not the whole
-  // screen — the box is left-aligned now, not centered).
+  // Mood/lore text sits under the box, centered within the box's own column (not the whole
+  // screen — the box is left-aligned now, not centered). This used to show the auto-generated
+  // per-device "SPECIMEN-XXXX" designation (RubyManager::begin(), still used in log messages) as
+  // a bold headline, but on the dashboard itself that read as unexplained noise rather than
+  // useful status — a plain "Mood" label over the actual mood value is clearer.
   const RubyState& state = RUBY.getState();
   const RubyExpression expression = RUBY.currentExpression(false);
   y = topRowBottom + 8;
-  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_UI_12_ID, y, state.designation, EpdFontFamily::BOLD);
+  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_UI_12_ID, y, "Mood", EpdFontFamily::BOLD);
   y += 20;
   drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, y, RubyBehavior::expressionLabel(expression));
   y += 16;
