@@ -40,24 +40,41 @@ All notable changes to this project are documented here. Format loosely follows
   - Of the two items deferred when this was first mitigated, one is done (see below); the other
     (software AES) was attempted and reverted — also below, so it isn't silently retried later.
 
-- **Forcing software AES-256-GCM instead of this chip's hardware accelerator, take two: strip the
-  unused component tree instead of giving up on it.** This is the direct fix for the DMA-pool
-  dependency above rather than a workaround for it: `mbedtls_gcm_*` defaults to hardware
-  acceleration, which needs a contiguous chunk of the small DMA-capable pool per call, while
-  software AES/GCM only needs ordinary heap. The first attempt (`CONFIG_MBEDTLS_HARDWARE_AES=n` /
-  `CONFIG_MBEDTLS_HARDWARE_GCM=n` via `custom_sdkconfig`) was reverted after CI showed that setting
-  `custom_sdkconfig` at all forces this pinned pioarduino release into a full from-source rebuild of
-  the entire ESP-IDF managed-component tree, which failed outright on a missing generated file
-  (`https_server.crt.S`) from a component this project never uses. Traced that file to
-  arduino-esp32's own `idf_component.yml`: it pulls in the full RainMaker cloud-agent suite
-  (`esp_rainmaker`, `rmaker_common`, `esp_insights`, `esp_diag_data_store`, `esp_diagnostics`,
-  `network_provisioning`) plus Zigbee, Modbus, esp-dsp and esp_modem — none referenced anywhere in
-  this codebase (grep-confirmed), all pulled in unconditionally by the from-source rebuild path.
-  Found pioarduino's sibling `custom_component_remove` mechanism by reading
-  `builder/frameworks/component_manager.py` directly: it exact-matches full `owner/name` keys
-  against the resolved dependency manifest and deletes them *before* the rebuild compiles anything.
-  Re-added `custom_sdkconfig` alongside a `custom_component_remove` list stripping the above
-  components in `platformio.ini`. Pending CI confirmation.
+- **Forcing software AES-256-GCM instead of this chip's hardware accelerator — two genuine
+  pioarduino toolchain bugs found and confirmed via CI job logs, both dead ends, reverted for
+  good.** This would have been the direct fix for the DMA-pool dependency above rather than a
+  workaround for it: `mbedtls_gcm_*` defaults to hardware acceleration, which needs a contiguous
+  chunk of the small DMA-capable pool per call, while software AES/GCM only needs ordinary heap.
+  - **Bug 1**: setting `custom_sdkconfig` at all (even just `CONFIG_MBEDTLS_HARDWARE_AES=n` /
+    `CONFIG_MBEDTLS_HARDWARE_GCM=n`) forces this pinned pioarduino release into a full from-source
+    rebuild of the entire ESP-IDF managed-component tree, which failed outright on a missing
+    generated file (`https_server.crt.S`) from a component this project never uses. Traced that
+    file to arduino-esp32's own `idf_component.yml`: it pulls in the full RainMaker cloud-agent
+    suite (`esp_rainmaker`, `rmaker_common`, `esp_insights`, `esp_diag_data_store`,
+    `esp_diagnostics`, `network_provisioning`) plus Zigbee, Modbus, esp-dsp and esp_modem — none
+    referenced anywhere in this codebase (grep-confirmed). Fixed by finding pioarduino's sibling
+    `custom_component_remove` mechanism (read directly from `builder/frameworks/component_manager.py`:
+    exact-matches full `owner/name` keys against the resolved dependency manifest and deletes them
+    *before* the rebuild compiles anything) and stripping those unused components.
+  - **Bug 2, underneath the first**: with bug 1 fixed, CI got past `https_server.crt.S` into a
+    clean full rebuild — and that rebuild proved the software-AES config compiles and links fine
+    on its own. But pioarduino runs `framework = arduino` as *two separate build passes* once
+    `custom_sdkconfig` is set: a raw ESP-IDF pass (logged as "Copied compiled esp32c3 IDF libraries
+    to Arduino framework") that built and linked cleanly, followed by a second "Arduino compile"
+    pass that recompiles the project and relinks against the framework's libraries. That second
+    pass's linker pulled `libwpa_supplicant.a` straight from the untouched, prebuilt
+    `framework-arduinoespressif32-libs` package, and even freshly-compiled `EncryptedLog.cpp.o`
+    couldn't find `mbedtls_gcm_*` — undefined references to `mbedtls_aes_*`/`mbedtls_gcm_*`
+    throughout, confirmed via the CI job log. The "copy compiled IDF libraries into the Arduino
+    framework" step pioarduino logs before that second pass does not actually wire the
+    freshly-built `libmbedcrypto.a` into that pass's link command. That's a structural gap in
+    pioarduino's own two-pass build wiring for `framework=arduino`, not a config value — no
+    `CONFIG_MBEDTLS_*` flag fixes a library that never gets linked into the final binary.
+  - **Verdict**: not fixable from this project without patching pioarduino's builder scripts
+    directly, which is out of scope. Reverted both `custom_sdkconfig` and `custom_component_remove`
+    from `platformio.ini`, left as a documented dead end with the full diagnosis so it isn't
+    silently retried later. The heap-health circuit breaker above remains the real safety net for
+    the DMA-pool exhaustion this was meant to prevent at the source.
 
 - **`EncryptedLog` holds a persistent write handle again, with a proper fix this time.** The
   open/write/close-per-record pattern (reverted to earlier tonight after a persistent handle broke
