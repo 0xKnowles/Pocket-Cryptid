@@ -2,12 +2,12 @@
 
 #include "activities/Activity.h"
 
-// Home screen. Portrait (480x800 logical) — that's the orientation the X3/X4's physical
-// Back/Confirm/Left/Right/Up/Down buttons are actually laid out for; a rotated landscape
-// dashboard would need the orientation-aware button remapping layer this port doesn't carry
-// (see main.cpp's setupDisplayAndFonts()). Confirm/Left/Right open Settings/Lore/Maintenance;
-// Up/Down open DeviceListActivity (live recent sightings) and LogViewerActivity (on-device
-// decrypt of the encrypted capture log) respectively.
+// Home screen. Landscape (792x528 logical, the panel's native orientation — see main.cpp's
+// setupDisplayAndFonts()). Button *behavior* doesn't depend on screen orientation at all —
+// MappedInputManager maps straight to hardware regardless of what's on screen — so
+// Confirm/Left/Right still open Settings/Lore/Maintenance and Up/Down still open
+// DeviceListActivity (live recent sightings) and LogViewerActivity (on-device decrypt of the
+// encrypted capture log) respectively; only the layout below is orientation-specific.
 //
 // Two update cadences share one framebuffer:
 //   - A slow (~5s) full redraw of the header + specimen card + RF stat rows + footer, using

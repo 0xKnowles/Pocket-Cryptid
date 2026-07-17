@@ -130,7 +130,7 @@ When the device is asleep, it shows a different, much larger piece of art instea
 - **Log Viewer** — browses the encrypted capture log *on the device itself*, no PC required. See
   [On-device log decryption](#on-device-log-decryption) below for how that's possible without any
   key-entry UI. `Left`/`Right` switch between daily log files, `Up`/`Down` page through records
-  within a file (8 at a time, newest first).
+  within a file (5 at a time, newest first).
 
 ## Raw handshake capture (crackable `.pcap` export)
 
@@ -161,20 +161,14 @@ handshakes doing on their own.
 ## Hardware
 
 Same target as upstream CrossPlant/CrossInk: **Xteink X3 or X4**, ESP32-C3 (single-core RISC-V,
-~380 KB usable RAM, no PSRAM), 800×480 e-ink panel. The dashboard runs in **portrait**
-(480×800 logical) — that's the orientation the physical Back/Confirm/Left/Right/Up/Down buttons
-are laid out for. Upstream CrossPlant handles rotated orientations with an orientation-aware
-button remapping layer in `MappedInputManager`; this port deliberately doesn't carry that
-complexity, so it stays in the one orientation where on-screen button hints are correct without
-it.
-
-`MappedInputManager` does carry one small physical correction: on real X3/X4 hardware, the
-board's `HalGPIO::BTN_LEFT`/`BTN_RIGHT` constants are swapped relative to which physical button is
-actually left vs. right on the case (confirmed by flashing a device — Back/Confirm, the outer two
-of the four front buttons, landed correctly, but the two middle buttons opened the screen labeled
-for the other one). `MappedInputManager::hardwareIndex()` swaps them back so every screen's
-Left/Right bindings (Dashboard's Lore/Export, Settings' -/+, Lore's Prev/Next, Log Viewer's file
-switching) match their on-screen labels.
+~380 KB usable RAM, no PSRAM), 792×528 e-ink panel. The dashboard runs in **landscape**
+(792×528 logical) — the panel's own native orientation, needing no rotation math to draw into.
+`MappedInputManager` is a direct, orientation-unaware passthrough from logical buttons
+(Back/Confirm/Left/Right/Up/Down) to hardware — screen orientation is purely a rendering concern,
+so it has no effect on what any button does. What *does* change with orientation is
+`Chrome::drawFooterHints`: in landscape, the on-screen button-hint pills move from a horizontal
+bar along the bottom to a vertical strip along the right edge, with rotated text — see
+`ui/Chrome.cpp` for the coordinate-geometry reasoning behind that specific edge.
 
 The ESP32-C3 has integrated WiFi 802.11 b/g/n and Bluetooth 5 (LE only) — both capture paths run
 on the same radio hardware the original firmware used for book downloads and OTA updates.

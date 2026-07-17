@@ -151,13 +151,15 @@ void setupDisplayAndFonts() {
   renderer.insertFont(FONT_UI_10_ID, ui10FontFamily);
   renderer.insertFont(FONT_UI_12_ID, ui12FontFamily);
 
-  // Portrait (480x800 logical) — this is the orientation the X3/X4's physical buttons are
-  // actually laid out for. Landscape rotates the logical screen 90° from where Back/Confirm/
-  // Left/Right/Up/Down physically sit on the case; upstream CrossPlant handles that with an
-  // orientation-aware button remapping layer in MappedInputManager that this port deliberately
-  // dropped as reader-specific complexity. Rather than resurrect that layer to chase a landscape
-  // dashboard, staying in the native orientation keeps on-screen button hints correct for free.
-  renderer.setOrientation(GfxRenderer::Portrait);
+  // Landscape, native panel orientation (792x528 logical — LandscapeCounterClockwise is the
+  // identity transform, no rotation math needed). Button *behavior* is unaffected: MappedInputManager
+  // is a direct passthrough to hardware, unaware of screen orientation, so Back/Confirm/Left/Right/
+  // Up/Down still do exactly what they did in portrait. What changes is purely visual: Chrome's
+  // footer becomes a vertical strip of rotated-text hint pills along the screen's right edge
+  // instead of a horizontal bar along the bottom — see Chrome::drawFooterHints — because that's
+  // the edge the physical button row lands on under this orientation (the same edge portrait's
+  // bottom-aligned footer sat on, per Portrait's own coordinate rotation).
+  renderer.setOrientation(GfxRenderer::LandscapeCounterClockwise);
 
   LOG_DBG("MAIN", "Display and fonts ready");
 }

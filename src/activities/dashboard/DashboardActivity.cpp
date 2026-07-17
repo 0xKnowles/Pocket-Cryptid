@@ -101,11 +101,11 @@ void drawCenteredTextIn(const GfxRenderer& renderer, int x, int width, int fontI
 void DashboardActivity::onEnter() {
   Activity::onEnter();
 
-  // Portrait layout: the creature is a large specimen box pinned top-left (~1/4 of the screen),
-  // a live "RECENT DEVICES" window sits beside it to the right at the same height, name/mood text
-  // sits under the box, and SIGNALS + CAPTURE STATUS fill the bottom half full-width. See
-  // DashboardActivity.h for why this is portrait and not landscape — the physical buttons are
-  // laid out for this orientation.
+  // Ruby's box is pinned top-left, a live "RECENT DEVICES" window sits beside it to the right at
+  // the same height, name/mood text sits under the box, and SIGNALS + CAPTURE STATUS sit side by
+  // side filling the rest of the width below that (see renderFull()) — landscape has much more
+  // width to spend than the old portrait layout did, but a lot less height, so those two cards
+  // are columns now instead of a full-width stack.
   rubyBoxSize = 230;
   rubyBoxX = Chrome::contentLeft();
   rubyBoxY = Chrome::contentTop();
@@ -191,7 +191,7 @@ void DashboardActivity::renderFull() {
   const int battery = powerManager.getBatteryPercentage();
   Chrome::drawHeader(renderer, "", battery);
 
-  // Top row: specimen box pinned top-left, "RECENT DEVICES" window beside it to the right at the
+  // Top row: Ruby's box pinned top-left, "RECENT DEVICES" window beside it to the right at the
   // same height.
   const int deviceColX = rubyBoxX + rubyBoxSize + kColumnGap;
   const int deviceColWidth = Chrome::contentRight(renderer) - deviceColX;
@@ -243,44 +243,48 @@ void DashboardActivity::renderFull() {
   drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, y, loreBuf);
   y += 16;
 
-  // Bottom half: SIGNALS + CAPTURE STATUS, full width.
+  // Bottom half: SIGNALS + CAPTURE STATUS. Landscape's 792x528 canvas has much less spare height
+  // below the top row than the old portrait canvas did, but a lot more spare width — so these
+  // two cards sit side by side in their own columns instead of stacked full-width. Every other
+  // proportion on this screen (box size, top row, mood text) is unchanged.
   y += kCardGap;
-  cardTop = y;
-  y = beginStatCard(renderer, Chrome::contentLeft(), Chrome::contentRight(renderer) - Chrome::contentLeft(), y,
-                    "SIGNALS");
+  const int bottomY = y;
+  const int colWidth = (Chrome::contentRight(renderer) - Chrome::contentLeft() - kColumnGap) / 2;
+  const int leftColX = Chrome::contentLeft();
+  const int rightColX = leftColX + colWidth + kColumnGap;
+
+  int leftY = beginStatCard(renderer, leftColX, colWidth, bottomY, "SIGNALS");
   const auto& stats = SIGNAL_CATALOG.getStats();
   char buf[32];
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueWifiAPs));
-  y = Chrome::drawStatRow(renderer, y, "Unique access points", buf);
+  leftY = Chrome::drawStatRow(renderer, leftY, "Unique access points", buf, false, leftColX + colWidth);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueWifiClients));
-  y = Chrome::drawStatRow(renderer, y, "Unique WiFi clients", buf);
+  leftY = Chrome::drawStatRow(renderer, leftY, "Unique WiFi clients", buf, false, leftColX + colWidth);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueBleDevices));
-  y = Chrome::drawStatRow(renderer, y, "Unique BLE devices", buf);
+  leftY = Chrome::drawStatRow(renderer, leftY, "Unique BLE devices", buf, false, leftColX + colWidth);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.handshakesCaptured));
-  y = Chrome::drawStatRow(renderer, y, "Handshakes captured", buf);
-  endStatCard(renderer, Chrome::contentLeft(), Chrome::contentRight(renderer) - Chrome::contentLeft(), cardTop, y);
-  y += kCardGap;
+  leftY = Chrome::drawStatRow(renderer, leftY, "Handshakes captured", buf, false, leftColX + colWidth);
+  endStatCard(renderer, leftColX, colWidth, bottomY, leftY);
 
-  cardTop = y;
-  y = beginStatCard(renderer, Chrome::contentLeft(), Chrome::contentRight(renderer) - Chrome::contentLeft(), y,
-                    "CAPTURE STATUS");
+  int rightY = beginStatCard(renderer, rightColX, colWidth, bottomY, "CAPTURE STATUS");
   if (wifiSniffer.isRunning()) {
     char chbuf[16];
     snprintf(chbuf, sizeof(chbuf), "ch %u", wifiSniffer.currentChannel());
-    y = Chrome::drawStatRow(renderer, y, "WiFi monitor", chbuf);
+    rightY = Chrome::drawStatRow(renderer, rightY, "WiFi monitor", chbuf, false, rightColX + colWidth);
   } else {
-    y = Chrome::drawStatRow(renderer, y, "WiFi monitor", "off");
+    rightY = Chrome::drawStatRow(renderer, rightY, "WiFi monitor", "off", false, rightColX + colWidth);
   }
-  y = Chrome::drawStatRow(renderer, y, "BLE scan", bleScanner.isRunning() ? "passive" : "off");
+  rightY = Chrome::drawStatRow(renderer, rightY, "BLE scan", bleScanner.isRunning() ? "passive" : "off", false,
+                               rightColX + colWidth);
 
   char sizeBuf[24];
   formatBytes(encryptedLog.currentFileSizeBytes(), sizeBuf, sizeof(sizeBuf));
-  y = Chrome::drawStatRow(renderer, y, "Encrypted log (today)", sizeBuf);
+  rightY = Chrome::drawStatRow(renderer, rightY, "Encrypted log (today)", sizeBuf, false, rightColX + colWidth);
 
   char uptimeBuf[24];
   formatUptime(millis(), uptimeBuf, sizeof(uptimeBuf));
-  y = Chrome::drawStatRow(renderer, y, "Uptime this session", uptimeBuf);
-  endStatCard(renderer, Chrome::contentLeft(), Chrome::contentRight(renderer) - Chrome::contentLeft(), cardTop, y);
+  rightY = Chrome::drawStatRow(renderer, rightY, "Uptime this session", uptimeBuf, false, rightColX + colWidth);
+  endStatCard(renderer, rightColX, colWidth, bottomY, rightY);
 
   drawRubyPanel(true);
 

@@ -5,6 +5,37 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Rotated the UI to landscape (792x528, the panel's native orientation).** Button *behavior*
+  is unchanged — `MappedInputManager` maps straight to hardware regardless of screen orientation,
+  so Back/Confirm/Left/Right/Up/Down all still do exactly what they did before. What changes is
+  purely visual:
+  - `Chrome::drawFooterHints`'s button-hint pills move from a horizontal bar along the bottom to a
+    vertical strip along the screen's right edge, using `GfxRenderer::drawTextRotated90CW` (an
+    existing but previously-unused renderer primitive) so each label reads top-to-bottom instead
+    of left-to-right. Which edge, and in what stacking order, is derived from the same coordinate
+    geometry Portrait's own rotation already used — not a new guess — see the comment in
+    `Chrome.cpp`. `Chrome::contentRight()`/`contentBottom()` now reserve space for that sidebar
+    instead of a bottom bar, which every other screen picks up automatically since they only ever
+    ask Chrome for the content-area edges.
+  - `DashboardActivity`'s SIGNALS and CAPTURE STATUS cards now sit side by side instead of
+    stacked full-width — landscape has a lot more spare width below the top row than the old
+    portrait canvas did, but a lot less spare height, so this reflow was needed. Everything else
+    on that screen (box size/position, RECENT DEVICES, mood text) is unchanged.
+  - `SleepActivity`'s portrait art and summary text now sit side by side instead of stacked, so
+    the art can stay at its native 400x400 resolution (it doesn't scale up) instead of having to
+    shrink to fit a canvas now shorter than the art is tall.
+  - `BootActivity` needed no changes — its shrink-to-fit-and-anchor-to-height layout was already
+    orientation-agnostic by construction.
+  - This also caught and fixed a latent bug: `Chrome::drawStatRow`'s default right-align edge
+    (used by several `MaintenanceActivity` rows) was computed from the raw screen width instead
+    of the shared content-area edge, which would have drawn those values under the new sidebar.
+  - Also fixed two stale doc claims noticed along the way: the README described a
+    `BTN_LEFT`/`BTN_RIGHT` hardware swap in `MappedInputManager` that was actually reverted a
+    while back (it's a direct passthrough now — see that file's own comment), and said Log Viewer
+    pages 8 records at a time when it's actually 5 (`kPageSize`).
+
 ### Added
 
 - **"RUBY" moved into the creature's own box.** It used to be the dashboard's header title;
