@@ -7,6 +7,21 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Changed
 
+- **Responsiveness: encrypted log writes no longer open/write/close the SD file per record.**
+  `EncryptedLog` previously did a full file open (a directory scan on FAT — the expensive part),
+  five `write()` calls, and a close for *every single* WiFi frame or BLE advertisement, called
+  synchronously from the sniffer/scanner callbacks that fire on the same cooperative loop that
+  reads button input. It now keeps the file open across a whole day's writes (`logFile`,
+  `EncryptedLog::openTodaysFile()`) and calls `sync()` after each record instead of a full
+  close+reopen — same per-record durability, far less filesystem overhead in a busy RF
+  environment. `currentFileSizeBytes()` (polled every dashboard redraw) now reads the already-open
+  handle's size instead of opening a second handle just to check it.
+- **Responsiveness: SignalCatalog's dedup rings are no longer a linear scan.** `contains()`/
+  `insert()` on the fixed-capacity WiFi AP/client/BLE rings (up to 768 slots each) scanned every
+  occupied slot on every single observed packet. Added an open-addressing hash index (linear
+  probing with tombstones, ~10 KB total extra RAM across the three rings) alongside the existing
+  ring buffer, turning both into an O(1) average lookup — the ring's insertion-order/oldest-slot
+  eviction behavior is unchanged, this only speeds up "have I seen this hash before."
 - Dashboard's headline under the specimen box was the auto-generated per-device "SPECIMEN-XXXX"
   designation (`RubyManager::begin()`, derived from the MAC address) — meant as flavor, but with
   no explanation on-screen it just read as unexplained noise. Replaced with a plain "Mood" label

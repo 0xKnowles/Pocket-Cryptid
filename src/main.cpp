@@ -112,6 +112,7 @@ void enterDeepSleep() {
   APP_STATE.saveToFile();
   SIGNAL_CATALOG.saveToFile();
   RUBY.tick();
+  encryptedLog.flush();  // deep sleep never returns, so no destructor will get a chance to do this
 
   activityManager.goToSleep(false);
   delay(400);  // let the sleep screen's refresh physically finish before cutting power to radios/CPU

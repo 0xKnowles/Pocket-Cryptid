@@ -1,5 +1,7 @@
 #pragma once
 
+#include <HalStorage.h>
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -35,6 +37,12 @@ class EncryptedLog {
 
   // Call periodically from the main loop: rotates to a new day's file when the date changes.
   void tick();
+
+  // Flushes the open log file to the SD card without closing it. writeEnvelope() already syncs
+  // after every record (see .cpp), so this is a defensive extra call rather than something
+  // required for durability — but it's cheap, and calling it right before deep sleep means the
+  // file handle isn't left dangling across a power-off that never runs destructors.
+  void flush();
 
   uint64_t currentFileSizeBytes() const;
   uint32_t recordsWrittenThisBoot() const { return recordsWritten; }
@@ -84,6 +92,14 @@ class EncryptedLog {
   int32_t currentFileDay = -1;  // day-of-epoch the open file was rotated for; -1 = none open
   uint32_t recordsWritten = 0;
   bool ready = false;
+
+  // Kept open across writes (opened once per day-rotation in openTodaysFile(), not per record) —
+  // repeatedly opening a file is the expensive part on a FAT filesystem (a directory scan), far
+  // more so than appending to an already-open handle. Every write still calls sync() immediately
+  // after (see writeEnvelope() in the .cpp), so this doesn't trade away per-record durability.
+  // mutable: currentFileSizeBytes() is logically read-only but reads this same handle's size
+  // (HalFile::fileSize64() isn't itself const) rather than paying for a whole extra open/close.
+  mutable HalFile logFile;
 };
 
 extern EncryptedLog encryptedLog;  // singleton, defined in EncryptedLog.cpp

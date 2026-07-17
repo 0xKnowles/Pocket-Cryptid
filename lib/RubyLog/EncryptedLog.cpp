@@ -101,13 +101,22 @@ bool EncryptedLog::openTodaysFile() {
   gmtime_r(&now, &tmNow);
   const int32_t dayOfEpoch = static_cast<int32_t>(now / 86400);
 
-  if (dayOfEpoch == currentFileDay && !currentFilePath.empty()) {
-    return true;  // already on the right day's file
+  if (dayOfEpoch == currentFileDay && !currentFilePath.empty() && logFile) {
+    return true;  // already on the right day's file, and it's actually open
   }
 
   char path[64];
   snprintf(path, sizeof(path), "%s/%04d%02d%02d.pclog", kLogDir, tmNow.tm_year + 1900, tmNow.tm_mon + 1,
            tmNow.tm_mday);
+
+  // Move-assignment closes whatever logFile previously held (see HalFile::operator=), so this
+  // cleanly handles both a day rollover and recovering from a previously failed open.
+  logFile = Storage.open(path, O_WRONLY | O_CREAT | O_APPEND);
+  if (!logFile) {
+    LOG_ERR("ENCLOG", "Failed to open log file for append: %s", path);
+    return false;
+  }
+
   currentFilePath = path;
   currentFileDay = dayOfEpoch;
   return true;
@@ -116,6 +125,10 @@ bool EncryptedLog::openTodaysFile() {
 void EncryptedLog::tick() {
   if (!ready) return;
   openTodaysFile();  // cheap check; only does work when the day actually rolled over
+}
+
+void EncryptedLog::flush() {
+  if (logFile) logFile.sync();
 }
 
 bool EncryptedLog::writeEnvelope(const LogRecordPlaintext& plaintext) {
@@ -146,18 +159,20 @@ bool EncryptedLog::writeEnvelope(const LogRecordPlaintext& plaintext) {
     return false;
   }
 
-  HalFile file = Storage.open(currentFilePath.c_str(), O_WRONLY | O_CREAT | O_APPEND);
-  if (!file) {
-    LOG_ERR("ENCLOG", "Failed to open log file for append: %s", currentFilePath.c_str());
-    return false;
-  }
+  // logFile is normally already open (tick()/openTodaysFile() keep it that way across a whole
+  // day's writes) — this is a defensive fallback for the unlikely case it isn't, not the common
+  // path. Reusing the already-open handle instead of an open/write/close cycle per record is the
+  // whole point: opening a file means a directory scan on a FAT filesystem, which is far more
+  // expensive than appending to a handle that's already positioned at EOF.
+  if (!logFile && !openTodaysFile()) return false;
+
   const uint16_t ctLen = sizeof(ciphertext);
-  file.write(&kLogFormatVersion, 1);
-  file.write(nonce, kLogNonceLen);
-  file.write(&ctLen, 2);
-  file.write(ciphertext, sizeof(ciphertext));
-  file.write(tag, kLogTagLen);
-  file.close();
+  logFile.write(&kLogFormatVersion, 1);
+  logFile.write(nonce, kLogNonceLen);
+  logFile.write(&ctLen, 2);
+  logFile.write(ciphertext, sizeof(ciphertext));
+  logFile.write(tag, kLogTagLen);
+  logFile.sync();  // durability without paying the reopen cost close()+open() would add next time
 
   recordsWritten++;
   return true;
@@ -202,6 +217,11 @@ bool EncryptedLog::appendBle(const BleObservation& obs) {
 }
 
 uint64_t EncryptedLog::currentFileSizeBytes() const {
+  // Common case: logFile is already open (kept that way across a day's writes, see
+  // openTodaysFile()), so its size can be read directly instead of a whole separate open/close
+  // just to answer "how big is the file" — this is called on every dashboard redraw.
+  if (logFile) return logFile.fileSize64();
+
   if (currentFilePath.empty() || !Storage.exists(currentFilePath.c_str())) return 0;
   HalFile file = Storage.open(currentFilePath.c_str());
   if (!file) return 0;
@@ -262,6 +282,8 @@ size_t EncryptedLog::decryptRecordRange(const char* path, uint32_t startIndex, L
 }
 
 bool EncryptedLog::wipeAndResetKey() {
+  if (logFile) logFile.close();  // today's file is about to be deleted below
+
   Preferences prefs;
   if (prefs.begin(kPrefsNamespace, false)) {
     prefs.clear();
