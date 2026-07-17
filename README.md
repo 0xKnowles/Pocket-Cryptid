@@ -118,19 +118,21 @@ When the device is asleep, it shows a different, much larger piece of art instea
   button pauses and resumes WiFi/BLE capture — no screen change), `Right` → Export/Maintenance,
   `Up` → Recent Devices, `Down` → Log Viewer, `Back` → force a full ghost-clearing refresh.
 - **Settings** — toggle WiFi/BLE capture, adjust WiFi channel dwell time, set the ghost-clear
-  refresh interval, turn on [raw handshake capture](#raw-handshake-capture-crackable-pcap-export)
-  or [active deauth](#active-deauth) (both off by default), manage the whitelist/blacklist (opens
+  refresh interval, choose what a short Power-button tap does (Refresh / Screenshot / Pause — a
+  long hold is always Sleep, not configurable), turn on
+  [raw handshake capture](#raw-handshake-capture-crackable-pcap-export) or
+  [active deauth](#active-deauth) (both off by default), manage the whitelist/blacklist (opens
   a live network scan to add/remove targets — see [Active deauth](#active-deauth)), reveal the
   log's AES key, wipe the log.
 - **Export/Maintenance** — how to pull captures off the SD card, plus the current session's
   record count and (when any exist) raw-capture file stats and deauth burst/frame counters.
 - **Recent Devices** — a live, RAM-only feed of the last 16 WiFi/BLE observations (type, MAC,
-  RSSI, SSID/name, time since seen), newest first. This is separate from both `SignalCatalog`
-  (which deliberately never retains which specific MACs it has seen — only dedup counts) and the
-  encrypted log (which retains everything, but only ever encrypted at rest). Nothing shown here
-  is persisted; it's lost on reboot along with the rest of RAM. `Confirm` on an AP entry toggles
-  it in/out of the [active deauth target list](#active-deauth) — a `[T]` marker shows targeted
-  networks.
+  RSSI, SSID/name, time since seen), newest first, read-only. This is separate from both
+  `SignalCatalog` (which deliberately never retains which specific MACs it has seen — only dedup
+  counts) and the encrypted log (which retains everything, but only ever encrypted at rest).
+  Nothing shown here is persisted; it's lost on reboot along with the rest of RAM. To manage the
+  active-deauth target lists, use Settings' Whitelist/Blacklist rows instead (a dedicated live
+  network scan — see [Active deauth](#active-deauth)).
 - **Log Viewer** — browses the encrypted capture log *on the device itself*, no PC required. See
   [On-device log decryption](#on-device-log-decryption) below for how that's possible without any
   key-entry UI. `Left`/`Right` switch between daily log files, `Up`/`Down` page through records
@@ -310,6 +312,9 @@ to a computer:
 - **Raw handshake captures** (only present if you turned the feature on) —
   `/.ruby/pcap/*.pcap`, already plaintext. Load these directly into hashcat or `hcxpcapngtool`;
   see [Raw handshake capture](#raw-handshake-capture-crackable-pcap-export) above.
+- **Screenshots** (only present if you used them) — `/.ruby/screenshots/*.bmp`, plain
+  uncompressed 1-bit bitmaps. Set **Settings → Power button (tap) → Screenshot** to save one with
+  a short tap of the Power button.
 
 ## What "encrypted" means here
 

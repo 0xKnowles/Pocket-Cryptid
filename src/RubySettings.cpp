@@ -8,6 +8,7 @@ void RubySettings::toJson(JsonDocument& doc) const {
   doc["wifiChannelDwellMs"] = wifiChannelDwellMs;
   doc["clockUtcOffsetQ"] = clockUtcOffsetQ;
   doc["fullRefreshIntervalMin"] = fullRefreshIntervalMin;
+  doc["powerShortPressAction"] = static_cast<uint8_t>(powerShortPressAction);
 }
 
 bool RubySettings::fromJson(JsonVariantConst doc) {
@@ -18,5 +19,13 @@ bool RubySettings::fromJson(JsonVariantConst doc) {
   wifiChannelDwellMs = doc["wifiChannelDwellMs"] | 300;
   clockUtcOffsetQ = doc["clockUtcOffsetQ"] | 48;
   fullRefreshIntervalMin = doc["fullRefreshIntervalMin"] | 20;
+  const uint8_t storedAction =
+      doc["powerShortPressAction"] | static_cast<uint8_t>(PowerShortPressAction::ScreenRefresh);
+  // Bounds-check rather than trust the file blindly — a hand-edited or corrupted settings.json
+  // could hold any byte value, and casting that straight into the enum would be undefined
+  // behavior the first time something switches on it.
+  powerShortPressAction = storedAction <= static_cast<uint8_t>(PowerShortPressAction::PauseRuby)
+                              ? static_cast<PowerShortPressAction>(storedAction)
+                              : PowerShortPressAction::ScreenRefresh;
   return true;
 }

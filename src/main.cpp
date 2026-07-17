@@ -23,6 +23,7 @@
 #include "AppVersion.h"
 #include "ApScanCache.h"
 #include "BleScanner.h"
+#include "CaptureControl.h"
 #include "DeauthEngine.h"
 #include "EncryptedLog.h"
 #include "MappedInputManager.h"
@@ -30,6 +31,7 @@
 #include "RecentSightings.h"
 #include "RubyAppState.h"
 #include "RubySettings.h"
+#include "Screenshot.h"
 #include "SignalCatalog.h"
 #include "TargetList.h"
 #include "WifiSniffer.h"
@@ -350,16 +352,40 @@ void loop() {
 
   if (millis() >= allowSleepAt) {
     if (mappedInputManager.wasReleased(MappedInputManager::Button::Power)) {
-      // Hold-to-sleep, tap-to-refresh — matches the physical convention of "hold power to turn
-      // off" rather than the reverse. (Previously this was inverted: a quick tap slept the
+      // Hold-to-sleep, tap-for-something-else — matches the physical convention of "hold power to
+      // turn off" rather than the reverse. (Previously this was inverted: a quick tap slept the
       // device and only a long hold forced a refresh, which is backwards from what a power
-      // button is expected to do.)
+      // button is expected to do.) The long-press action is fixed (always Sleep); only the short
+      // tap is configurable — see RubySettings::powerShortPressAction.
       const bool wasLongPress = mappedInputManager.getHeldTime() >= POWER_LONG_PRESS_MS;
       if (wasLongPress) {
         enterDeepSleep();
       } else {
-        RenderLock lock;
-        renderer.displayBuffer(HalDisplay::FULL_REFRESH);
+        switch (SETTINGS.powerShortPressAction) {
+          case PowerShortPressAction::Screenshot: {
+            // Same lock the render task holds while actually drawing (see RenderLock/
+            // ActivityManager::renderingMutex) — without it, a screenshot taken while a render is
+            // mid-flight could read a half-drawn framebuffer.
+            RenderLock lock;
+            saveScreenshot(renderer);
+            break;
+          }
+          case PowerShortPressAction::PauseRuby:
+            toggleCapturePause();
+            // No direct handle here to whatever activity is currently on screen (this handler
+            // runs before activityManager.loop() below), so ask for a generic redraw rather than
+            // force a specific render kind the way Dashboard's own Pause button does — whichever
+            // screen is active picks this up on its own next redraw, same as it would for any
+            // other out-of-band state change.
+            activityManager.requestUpdate();
+            break;
+          case PowerShortPressAction::ScreenRefresh:
+          default: {
+            RenderLock lock;
+            renderer.displayBuffer(HalDisplay::FULL_REFRESH);
+            break;
+          }
+        }
       }
       lastActivityTime = millis();
       return;

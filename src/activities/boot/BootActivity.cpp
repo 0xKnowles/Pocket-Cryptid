@@ -82,20 +82,13 @@ void BootActivity::onEnter() {
 
   const bool hasFullArt = tryDrawBootArtFromSd(renderer) || tryDrawBootArtFromEmbedded(renderer);
 
-  if (hasFullArt) {
-    // boot.bmp is now exactly screen-sized (792x528) so it renders edge-to-edge with no blank
-    // letterboxing margin — the bottom third is the dark e-waste pile in the art itself, so this
-    // line is drawn white (false) rather than the plain black used everywhere else, or it'd be
-    // unreadable against it.
-    renderer.drawCenteredText(FONT_SMALL_ID, pageHeight - 50, "listening...", false);
-  } else {
+  if (!hasFullArt) {
     // No boot art at all (e.g. the generator never ran) — the small procedural portrait this
     // screen used before boot.bmp existed.
     constexpr int kPortraitSize = 120;
     const int portraitX = (pageWidth - kPortraitSize) / 2;
     const int portraitY = pageHeight / 2 - kPortraitSize - 30;
     RubySpriteRenderer::drawPortrait(renderer, portraitX, portraitY, kPortraitSize);
-    renderer.drawCenteredText(FONT_SMALL_ID, portraitY + kPortraitSize + 24, "listening...");
   }
 
   // "Ruby" / version sit directly on whatever's underneath rather than an opaque band. With
@@ -109,10 +102,16 @@ void BootActivity::onEnter() {
   renderer.drawText(FONT_UI_12_ID, pageWidth - kTitleMarginX - versionW, kTitleMarginY, versionLabel, true,
                     EpdFontFamily::BOLD);
 
-  // "passive RF analyzer" centered under the Ruby/version row — same open top margin (verified
-  // clear via pixel sampling down to y=40 before the character's hair/horns start), so plain
-  // black text reads fine here in both branches.
-  renderer.drawCenteredText(FONT_SMALL_ID, kTitleMarginY + 22, "passive RF analyzer");
+  // "Pocket RF Analyzer" + "listening..." centered under the Ruby/version row as one title block
+  // — same open top margin (verified clear via pixel sampling down to y=40 before the
+  // character's hair/horns start), so plain black text reads fine here in both branches.
+  // "listening..." used to sit pinned to the bottom of the screen, over the full-art branch's
+  // dark e-waste pile (needing white text there to stay readable); moved up here instead so it
+  // reads as part of the title rather than a separate element at the opposite edge of the screen.
+  const int titleBlockY = kTitleMarginY + 22;
+  const int titleLineHeight = renderer.getLineHeight(FONT_SMALL_ID);
+  renderer.drawCenteredText(FONT_SMALL_ID, titleBlockY, "Pocket RF Analyzer");
+  renderer.drawCenteredText(FONT_SMALL_ID, titleBlockY + titleLineHeight, "listening...");
 
   renderer.displayBuffer();
 }

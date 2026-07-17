@@ -7,6 +7,19 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
+- **Configurable Power button short-press action** (`Settings → Power button (tap)`). A long hold
+  is always Sleep, unconditionally — only the short tap is configurable now, cycling between
+  Refresh (the previous, only behavior — a manual ghost-clearing full refresh), Screenshot (new —
+  dumps the current framebuffer to `/.ruby/screenshots/<unixtime>.bmp`, a plain uncompressed 1bpp
+  BMP, no encoder library needed since the framebuffer is already exactly that format in this
+  orientation), and Pause (the same capture-pause toggle as Dashboard's own Pause button, usable
+  from any screen instead of only the Dashboard).
+- **Boot screen: "listening..." moved from the bottom of the screen to the top-center title
+  block**, next to "Ruby"/the version row, and "passive RF analyzer" renamed to
+  "Pocket RF Analyzer". The two used to be split across opposite edges of the screen (with
+  "listening..." drawn in white specifically to stay readable over the full-art branch's dark
+  e-waste pile background) — now they read as one title block, and both branches (with or
+  without `boot.bmp` present) share the same text placement instead of duplicating it.
 - **Dashboard: "Handshake Capture" and "DeAuth" ON/OFF readouts**, to the right of the Mood block
   in what was previously dead whitespace (the RECENT DEVICES card above it ends at the box's
   height; SIGNALS/CAPTURE STATUS don't start until below the mood text) — surfaces both opt-in

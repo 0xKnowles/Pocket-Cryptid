@@ -21,6 +21,7 @@ class SettingsActivity final : public Activity {
     RowBleEnabled,
     RowWifiDwell,
     RowGhostClearInterval,
+    RowPowerShortPress,
     RowRawCapture,
     RowActiveDeauth,
     RowWhitelist,

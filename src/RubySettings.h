@@ -3,6 +3,14 @@
 
 #include <cstdint>
 
+// What a short tap of the physical Power button does (a long hold always sleeps the device — see
+// main.cpp — that part isn't configurable, only the short-tap action is).
+enum class PowerShortPressAction : uint8_t {
+  ScreenRefresh = 0,  // manual full ghost-clearing refresh — the long-standing default
+  Screenshot = 1,     // dump the current framebuffer to /.ruby/screenshots/*.bmp
+  PauseRuby = 2,      // same toggle as Dashboard's own Pause button, usable from any screen
+};
+
 // All user-configurable behavior lives here. Deliberately small: there is no theming, no button
 // remap, no per-book anything — just the knobs that affect what the radios do and how the log is
 // protected. See SettingsActivity for the UI that edits these.
@@ -40,6 +48,9 @@ class RubySettings : public PersistableStore<RubySettings> {
   // How often (minutes) the dashboard forces a full e-ink refresh to clear accumulated ghosting
   // from the mostly-partial-refresh pet corner. 0 disables.
   uint8_t fullRefreshIntervalMin = 20;
+
+  // See PowerShortPressAction. Stored as its underlying uint8_t in JSON like any other enum here.
+  PowerShortPressAction powerShortPressAction = PowerShortPressAction::ScreenRefresh;
 
   static const char* getFilePath() { return "/.ruby/settings.json"; }
   void toJson(JsonDocument& doc) const;

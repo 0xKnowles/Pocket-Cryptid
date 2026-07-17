@@ -25,6 +25,19 @@ constexpr uint16_t kWifiDwellMaxMs = 2000;
 constexpr uint8_t kGhostClearSteps[] = {0, 5, 10, 15, 20, 30, 60};
 constexpr size_t kGhostClearStepCount = sizeof(kGhostClearSteps) / sizeof(kGhostClearSteps[0]);
 constexpr unsigned long kWipeArmWindowMs = 5000;
+constexpr int kPowerShortPressActionCount = static_cast<int>(PowerShortPressAction::PauseRuby) + 1;
+
+const char* powerShortPressActionLabel(PowerShortPressAction action) {
+  switch (action) {
+    case PowerShortPressAction::ScreenRefresh:
+      return "Refresh";
+    case PowerShortPressAction::Screenshot:
+      return "Screenshot";
+    case PowerShortPressAction::PauseRuby:
+      return "Pause";
+  }
+  return "?";
+}
 }  // namespace
 
 void SettingsActivity::onEnter() {
@@ -69,6 +82,12 @@ void SettingsActivity::adjustSelected(int direction) {
       }
       const int next = std::clamp(static_cast<int>(idx) + direction, 0, static_cast<int>(kGhostClearStepCount) - 1);
       SETTINGS.fullRefreshIntervalMin = kGhostClearSteps[next];
+      break;
+    }
+    case RowPowerShortPress: {
+      const int next = std::clamp(static_cast<int>(SETTINGS.powerShortPressAction) + direction, 0,
+                                  kPowerShortPressActionCount - 1);
+      SETTINGS.powerShortPressAction = static_cast<PowerShortPressAction>(next);
       break;
     }
     case RowRawCapture:
@@ -203,6 +222,8 @@ void SettingsActivity::render(RenderLock&&) {
     drawRow(RowGhostClearInterval, "Ghost-clear refresh", valueBuf);
   }
   y += kRowHeight;
+  drawRow(RowPowerShortPress, "Power button (tap)", powerShortPressActionLabel(SETTINGS.powerShortPressAction));
+  y += kRowHeight;
   drawRow(RowRawCapture, "Raw handshake capture", SETTINGS.rawHandshakeCaptureEnabled ? "ON" : "OFF");
   y += kRowHeight;
   drawRow(RowActiveDeauth, "Active deauth", SETTINGS.activeDeauthEnabled ? "ON" : "OFF");
@@ -239,6 +260,18 @@ void SettingsActivity::render(RenderLock&&) {
   } else if (wipeArmed) {
     renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y,
                       "Press Confirm again to permanently erase the log and its key.", true, EpdFontFamily::BOLD);
+  } else if (selected == RowPowerShortPress) {
+    const auto lines = renderer.wrappedText(
+        FONT_SMALL_ID,
+        "Left/Right cycles what a short Power tap does: Refresh, Screenshot (saves to "
+        "/.ruby/screenshots), or Pause (same as Dashboard's Pause button, from any screen). "
+        "Holding Power always sleeps the device.",
+        Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
+    const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
+    for (const auto& line : lines) {
+      renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
+      y += lineHeight;
+    }
   } else if (selected == RowRawCapture) {
     const auto lines = renderer.wrappedText(
         FONT_SMALL_ID,
