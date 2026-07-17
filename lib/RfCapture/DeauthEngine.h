@@ -14,10 +14,10 @@
 // have explicit authorization to test is illegal in most jurisdictions (wireless interference),
 // regardless of how small or "hobbyist" the transmitting device is. This capability is off by
 // default (RubySettings::activeDeauthEnabled) and every target is additionally gated through
-// TargetList, whose own default mode is Whitelist — attack *nothing* — specifically so enabling
-// this feature can never itself cause every network in range to be attacked; the owner has to
-// explicitly add a BSSID first, either by editing /.ruby/targets.txt or from the on-device
-// device list / settings screen.
+// TargetList — whose resting state with both lists empty is "attack nothing" — specifically so
+// enabling this feature can never itself cause every network in range to be attacked; the owner
+// has to explicitly add a BSSID first, either by editing /.ruby/targets.txt or from Settings'
+// Whitelist/Blacklist rows (TargetPickerActivity, a live network scan).
 //
 // Frame transmission uses esp_wifi_80211_tx(), the same raw-TX primitive essentially every
 // community ESP32 deauther project uses. ESP-IDF's own doxygen comment for that function lists

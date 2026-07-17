@@ -3,8 +3,9 @@
 #include "activities/Activity.h"
 
 // Simple vertical list: Up/Down selects a row, Left/Right adjusts it, Confirm activates it,
-// Back returns to the dashboard. No sub-screens, no keyboard entry — every setting here is a
-// toggle or a small bounded number, which keeps the whole settings surface a single screen.
+// Back returns to the dashboard. Two rows (Whitelist/Blacklist) are the one exception to "no
+// sub-screens" — Confirm on those pushes TargetPickerActivity (see its own header comment for
+// why that's push/pop navigation instead of the flat replace every other row here uses).
 class SettingsActivity final : public Activity {
  public:
   explicit SettingsActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -22,7 +23,8 @@ class SettingsActivity final : public Activity {
     RowGhostClearInterval,
     RowRawCapture,
     RowActiveDeauth,
-    RowListMode,
+    RowWhitelist,
+    RowBlacklist,
     RowRevealKey,
     RowWipeLog,
     RowCount,

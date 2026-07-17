@@ -83,7 +83,6 @@ class ActivityManager {
 
   // goTo... functions are convenient wrappers for replaceActivity()
   void goToSettings();
-  void goToLore();
   void goToMaintenance();
   void goToDeviceList();
   void goToLogViewer();

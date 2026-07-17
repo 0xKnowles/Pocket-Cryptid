@@ -7,7 +7,6 @@
 #include <cstdio>
 
 #include "RecentSightings.h"
-#include "TargetList.h"
 #include "fontIds.h"
 #include "ui/Chrome.h"
 
@@ -32,7 +31,6 @@ void formatAgo(unsigned long seenAtMs, char* out, size_t outSize) {
 void DeviceListActivity::onEnter() {
   Activity::onEnter();
   lastRenderMs = 0;
-  selected = 0;
   requestUpdate();
 }
 
@@ -41,31 +39,6 @@ void DeviceListActivity::loop() {
     onGoHome();
     return;
   }
-
-  const size_t total = recentSightings.count();
-  if (total > 0) {
-    if (mappedInput.wasReleased(MappedInputManager::Button::Up)) {
-      selected = (selected == 0) ? total - 1 : selected - 1;
-      requestUpdate();
-      return;
-    }
-    if (mappedInput.wasReleased(MappedInputManager::Button::Down)) {
-      selected = (selected + 1) % total;
-      requestUpdate();
-      return;
-    }
-    if (mappedInput.wasReleased(MappedInputManager::Button::Confirm) && selected < total) {
-      const auto& entry = recentSightings.at(selected);
-      if (entry.type == LogRecordType::WifiAp) {
-        if (!targetList.remove(entry.mac)) {
-          targetList.add(entry.mac);
-        }
-        requestUpdate();
-      }
-      return;
-    }
-  }
-
   if (millis() - lastRenderMs >= kRefreshIntervalMs) {
     requestUpdate();
   }
@@ -84,22 +57,13 @@ void DeviceListActivity::render(RenderLock&&) {
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (size_t i = 0; i < total; i++) {
       const auto& entry = recentSightings.at(i);
-      const int entryTop = y - 3;
-      if (i == selected) {
-        Chrome::drawSelectionHighlight(renderer, Chrome::contentLeft() - 4, entryTop,
-                                       Chrome::contentRight(renderer) - Chrome::contentLeft() + 8,
-                                       2 * lineHeight + 2 + 6);
-      }
-
       char macBuf[18];
       formatMac(entry.mac, macBuf);
       char agoBuf[16];
       formatAgo(entry.seenAtMs, agoBuf, sizeof(agoBuf));
-      const bool isTarget = entry.type == LogRecordType::WifiAp && targetList.contains(entry.mac);
 
-      char line1[52];
-      snprintf(line1, sizeof(line1), "%-6s %s  %d dBm%s", logRecordTypeShortName(entry.type), macBuf, entry.rssi,
-                isTarget ? "  [T]" : "");
+      char line1[48];
+      snprintf(line1, sizeof(line1), "%-6s %s  %d dBm", logRecordTypeShortName(entry.type), macBuf, entry.rssi);
       renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line1);
       y += lineHeight + 2;
 
@@ -110,7 +74,7 @@ void DeviceListActivity::render(RenderLock&&) {
     }
   }
 
-  Chrome::drawFooterHints(renderer, "Home", total > 0 ? "Target" : nullptr, nullptr, nullptr);
+  Chrome::drawFooterHints(renderer, "Home", nullptr, nullptr, nullptr);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);
   lastRenderMs = millis();
 }

@@ -4,10 +4,11 @@
 
 // Home screen. Landscape (792x528 logical, the panel's native orientation — see main.cpp's
 // setupDisplayAndFonts()). Button *behavior* doesn't depend on screen orientation at all —
-// MappedInputManager maps straight to hardware regardless of what's on screen — so
-// Confirm/Left/Right still open Settings/Lore/Maintenance and Up/Down still open
-// DeviceListActivity (live recent sightings) and LogViewerActivity (on-device decrypt of the
-// encrypted capture log) respectively; only the layout below is orientation-specific.
+// MappedInputManager maps straight to hardware regardless of what's on screen — so Confirm opens
+// Settings, Right opens Maintenance, Left toggles CaptureControl's pause (same button
+// pauses/resumes, no screen change), and Up/Down still open DeviceListActivity (live recent
+// sightings) and LogViewerActivity (on-device decrypt of the encrypted capture log) respectively;
+// only the layout below is orientation-specific.
 //
 // Two update cadences share one framebuffer:
 //   - A slow (~5s) full redraw of the header + specimen card + RF stat rows + footer, using

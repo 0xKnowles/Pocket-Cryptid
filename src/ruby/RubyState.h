@@ -18,24 +18,16 @@ enum class RubyExpression : uint8_t {
 };
 
 // Persistent state, serialized via RubyManager (PersistableStore<RubyManager>) to
-// /.ruby/ruby_state.json. Deliberately small — there is no XP, no stage, no currency,
-// no shop. `totalCaptures` exists only to pace lore unlocks, not to change how the creature looks.
+// /.ruby/ruby_state.json. Deliberately small — there is no XP, no stage, no currency, no shop.
 struct RubyState {
   bool initialized = false;
-  uint32_t birthUnixTime = 0;      // 0 if the wall clock had never been set at hatch time
-  uint32_t totalCaptures = 0;      // lifetime unique-device events; drives lore unlocks only
-  uint16_t unlockedLoreCount = 0;  // how many LoreActivity entries have been revealed so far
-  char designation[16] = {};       // cosmetic ID shown in the UI, derived from the chip's MAC
+  uint32_t birthUnixTime = 0;  // 0 if the wall clock had never been set at hatch time
+  char designation[16] = {};   // cosmetic ID shown in the UI, derived from the chip's MAC
 
   bool exists() const { return initialized; }
 };
 
 namespace RubyConfig {
-// Lore entries unlock one at a time as lifetime captures accumulate — no XP weighting per event
-// type, just a flat count, so unlock pacing depends only on "how much has it heard" not "how
-// impressive was each individual thing."
-constexpr uint32_t kCapturesPerLoreUnlock = 6;
-
 // Expression thresholds, milliseconds since the relevant kind of capture.
 constexpr unsigned long kExcitedWindowMs = 30UL * 1000;         // handshake glow
 constexpr unsigned long kCuriousWindowMs = 90UL * 1000;         // "it just found something" blip

@@ -11,14 +11,15 @@ TargetList targetList;
 namespace {
 constexpr char kFilePath[] = "/.ruby/targets.txt";
 constexpr char kDefaultContents[] =
-    "# Ruby active-mode target list\n"
+    "# Ruby active-mode target lists\n"
     "#\n"
-    "# mode=whitelist -> DeauthEngine only attacks BSSIDs listed below.\n"
-    "# mode=blacklist -> DeauthEngine attacks every BSSID it sees EXCEPT those listed below.\n"
-    "# Empty whitelist (the default) means DeauthEngine attacks nothing until you add a BSSID —\n"
-    "# either by editing this file directly or from the on-device device list / settings screen.\n"
+    "# Whitelist non-empty -> only these BSSIDs are attacked (blacklist ignored).\n"
+    "# Whitelist empty, blacklist non-empty -> every BSSID except these is attacked.\n"
+    "# Both empty (the default) -> nothing is attacked, even with active deauth switched on.\n"
+    "# Add entries from a PC with the SD card out, or on-device from Settings.\n"
     "#\n"
-    "mode=whitelist\n";
+    "[whitelist]\n"
+    "[blacklist]\n";
 
 bool parseMac(const char* text, MacAddress& out) {
   unsigned int b[6];
@@ -33,9 +34,18 @@ void formatMac(const MacAddress& mac, char* out, size_t outSize) {
 }
 }  // namespace
 
+TargetList::List& TargetList::listFor(TargetListKind kind) {
+  return kind == TargetListKind::Whitelist ? whitelist : blacklist;
+}
+
+const TargetList::List& TargetList::listFor(TargetListKind kind) const {
+  return kind == TargetListKind::Whitelist ? whitelist : blacklist;
+}
+
 void TargetList::parseContents(const char* text) {
-  listMode = TargetListMode::Whitelist;
-  entryCount = 0;
+  whitelist.count = 0;
+  blacklist.count = 0;
+  List* active = &whitelist;
 
   const char* lineStart = text;
   while (*lineStart) {
@@ -56,17 +66,14 @@ void TargetList::parseContents(const char* text) {
 
     if (trimmed[0] == '\0' || trimmed[0] == '#') {
       // blank/comment
-    } else if (strncmp(trimmed, "mode=", 5) == 0) {
-      const char* value = trimmed + 5;
-      if (strcmp(value, "blacklist") == 0) {
-        listMode = TargetListMode::Blacklist;
-      } else {
-        listMode = TargetListMode::Whitelist;
-      }
-    } else if (entryCount < kCapacity) {
+    } else if (strcmp(trimmed, "[whitelist]") == 0) {
+      active = &whitelist;
+    } else if (strcmp(trimmed, "[blacklist]") == 0) {
+      active = &blacklist;
+    } else if (active->count < kCapacity) {
       MacAddress mac;
       if (parseMac(trimmed, mac)) {
-        entries[entryCount++] = mac;
+        active->entries[active->count++] = mac;
       }
     }
 
@@ -89,21 +96,25 @@ bool TargetList::begin() {
 bool TargetList::reload() {
   const String contents = Storage.readFile(kFilePath);
   parseContents(contents.c_str());
-  LOG_INF("TARGETS", "Loaded %u target(s), mode=%s", static_cast<unsigned>(entryCount),
-          listMode == TargetListMode::Whitelist ? "whitelist" : "blacklist");
+  LOG_INF("TARGETS", "Loaded %u whitelist, %u blacklist target(s)", static_cast<unsigned>(whitelist.count),
+          static_cast<unsigned>(blacklist.count));
   return true;
 }
 
 bool TargetList::save() {
   String out;
-  out.reserve(64 + entryCount * 19);
-  out += "# Ruby active-mode target list\n";
-  out += "mode=";
-  out += (listMode == TargetListMode::Whitelist) ? "whitelist" : "blacklist";
-  out += "\n";
+  out.reserve(96 + (whitelist.count + blacklist.count) * 19);
+  out += "# Ruby active-mode target lists\n";
+  out += "[whitelist]\n";
   char macBuf[18];
-  for (size_t i = 0; i < entryCount; i++) {
-    formatMac(entries[i], macBuf, sizeof(macBuf));
+  for (size_t i = 0; i < whitelist.count; i++) {
+    formatMac(whitelist.entries[i], macBuf, sizeof(macBuf));
+    out += macBuf;
+    out += "\n";
+  }
+  out += "[blacklist]\n";
+  for (size_t i = 0; i < blacklist.count; i++) {
+    formatMac(blacklist.entries[i], macBuf, sizeof(macBuf));
     out += macBuf;
     out += "\n";
   }
@@ -115,36 +126,37 @@ bool TargetList::save() {
 }
 
 bool TargetList::isAllowed(const MacAddress& bssid) const {
-  const bool listed = contains(bssid);
-  return listMode == TargetListMode::Whitelist ? listed : !listed;
+  if (whitelist.count > 0) return contains(TargetListKind::Whitelist, bssid);
+  if (blacklist.count > 0) return !contains(TargetListKind::Blacklist, bssid);
+  return false;  // both empty: attack nothing — see class comment
 }
 
-void TargetList::setMode(TargetListMode newMode) {
-  if (listMode == newMode) return;
-  listMode = newMode;
-  save();
-}
+size_t TargetList::count(TargetListKind kind) const { return listFor(kind).count; }
 
-const MacAddress& TargetList::at(size_t index) const { return entries[index]; }
+const MacAddress& TargetList::at(TargetListKind kind, size_t index) const { return listFor(kind).entries[index]; }
 
-bool TargetList::contains(const MacAddress& mac) const {
-  for (size_t i = 0; i < entryCount; i++) {
-    if (entries[i] == mac) return true;
+bool TargetList::contains(TargetListKind kind, const MacAddress& mac) const {
+  const List& list = listFor(kind);
+  for (size_t i = 0; i < list.count; i++) {
+    if (list.entries[i] == mac) return true;
   }
   return false;
 }
 
-bool TargetList::add(const MacAddress& mac) {
-  if (contains(mac) || entryCount >= kCapacity) return false;
-  entries[entryCount++] = mac;
+bool TargetList::add(TargetListKind kind, const MacAddress& mac) {
+  if (contains(kind, mac)) return false;
+  List& list = listFor(kind);
+  if (list.count >= kCapacity) return false;
+  list.entries[list.count++] = mac;
   return save();
 }
 
-bool TargetList::remove(const MacAddress& mac) {
-  for (size_t i = 0; i < entryCount; i++) {
-    if (entries[i] == mac) {
-      for (size_t j = i; j + 1 < entryCount; j++) entries[j] = entries[j + 1];
-      entryCount--;
+bool TargetList::remove(TargetListKind kind, const MacAddress& mac) {
+  List& list = listFor(kind);
+  for (size_t i = 0; i < list.count; i++) {
+    if (list.entries[i] == mac) {
+      for (size_t j = i; j + 1 < list.count; j++) list.entries[j] = list.entries[j + 1];
+      list.count--;
       return save();
     }
   }

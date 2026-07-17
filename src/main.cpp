@@ -21,6 +21,7 @@
 #include <sys/time.h>  // struct timeval / settimeofday() — not part of <ctime>
 
 #include "AppVersion.h"
+#include "ApScanCache.h"
 #include "BleScanner.h"
 #include "DeauthEngine.h"
 #include "EncryptedLog.h"
@@ -282,6 +283,7 @@ void setup() {
     SIGNAL_CATALOG.observeWifi(obs);
     recentSightings.recordWifi(obs, type);
     deauthEngine.onObservation(obs);
+    apScanCache.observe(obs);
   });
   wifiSniffer.setRawFrameCallback(
       [](const RawFrameCapture* frames, size_t count) { pcapWriter.writeFrames(frames, count); });

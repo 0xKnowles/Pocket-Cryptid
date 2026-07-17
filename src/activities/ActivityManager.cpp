@@ -9,7 +9,6 @@
 #include "dashboard/DashboardActivity.h"
 #include "devices/DeviceListActivity.h"
 #include "logviewer/LogViewerActivity.h"
-#include "lore/LoreActivity.h"
 #include "maintenance/MaintenanceActivity.h"
 #include "settings/SettingsActivity.h"
 #include "util/CrashActivity.h"
@@ -166,8 +165,6 @@ void ActivityManager::replaceActivity(std::unique_ptr<Activity>&& newActivity) {
 }
 
 void ActivityManager::goToSettings() { replaceActivity(std::make_unique<SettingsActivity>(renderer, mappedInput)); }
-
-void ActivityManager::goToLore() { replaceActivity(std::make_unique<LoreActivity>(renderer, mappedInput)); }
 
 void ActivityManager::goToMaintenance() {
   replaceActivity(std::make_unique<MaintenanceActivity>(renderer, mappedInput));

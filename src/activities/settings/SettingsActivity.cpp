@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 
 #include "BleScanner.h"
 #include "DeauthEngine.h"
@@ -13,6 +14,7 @@
 #include "RubySettings.h"
 #include "TargetList.h"
 #include "WifiSniffer.h"
+#include "activities/targets/TargetPickerActivity.h"
 #include "fontIds.h"
 #include "ui/Chrome.h"
 
@@ -84,10 +86,6 @@ void SettingsActivity::adjustSelected(int direction) {
       SETTINGS.activeDeauthEnabled = !SETTINGS.activeDeauthEnabled;
       deauthEngine.setEnabled(SETTINGS.activeDeauthEnabled && SETTINGS.rawHandshakeCaptureEnabled);
       break;
-    case RowListMode:
-      targetList.setMode(targetList.mode() == TargetListMode::Whitelist ? TargetListMode::Blacklist
-                                                                         : TargetListMode::Whitelist);
-      break;
     default:
       break;
   }
@@ -101,8 +99,15 @@ void SettingsActivity::activateSelected() {
     case RowBleEnabled:
     case RowRawCapture:
     case RowActiveDeauth:
-    case RowListMode:
       adjustSelected(1);
+      return;
+    case RowWhitelist:
+      activityManager.pushActivity(
+          std::make_unique<TargetPickerActivity>(renderer, mappedInput, TargetListKind::Whitelist));
+      return;
+    case RowBlacklist:
+      activityManager.pushActivity(
+          std::make_unique<TargetPickerActivity>(renderer, mappedInput, TargetListKind::Blacklist));
       return;
     case RowRevealKey:
       showingKey = encryptedLog.revealDecryptionKeyHex(revealedKeyHex, sizeof(revealedKeyHex));
@@ -202,7 +207,12 @@ void SettingsActivity::render(RenderLock&&) {
   y += kRowHeight;
   drawRow(RowActiveDeauth, "Active deauth", SETTINGS.activeDeauthEnabled ? "ON" : "OFF");
   y += kRowHeight;
-  drawRow(RowListMode, "Target list mode", targetList.mode() == TargetListMode::Whitelist ? "whitelist" : "blacklist");
+  char countBuf[16];
+  snprintf(countBuf, sizeof(countBuf), "%u saved >", static_cast<unsigned>(targetList.count(TargetListKind::Whitelist)));
+  drawRow(RowWhitelist, "Whitelist", countBuf);
+  y += kRowHeight;
+  snprintf(countBuf, sizeof(countBuf), "%u saved >", static_cast<unsigned>(targetList.count(TargetListKind::Blacklist)));
+  drawRow(RowBlacklist, "Blacklist", countBuf);
   y += kRowHeight;
   drawRow(RowRevealKey, "Reveal log key", "show >");
   y += kRowHeight;
@@ -254,12 +264,12 @@ void SettingsActivity::render(RenderLock&&) {
       renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
       y += lineHeight;
     }
-  } else if (selected == RowListMode) {
+  } else if (selected == RowWhitelist || selected == RowBlacklist) {
     const auto lines = renderer.wrappedText(
         FONT_SMALL_ID,
-        "Whitelist: active deauth only attacks BSSIDs you've added (default, attacks nothing "
-        "until you add one). Blacklist: attacks every BSSID except the ones you've added. Edit "
-        "/.ruby/targets.txt on the SD card, or add/remove from the device list screen.",
+        "Confirm opens a live network scan — press Confirm on a network to add or remove it. "
+        "Whitelist non-empty: active deauth only attacks those networks. Whitelist empty: "
+        "attacks everything except the blacklist. Both empty (default): attacks nothing.",
         Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (const auto& line : lines) {

@@ -91,8 +91,7 @@ When the device is asleep, it shows a different, much larger piece of art instea
    covered in its own section below.
 2. **Catalog.** Every observation is deduplicated by `SignalCatalog` against a bounded in-RAM
    hash set. The first time a given MAC/role is seen, that's a "unique" event: it increments a
-   lifetime counter, nudges the creature's expression, and — every few captures — unlocks another
-   line of lore.
+   lifetime counter and nudges the creature's expression.
 3. **Log.** Independently of deduplication, *every* observation is encrypted (AES-256-GCM via
    mbedtls, one record per packet) and appended to a daily log file on the SD card. The AES key
    is derived from a random seed generated on first boot plus this chip's eFuse MAC address and
@@ -113,16 +112,15 @@ When the device is asleep, it shows a different, much larger piece of art instea
 
 ## Screens
 
-- **Dashboard** (home) — the creature, its current Mood, lore-unlock progress, unique
-  AP/client/BLE/handshake counts, capture status, log size, and session uptime. `Confirm` →
-  Settings, `Left` → Lore, `Right` → Export/Maintenance, `Up` → Recent Devices, `Down` → Log
-  Viewer, `Back` → force a full ghost-clearing refresh.
+- **Dashboard** (home) — the creature, its current Mood, unique AP/client/BLE/handshake counts,
+  capture status, log size, and session uptime. `Confirm` → Settings, `Left` → toggle Pause (same
+  button pauses and resumes WiFi/BLE capture — no screen change), `Right` → Export/Maintenance,
+  `Up` → Recent Devices, `Down` → Log Viewer, `Back` → force a full ghost-clearing refresh.
 - **Settings** — toggle WiFi/BLE capture, adjust WiFi channel dwell time, set the ghost-clear
   refresh interval, turn on [raw handshake capture](#raw-handshake-capture-crackable-pcap-export)
-  or [active deauth](#active-deauth) (both off by default), toggle the target list's
-  whitelist/blacklist mode, reveal the log's AES key, wipe the log.
-- **Lore** — flavor text unlocked progressively with lifetime captures, mixed with a few real
-  running stats.
+  or [active deauth](#active-deauth) (both off by default), manage the whitelist/blacklist (opens
+  a live network scan to add/remove targets — see [Active deauth](#active-deauth)), reveal the
+  log's AES key, wipe the log.
 - **Export/Maintenance** — how to pull captures off the SD card, plus the current session's
   record count and (when any exist) raw-capture file stats and deauth burst/frame counters.
 - **Recent Devices** — a live, RAM-only feed of the last 16 WiFi/BLE observations (type, MAC,
@@ -182,15 +180,17 @@ capture above instead of waiting — often in vain — for one to happen on its 
 - **Off by default**, and requires raw handshake capture to also be on — forcing a handshake
   nobody's capturing verbatim would just be disruption for nothing. Turn it on at
   `Settings → Active deauth`.
-- **Every target is gated by an editable whitelist/blacklist** (`TargetList`, backed by
+- **Every target is gated by two genuinely independent lists** (`TargetList`, backed by
   `/.ruby/targets.txt` on the SD card):
-  - **Whitelist mode** (the default, starting empty) — only BSSIDs you've explicitly added are
-    attacked. An empty whitelist means *nothing* is attacked, even with the feature switched on.
-  - **Blacklist mode** — every BSSID Ruby sees is attacked *except* the ones you've added.
-  - Edit the list directly on a PC (pull the SD card, edit the plain-text file, put it back), or
-    on-device: open the device list (`Dashboard → Up`), move the cursor to a network, and press
-    `Confirm` to toggle it in/out of the list — a `[T]` marker shows targeted networks. Toggle
-    whitelist/blacklist mode from `Settings → Target list mode`.
+  - **Whitelist non-empty** — only the BSSIDs on it are attacked. The blacklist is ignored in
+    this case.
+  - **Whitelist empty, blacklist non-empty** — every BSSID Ruby sees is attacked *except* the
+    ones on the blacklist.
+  - **Both empty** (the default) — *nothing* is attacked, even with the feature switched on.
+  - Manage both from `Settings → Whitelist` / `Settings → Blacklist` — each opens a live network
+    scan (like picking a network to connect to); press `Confirm` on an entry to add or remove it,
+    a `[+]` marker shows current membership. Or edit `/.ruby/targets.txt` directly on a PC with
+    the SD card out — entries live under `[whitelist]`/`[blacklist]` section headers.
 - Each targeted BSSID gets a short burst of deauth frames, then a 30-second cooldown before it's
   attacked again, and attacks stop entirely for a BSSID once its handshake has been captured —
   this isn't meant to be a sustained flood against any one network.
@@ -202,7 +202,7 @@ capture above instead of waiting — often in vain — for one to happen on its 
 **This is real RF interference against whatever it targets.** Transmitting deauthentication
 frames at a network you don't own or don't have explicit authorization to test is illegal in most
 jurisdictions, regardless of how small the transmitting device is. Only enable this against
-networks you own or are explicitly authorized to audit — the empty-whitelist default exists so
+networks you own or are explicitly authorized to audit — the both-lists-empty default exists so
 that flipping the setting on can never itself put you outside that boundary; you have to
 deliberately add a target first.
 
@@ -251,7 +251,7 @@ the encrypted log, the creature, every screen — is new.
 | `lib/SignalCatalog` | **New.** Deduplicates observations into "have I seen this MAC before" and lifetime unique-device counters, plus a small RAM-only ring of recent sightings for the Recent Devices screen. |
 | `lib/RubyLog` | **New.** AES-256-GCM encrypted append-only capture log. |
 | `src/ruby` | **New.** The creature: procedurally-rendered (no bitmap art pipeline for the logic — see `bmp/` for the actual source art), fed by `SignalCatalog`. |
-| `src/activities/*` | **New.** Dashboard, Settings, Lore, and Maintenance screens replace CrossPlant's reader/browser/pet activities entirely. |
+| `src/activities/*` | **New.** Dashboard, Settings, device list, log viewer, network picker (`targets/`), and Export/Maintenance screens replace CrossPlant's reader/browser/pet activities entirely. |
 
 Reading-specific subsystems (EPUB/TXT/XTC rendering, the file browser, OPDS, KOReader sync,
 WiFi-connected file transfer, the Lexend Deca/Bitter/Charein reading fonts, i18n) were removed,

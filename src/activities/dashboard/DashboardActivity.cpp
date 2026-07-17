@@ -9,6 +9,7 @@
 #include <cstdio>
 
 #include "BleScanner.h"
+#include "CaptureControl.h"
 #include "EncryptedLog.h"
 #include "RecentSightings.h"
 #include "RubySettings.h"
@@ -140,7 +141,9 @@ void DashboardActivity::loop() {
     return;
   }
   if (mappedInput.wasReleased(MappedInputManager::Button::Left)) {
-    activityManager.goToLore();
+    toggleCapturePause();
+    pendingRenderKind = RenderKind::Full;
+    requestUpdate();
     return;
   }
   if (mappedInput.wasReleased(MappedInputManager::Button::Right)) {
@@ -258,12 +261,11 @@ void DashboardActivity::renderFull() {
   }
   endStatCard(renderer, deviceColX, deviceColWidth, cardTop, deviceRowsBottom);
 
-  // Mood/lore text sits under the box, centered within the box's own column (not the whole
-  // screen — the box is left-aligned now, not centered). This used to show the auto-generated
-  // per-device "SPECIMEN-XXXX" designation (RubyManager::begin(), still used in log messages) as
-  // a bold headline, but on the dashboard itself that read as unexplained noise rather than
-  // useful status — a plain "Mood" label over the actual mood value is clearer.
-  const RubyState& state = RUBY.getState();
+  // Mood text sits under the box, centered within the box's own column (not the whole screen —
+  // the box is left-aligned now, not centered). This used to show the auto-generated per-device
+  // "SPECIMEN-XXXX" designation (RubyManager::begin(), still used in log messages) as a bold
+  // headline, but on the dashboard itself that read as unexplained noise rather than useful
+  // status — a plain "Mood" label over the actual mood value is clearer.
   const RubyExpression expression = RUBY.currentExpression(false);
   y = topRowBottom + 6;
   drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_UI_12_ID, y, "Mood", EpdFontFamily::BOLD);
@@ -271,11 +273,10 @@ void DashboardActivity::renderFull() {
   drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, y, RubyBehavior::expressionLabel(expression));
   y += 16;
 
-  const size_t loreTotal = RubyManager::loreEntryCount();
-  char loreBuf[32];
-  snprintf(loreBuf, sizeof(loreBuf), "%u/%zu lore unlocked", state.unlockedLoreCount, loreTotal);
-  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, y, loreBuf);
-  y += 16;
+  if (captureIsPaused()) {
+    drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, y, "-- PAUSED --", EpdFontFamily::BOLD);
+    y += 16;
+  }
 
   // Bottom half: SIGNALS + CAPTURE STATUS. Landscape's 792x528 canvas has much less spare height
   // below the top row than the old portrait canvas did, but a lot more spare width — so these
@@ -346,7 +347,7 @@ void DashboardActivity::renderFull() {
     renderer.drawCenteredText(FONT_UI_10_ID, textY, "HANDSHAKE CAPTURED", false, EpdFontFamily::BOLD);
   }
 
-  Chrome::drawFooterHints(renderer, "Refresh", "Settings", "Lore", "Export");
+  Chrome::drawFooterHints(renderer, "Refresh", "Settings", captureIsPaused() ? "Resume" : "Pause", "Export");
 
   const unsigned long now = millis();
   const bool dueForGhostClear =

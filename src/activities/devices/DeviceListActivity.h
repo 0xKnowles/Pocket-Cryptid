@@ -6,13 +6,11 @@
 // (newest first), independent of the encrypted log and of SignalCatalog's dedup counters — see
 // RecentSightings.h. The dashboard itself now shows a 4-entry preview of the same feed inline
 // (DashboardActivity's "RECENT DEVICES" card); this is the expanded view, reached via Dashboard's
-// Up button. No paging: the ring buffer is small enough (16 entries) to fit on one screen.
-// Redraws on a fixed cadence while open so it stays live.
+// Up button. Read-only, no paging: the ring buffer is small enough (16 entries) to fit on one
+// screen. Redraws on a fixed cadence while open so it stays live.
 //
-// Up/Down move a selection cursor; Confirm on a WifiAp entry toggles it in/out of TargetList
-// (DeauthEngine's whitelist/blacklist) — the on-device counterpart to editing
-// /.ruby/targets.txt directly. Confirm on a non-AP entry (client/BLE/handshake) does nothing,
-// since deauth targets are BSSIDs.
+// To add a network to the active-deauth whitelist/blacklist, use Settings' "Whitelist"/
+// "Blacklist" rows (TargetPickerActivity) — a dedicated live network scan, not this screen.
 class DeviceListActivity final : public Activity {
  public:
   explicit DeviceListActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -24,5 +22,4 @@ class DeviceListActivity final : public Activity {
 
  private:
   unsigned long lastRenderMs = 0;
-  size_t selected = 0;
 };

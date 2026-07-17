@@ -5,7 +5,59 @@ All notable changes to this project are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- **On-device network picker for the whitelist/blacklist** (`TargetPickerActivity`) — no more
+  hand-editing `/.ruby/targets.txt` on a PC to manage active-deauth targets. `Settings →
+  Whitelist` / `Settings → Blacklist` each open a live scan (`ApScanCache`, a new dedup-by-BSSID
+  cache fed from `WifiSniffer`'s observation stream — deliberately separate from
+  `RecentSightings`, which duplicates an entry every time a beacon repeats and would make a poor
+  "pick a network" list), sorted strongest-signal-first like picking a network to connect to.
+  Confirm on an entry toggles it in/out of the list a `[+]` marker shows current membership.
+  Reached via `pushActivity` (not the flat `replaceActivity` every other screen uses) so Back
+  pops straight to Settings instead of the Dashboard.
+- **`TargetList` redesigned as two genuinely independent lists**, not one list with a mode
+  switch: whitelist non-empty means whitelist-only; whitelist empty and blacklist non-empty
+  means attack-all-except-blacklist; both empty (the default) means attack nothing. The old
+  single-list-plus-mode design meant switching modes silently reinterpreted whatever was already
+  in the list — confusing once there were two dedicated on-device entry points into it.
+  `/.ruby/targets.txt`'s format changed to match: entries now live under `[whitelist]`/
+  `[blacklist]` section headers instead of a `mode=` line.
+- **"Pause" replaces Dashboard's Left button** (`CaptureControl`, session-only, not persisted).
+  Same button pauses and resumes — no screen change. Pausing stops `WifiSniffer` and `BleScanner`
+  outright, which also halts `DeauthEngine` (driven entirely by the observation stream it stops
+  producing) and all SD/`EncryptedLog` write activity for as long as it's paused. Resuming
+  respects `RubySettings` rather than force-enabling both radios, so it won't turn on a radio the
+  owner had off in Settings before pausing. A "-- PAUSED --" line shows under Ruby's mood while
+  active, and the footer hint switches between "Pause"/"Resume".
+
+### Removed
+
+- **The Lore feature, completely** — screen, unlock progression, and all supporting state. It
+  was consistently the piece of this build that read as "a pet-sim feature bolted onto a
+  recon tool" rather than something that earned its screen real estate, and the owner asked for
+  the Left button back for something actually useful (see Pause, above). Deleted
+  `LoreActivity.h/.cpp` and its `ActivityManager::goToLore()` routing; stripped
+  `RubyManager`'s ~40-entry flavor-text table, `loreEntry()`/`loreEntryCount()`/
+  `dynamicLoreEntry()`, and the "N/M lore unlocked" caption from the dashboard; removed
+  `RubyState::totalCaptures`/`unlockedLoreCount` and `RubyConfig::kCapturesPerLoreUnlock` (both
+  existed only to pace lore unlocks — nothing else read them). Older `ruby_state.json` files with
+  those fields still load fine; ArduinoJson just ignores keys the struct no longer has.
+
 ### Fixed
+
+- **Export/Maintenance screen: content ran off the bottom of the screen, and the header read
+  badly.** Confirmed by walking the actual render sequence: with raw-capture and active-deauth
+  stats both present (a real, shipped combination), the single-column stack of stat rows plus two
+  full paragraph blurbs added up to more vertical space than the landscape screen's height,
+  running past `Chrome::contentBottom()` and off the visible area entirely — matching "some
+  details are off screen." Rebuilt as a 2-column card layout (mirroring `DashboardActivity`'s
+  SIGNALS/CAPTURE STATUS pattern): encrypted-log stats + a trimmed export blurb on the left,
+  raw-capture and active-deauth cards stacked on the right (each only shown when there's
+  something to report), a reserved line at the bottom for the firmware-update note that no card's
+  content can grow into, and hard per-line bounds checks in the wrapped-text loops so overflow is
+  now structurally impossible rather than just estimated to fit. Header title shortened from
+  "EXPORT / MAINTENANCE" to "EXPORT".
 
 - **Real field crash: `WIFI_MODE_STA` (added for active deauth's raw TX) crash-loops X3 hardware
   on every single boot — reverted to `WIFI_MODE_NULL`.** Confirmed via a hardware serial log
