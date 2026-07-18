@@ -65,6 +65,13 @@ void SettingsActivity::adjustSelected(int direction) {
       }
       break;
     case RowBleEnabled:
+      if (!SETTINGS.bleSniffEnabled && SETTINGS.rawHandshakeCaptureEnabled) {
+        // Real-hardware testing found BLE running alongside raw handshake capture reliably
+        // fragments the DMA-capable pool EncryptedLog's hardware AES needs badly enough to
+        // crash-loop (see CHANGELOG/main.cpp's crash-loop guard) — refuse rather than trigger
+        // that. Turn off raw capture first if BLE is what's wanted.
+        break;
+      }
       SETTINGS.bleSniffEnabled = !SETTINGS.bleSniffEnabled;
       if (SETTINGS.bleSniffEnabled) {
         bleScanner.start();
@@ -94,6 +101,12 @@ void SettingsActivity::adjustSelected(int direction) {
       break;
     }
     case RowRawCapture:
+      if (!SETTINGS.rawHandshakeCaptureEnabled && bleScanner.isRunning()) {
+        // Same DMA-pool reasoning as RowBleEnabled above, checked against BLE's actual live state
+        // rather than the setting — if BLE is on but never actually started (see BleScanner's
+        // isInitialized() check), it isn't consuming the memory that makes this combination risky.
+        break;
+      }
       SETTINGS.rawHandshakeCaptureEnabled = !SETTINGS.rawHandshakeCaptureEnabled;
       wifiSniffer.setRawCaptureEnabled(SETTINGS.rawHandshakeCaptureEnabled);
       // Turning raw capture off must also stop active deauth — see DeauthEngine's class comment
@@ -297,10 +310,10 @@ void SettingsActivity::render(RenderLock&&) {
   } else if (selected == RowBleEnabled) {
     const auto lines = renderer.wrappedText(
         FONT_SMALL_ID,
-        "Off by default: this radio has fragmented this device's memory badly enough to trigger "
-        "repeated silent restarts that look like a hang. 3 restarts in a row now force this (and "
-        "raw capture/active deauth) back off automatically. FAILED means NimBLE itself couldn't "
-        "initialize; ON means it's actually scanning. Enable with caution.",
+        "Off by default: running alongside raw handshake capture fragments this device's memory "
+        "badly enough to crash-loop, so turning this on refuses while raw capture is on (turn that "
+        "off first). FAILED means NimBLE itself couldn't initialize; ON means it's actually "
+        "scanning.",
         Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (const auto& line : lines) {
@@ -326,7 +339,8 @@ void SettingsActivity::render(RenderLock&&) {
         FONT_SMALL_ID,
         "Saves WPA handshake frames unencrypted to /.ruby/pcap for cracking-tool auditing "
         "(hashcat/hcxpcapngtool) of networks you own. Unlike the encrypted log, these files are "
-        "plaintext on the SD card.",
+        "plaintext on the SD card. Refuses to turn on while BLE passive scan is running — turn "
+        "that off first.",
         Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (const auto& line : lines) {

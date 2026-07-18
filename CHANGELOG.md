@@ -97,6 +97,19 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **BLE passive scan + raw handshake capture together still crash-looped even after the fix
+  below**, confirmed via real-hardware serial log: BLE alone settles at a steep but survivable
+  ~63 KB of heap use once running (free heap dropped from 71196 to 8144 bytes across an 8-second
+  window after BLE started), but turning raw handshake capture on *while BLE was already running*
+  pushed the DMA-capable pool's largest free block down to 1396 bytes, tripping the circuit
+  breaker — and since both settings were now persisted `true`, the next 2 boots hit the identical
+  combination immediately, until the crash-loop guard caught it at 3 restarts. `SettingsActivity`
+  now refuses to turn either one on while the other is already active (BLE checked against
+  `bleScanner.isRunning()`'s live state, raw capture checked against the setting), so hitting this
+  combination live no longer requires a restart to recover from — turn one off first. `main.cpp`'s
+  `startCaptureIfEnabled()` also disables BLE at boot if a persisted `settings.json` somehow still
+  has both on (from before this fix, or hand-edited), so that specific bad state can't even start
+  down the crash-loop path in the first place.
 - **BLE passive scan enabling itself caused an endless ~1-second restart loop, presenting as a full
   system hang.** Root-caused via real-hardware serial log after the fix above wasn't enough on its
   own: BLE's controller/host buffers fragment the same DMA-capable pool `EncryptedLog`'s hardware

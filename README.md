@@ -307,6 +307,13 @@ off automatically after 3 restarts in a row, so a device stuck in that loop reco
 working state on its own — but the underlying memory pressure that causes it in the first place
 isn't fixed, just contained. Turn BLE on deliberately, in Settings, with that in mind.
 
+**BLE passive scan and raw handshake capture can't both be on.** Further testing found BLE alone
+settles at a steep but survivable ~63 KB of heap use once running — fine on its own — but turning
+raw handshake capture on *while BLE is already running* (or the other way around) is what actually
+tips the DMA-capable pool into fragmenting badly enough to crash-loop. `Settings` now refuses to
+enable either one while the other is already active, so hitting this no longer means waiting out
+a restart loop — just turn the one you don't need off first.
+
 ## Look and feel
 
 The UI font is [Space Mono](https://github.com/googlefonts/spacemono) (SIL OFL 1.1) — a monospace

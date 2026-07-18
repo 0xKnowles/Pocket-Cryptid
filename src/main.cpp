@@ -131,6 +131,17 @@ void startCaptureIfEnabled() {
     wifiSniffer.start(WifiSniffer::kAllChannels, WifiSniffer::kAllChannelsCount, SETTINGS.wifiChannelDwellMs,
                        SETTINGS.rawHandshakeCaptureEnabled);
   }
+  if (SETTINGS.bleSniffEnabled && SETTINGS.rawHandshakeCaptureEnabled) {
+    // Both draw heavily from the same DMA-capable pool at once — real-hardware testing showed
+    // this combination reliably fragments it enough to crash-loop (see CHANGELOG and the
+    // crash-loop guard above). SettingsActivity now refuses to create this combination going
+    // forward, but a settings.json already persisted with both on (from before that fix, or
+    // hand-edited) would still hit it at boot without this — prefer raw capture, since that's the
+    // core recon workflow BLE is only a passive nice-to-have next to.
+    LOG_ERR("MAIN", "BLE passive scan + raw handshake capture both enabled — disabling BLE to avoid a crash-loop");
+    SETTINGS.bleSniffEnabled = false;
+    SETTINGS.saveToFile();
+  }
   if (SETTINGS.bleSniffEnabled) {
     bleScanner.start();
   }
