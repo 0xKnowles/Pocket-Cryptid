@@ -32,7 +32,11 @@ constexpr int kCardRadius = 6;
 // readout (used on screens where it'd be visual noise). Returns the x just past the battery
 // badge (or kMarginX if it wasn't drawn) — callers with a blank title (Dashboard) can use that to
 // place more content in the header row without recomputing the badge's width themselves.
-int drawHeader(const GfxRenderer& renderer, const char* title, int batteryPercent = -1);
+// dividerY defaults to kHeaderHeight, sized for a real title's full ascender clearance (see
+// kHeaderHeight's own comment) — every screen with an actual title needs that. A caller with a
+// blank title and shorter header content (Dashboard's battery/EXP-bar row) can pass a smaller
+// value instead, so its header doesn't carry that same clearance for text it never draws.
+int drawHeader(const GfxRenderer& renderer, const char* title, int batteryPercent = -1, int dividerY = kHeaderHeight);
 
 // Draws a bottom row of up to 4 button-hint tabs — rounded-outline pills, evenly spaced with a
 // visible gap between them so each one reads as its own pressable button rather than a slice of a

@@ -129,6 +129,22 @@ void endStatCard(const GfxRenderer& renderer, int x, int width, int cardTop, int
   renderer.drawRoundedRect(rectX, cardTop, rectWidth, height, 1, Chrome::kCardRadius, true);
 }
 
+// Smaller-font, tighter-row variant of Chrome::drawStatRow (FONT_SMALL_ID + 16px rows instead of
+// FONT_UI_10_ID + 20px), used only for SIGNALS/CAPTURE STATUS's own rows — CAPTURE STATUS's 5th
+// row (Total Uptime) didn't fit the space this pair of cards has always had at the old row size,
+// clipping visibly past the card's bottom edge. 5 rows at 16px is exactly 4 rows at 20px (80px
+// either way), so this restores the pair's original total block height rather than growing it.
+int drawCompactStatRow(const GfxRenderer& renderer, int y, const char* label, const char* value, int rightX,
+                       int leftX) {
+  constexpr int kRowHeight = 16;
+  const int edge = rightX > 0 ? rightX : Chrome::contentRight(renderer);
+  const int start = leftX > 0 ? leftX : Chrome::kMarginX;
+  renderer.drawText(FONT_SMALL_ID, start, y, label);
+  const int valueW = renderer.getTextWidth(FONT_SMALL_ID, value);
+  renderer.drawText(FONT_SMALL_ID, edge - valueW, y, value);
+  return y + kRowHeight;
+}
+
 // drawCenteredText() centers against the full screen width, which only works for the old
 // full-width layout — the specimen name/mood text now sits under a left-aligned box, so it needs
 // centering within just that column.
@@ -163,39 +179,32 @@ void drawExpBar(const GfxRenderer& renderer, int x, int y, int width, int height
   }
 }
 
-// Handshake-activity history — a time-bucketed histogram spanning the *whole session so far*, fed
-// from DashboardActivity's own dedicated handshake-timestamp ring (see DashboardActivity.h) rather
-// than RecentSightings' shared 16-slot feed, which mixes in every AP/client/BLE sighting too and so
-// pushes a handshake out of view again within moments in any normal RF environment — the opposite
-// of "historical" for an event this rare. Bucket width scales with how long the session has been
-// running: early on, each bucket covers just a few minutes; after many hours, each covers
-// proportionally more — the whole history always fits on screen instead of only ever showing a
-// fixed recent window. Each handshake landing in a bucket adds a fixed height increment (capped at
-// the chart's full height), so a single handshake always reads the same height regardless of how
-// busy other buckets are.
-void drawHandshakeHistoryChart(const GfxRenderer& renderer, int x, int y, int width, int height,
-                               const unsigned long* times, size_t count, size_t capacity) {
-  constexpr size_t kBucketCount = 16;
-  constexpr int kBarGap = 2;
-  constexpr int kUnitHeight = 8;  // px added per handshake in a bucket, before capping at `height`
-  const int barWidth = std::max(
-      1, (width - kBarGap * static_cast<int>(kBucketCount - 1)) / static_cast<int>(kBucketCount));
-
-  const unsigned long sessionElapsedMs = millis();
-  const unsigned long bucketMs = std::max(1UL, sessionElapsedMs / kBucketCount);
-  int bucketCounts[kBucketCount] = {};
-  for (size_t i = 0; i < count && i < capacity; i++) {
-    size_t bucket = static_cast<size_t>(times[i] / bucketMs);
-    if (bucket >= kBucketCount) bucket = kBucketCount - 1;
-    bucketCounts[bucket]++;
+// Handshake-activity history — a plain "N ago" text list of the most recent captures, newest
+// first, fed from DashboardActivity's own dedicated handshake-timestamp ring (see
+// DashboardActivity.h) rather than RecentSightings' shared 16-slot feed, which mixes in every
+// AP/client/BLE sighting too and so pushes a handshake out of view again within moments in any
+// normal RF environment — the opposite of "historical" for an event this rare. Text rather than a
+// chart: handshakes are rare enough (and the list short enough) that raw ago-timestamps read more
+// clearly at this scale than bars would. `next` is the ring's next-write index, needed to walk the
+// buffer backwards from its most recently written slot.
+void drawHandshakeHistoryList(const GfxRenderer& renderer, int x, int y, int width, int height,
+                              const unsigned long* times, size_t count, size_t capacity, size_t next) {
+  constexpr int kLineHeight = 13;
+  if (count == 0) {
+    renderer.drawText(FONT_SMALL_ID, x, y, "None yet.");
+    return;
   }
 
-  const int baseline = y + height;
-  for (size_t slot = 0; slot < kBucketCount; slot++) {
-    if (bucketCounts[slot] == 0) continue;  // no handshake in this slice of the session -- blank
-    const int barHeight = std::min(height, bucketCounts[slot] * kUnitHeight);
-    const int barX = x + static_cast<int>(slot) * (barWidth + kBarGap);
-    renderer.fillRect(barX, baseline - barHeight, barWidth, barHeight, true);
+  const int maxLines = std::max(1, height / kLineHeight);
+  const size_t linesToShow = std::min(count, static_cast<size_t>(maxLines));
+  for (size_t i = 0; i < linesToShow; i++) {
+    const size_t idx = (next + capacity - 1 - i) % capacity;
+    char agoBuf[24];
+    formatUptime((millis() - times[idx]) / 1000, agoBuf, sizeof(agoBuf));
+    char line[40];
+    snprintf(line, sizeof(line), "%s ago", agoBuf);
+    renderer.drawText(FONT_SMALL_ID, x, y + static_cast<int>(i) * kLineHeight,
+                      renderer.truncatedText(FONT_SMALL_ID, line, width).c_str());
   }
 }
 
@@ -239,6 +248,9 @@ void DashboardActivity::onEnter() {
   // are columns now instead of a full-width stack.
   rubyBoxSize = 230;
   rubyBoxX = Chrome::contentLeft();
+  // Not Chrome::contentTop() — this screen's header is deliberately shorter than every other
+  // screen's (see kDashboardHeaderHeight above), so its content starts higher up to match,
+  // mirroring contentTop()'s own "+8" convention off of whatever the real divider position is.
   rubyBoxY = kDashboardHeaderHeight + 8;
 
   // Seed from the live counts rather than 0, so sightings that happened before this screen was
@@ -439,8 +451,34 @@ void DashboardActivity::renderFull() {
   const int chartX = deviceColX + devicesWidth + kColumnGap;
   const int chartWidth = deviceColWidth - devicesWidth - kColumnGap;
 
+  // Mood text sits under the box, centered within the box's own column (not the whole screen —
+  // the box is left-aligned now, not centered). Computed here, before RECENT DEVICES/SIGNAL
+  // HISTORY below, so those two cards know how far down they can extend: they used to stop at the
+  // box's own bottom edge, matching a "CAPTURE SETTINGS" card that used to sit beside this Mood
+  // block (removed entirely as redundant with the Settings screen) — now they extend down to match
+  // the Mood column's own height instead, rather than leaving that space empty.
+  //
+  // Line spacing here used to be hardcoded guesses (20px/16px) rather than the fonts' actual
+  // metrics — close enough most of the time, but FONT_UI_12_ID BOLD's real glyph height runs
+  // taller than the guessed 20px, so "Mood" and its value ("Curious", etc.) visibly overlapped.
+  // Using renderer.getLineHeight() per font fixes that at its source instead of just padding the
+  // guess further.
+  const RubyExpression expression = effectiveExpression();
+  int moodY = topRowBottom + 6;
+  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_UI_12_ID, moodY, "Mood", EpdFontFamily::BOLD);
+  moodY += renderer.getLineHeight(FONT_UI_12_ID);
+  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, moodY, RubyBehavior::expressionLabel(expression));
+  moodY += renderer.getLineHeight(FONT_SMALL_ID);
+
+  // Always draw one of these two, rather than only "-- PAUSED --" when paused, so the mood
+  // column's height (and therefore where RECENT DEVICES/SIGNAL HISTORY and the SIGNALS/CAPTURE
+  // STATUS row below land) stays identical between the two states — otherwise everything would
+  // shift up by one line's height every time capture resumed.
+  drawBoldSmallCenteredIn(renderer, rubyBoxX, rubyBoxSize, moodY, captureIsPaused() ? "-- PAUSED --" : "-- ACTIVE --");
+  moodY += renderer.getLineHeight(FONT_SMALL_ID);
+
   int cardTop = rubyBoxY;
-  const int deviceRowsBottom = topRowBottom - kCardBottomPad;  // don't overrun the box's height
+  const int deviceRowsBottom = moodY - kCardBottomPad;  // extend down to match the Mood column
 
   int y = beginStatCard(renderer, deviceColX, devicesWidth, cardTop, "RECENT DEVICES");
   const size_t liveCount = recentSightings.count();
@@ -490,20 +528,21 @@ void DashboardActivity::renderFull() {
   endStatCard(renderer, deviceColX, devicesWidth, cardTop, deviceRowsBottom);
 
   const int chartTop = beginStatCard(renderer, chartX, chartWidth, cardTop, "SIGNAL HISTORY");
-  // Two stacked tracks rather than one chart alone in the card (RSSI by itself rarely needs the
-  // whole card's height to read clearly, leaving a lot of otherwise-idle space). They deliberately
-  // don't share one timeline: HANDSHAKES buckets the *whole session so far* (handshakes are too
-  // rare to fit meaningfully into RecentSightings' shared, AP/client/BLE-dominated 16-slot feed),
-  // while SIGNAL stays a recent-observations strip, since RSSI is something every sighting has.
-  // Small captions tell the two apart since neither shape is self-explanatory on its own.
+  // Two stacked sections rather than one chart alone in the card (RSSI by itself rarely needs the
+  // whole card's height to read clearly, leaving a lot of otherwise-idle space). HANDSHAKES is a
+  // plain "N ago" text list from a dedicated timestamp ring, not RecentSightings' shared,
+  // AP/client/BLE-dominated 16-slot feed — handshakes are rare enough that ordinary traffic would
+  // push one out of that shared feed within moments, the opposite of "historical" for an event
+  // this infrequent — while SIGNAL stays a recent-observations RSSI bar chart below it.
   constexpr int kSubGap = 4;
   const int subLabelHeight = renderer.getLineHeight(FONT_SMALL_ID);
   const int trackHeight = (deviceRowsBottom - chartTop - kSubGap) / 2;
 
   drawBoldSmall(renderer, chartX, chartTop, "HANDSHAKES");
   const int handshakeGraphY = chartTop + subLabelHeight;
-  drawHandshakeHistoryChart(renderer, chartX, handshakeGraphY, chartWidth, trackHeight - subLabelHeight,
-                            handshakeHistoryTimes, handshakeHistoryCount, kHandshakeHistoryCapacity);
+  drawHandshakeHistoryList(renderer, chartX, handshakeGraphY, chartWidth, trackHeight - subLabelHeight,
+                           handshakeHistoryTimes, handshakeHistoryCount, kHandshakeHistoryCapacity,
+                           handshakeHistoryNext);
 
   const int signalLabelY = chartTop + trackHeight + kSubGap;
   drawBoldSmall(renderer, chartX, signalLabelY, "SIGNAL");
@@ -511,74 +550,12 @@ void DashboardActivity::renderFull() {
   drawSignalHistoryChart(renderer, chartX, signalGraphY, chartWidth, deviceRowsBottom - signalGraphY);
   endStatCard(renderer, chartX, chartWidth, cardTop, deviceRowsBottom);
 
-  // Mood text sits under the box, centered within the box's own column (not the whole screen —
-  // the box is left-aligned now, not centered). This used to show the auto-generated per-device
-  // "SPECIMEN-XXXX" designation (RubyManager::begin(), still used in log messages) as a bold
-  // headline, but on the dashboard itself that read as unexplained noise rather than useful
-  // status — a plain "Mood" label over the actual mood value is clearer.
-  //
-  // Line spacing here used to be hardcoded guesses (20px/16px) rather than the fonts' actual
-  // metrics — close enough most of the time, but FONT_UI_12_ID BOLD's real glyph height runs
-  // taller than the guessed 20px, so "Mood" and its value ("Curious", etc.) visibly overlapped.
-  // Using renderer.getLineHeight() per font fixes that at its source instead of just padding the
-  // guess further.
-  const RubyExpression expression = effectiveExpression();
-  int moodY = topRowBottom + 6;
-  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_UI_12_ID, moodY, "Mood", EpdFontFamily::BOLD);
-  moodY += renderer.getLineHeight(FONT_UI_12_ID);
-  drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, moodY, RubyBehavior::expressionLabel(expression));
-  moodY += renderer.getLineHeight(FONT_SMALL_ID);
-
-  // Always draw one of these two, rather than only "-- PAUSED --" when paused, so the mood
-  // column's height (and therefore where std::max(moodY, infoY) below lands) stays identical
-  // between the two states — otherwise everything from the SIGNALS/CAPTURE STATUS row down would
-  // shift up by one line's height every time capture resumed.
-  drawBoldSmallCenteredIn(renderer, rubyBoxX, rubyBoxSize, moodY, captureIsPaused() ? "-- PAUSED --" : "-- ACTIVE --");
-  moodY += renderer.getLineHeight(FONT_SMALL_ID);
-
-  // Same row, to the right of the mood block: this was dead whitespace before (the RECENT DEVICES
-  // card above it ends at topRowBottom, and SIGNALS/CAPTURE STATUS don't start until bottomY) —
-  // now a proper bordered card (previously just two titleless stat rows floating in the gap,
-  // looking distinctly plainer than every other card on this screen) surfacing the capture-related
-  // settings/detectors that most change what this device is actually doing, so the owner doesn't
-  // have to go into Settings to check.
-  const int infoCardTop = topRowBottom + 6;
-  int infoY = beginStatCard(renderer, deviceColX, deviceColWidth, infoCardTop, "CAPTURE SETTINGS");
-  infoY = Chrome::drawStatRow(renderer, infoY, "Handshake Capture",
-                              SETTINGS.rawHandshakeCaptureEnabled ? "ON" : "OFF", false,
-                              deviceColX + deviceColWidth, deviceColX);
-  infoY = Chrome::drawStatRow(renderer, infoY, "Active DeAuth", SETTINGS.activeDeauthEnabled ? "ON" : "OFF", false,
-                              deviceColX + deviceColWidth, deviceColX);
-  // Replaces the old "DeAuth: ON/OFF" setting readout — active deauth's own transmit path is
-  // confirmed rejected by the WiFi driver on this hardware (see DeauthEngine's class comment), so
-  // that ON/OFF told you nothing useful about what's actually happening in the air. This instead
-  // surfaces DeauthDetector's passive count of deauth/disassoc frames from *anyone* nearby —
-  // information that's still real regardless of whether this device's own attempts transmit.
-  char deauthBuf[16];
-  if (deauthDetector.alertActive()) {
-    snprintf(deauthBuf, sizeof(deauthBuf), "ALERT");
-  } else {
-    const uint32_t deauthTotal = deauthDetector.totalDeauthFrames() + deauthDetector.totalDisassocFrames();
-    if (deauthTotal == 0) {
-      snprintf(deauthBuf, sizeof(deauthBuf), "none");
-    } else {
-      snprintf(deauthBuf, sizeof(deauthBuf), "%lu seen", static_cast<unsigned long>(deauthTotal));
-    }
-  }
-  infoY = Chrome::drawStatRow(renderer, infoY, "Nearby DeAuth", deauthBuf, false, deviceColX + deviceColWidth,
-                              deviceColX);
-  // Bottom border matches whichever of this card or the mood column beside it is taller, so the
-  // two align visually instead of this card looking short next to a taller mood block.
-  endStatCard(renderer, deviceColX, deviceColWidth, infoCardTop, std::max(infoY, moodY));
-
   // Bottom half: SIGNALS + CAPTURE STATUS. Landscape's 792x528 canvas has much less spare height
   // below the top row than the old portrait canvas did, but a lot more spare width — so these
-  // two cards sit side by side in their own columns instead of stacked full-width. Every other
-  // proportion on this screen (box size, top row, mood text) is unchanged. Both cards' borders
-  // extend all the way to the bottom of the content area (there's room to spare below 4 rows of
-  // stats now), rather than shrink-wrapping tightly around their rows the way a single full-width
-  // card used to.
-  y = std::max(moodY, infoY) + kCardGap;
+  // two cards sit side by side in their own columns instead of stacked full-width. Both cards'
+  // borders extend all the way to the bottom of the content area, rather than shrink-wrapping
+  // tightly around their rows the way a single full-width card used to.
+  y = moodY + kCardGap;
   const int bottomY = y;
   const int colWidth = (Chrome::contentRight(renderer) - Chrome::contentLeft() - kColumnGap) / 2;
   const int leftColX = Chrome::contentLeft();
@@ -589,21 +566,21 @@ void DashboardActivity::renderFull() {
   const auto& stats = SIGNAL_CATALOG.getStats();
   char buf[32];
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueWifiAPs));
-  leftY = Chrome::drawStatRow(renderer, leftY, "Unique access points", buf, false, leftColX + colWidth, leftColX);
+  leftY = drawCompactStatRow(renderer, leftY, "Unique access points", buf, leftColX + colWidth, leftColX);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueWifiClients));
-  leftY = Chrome::drawStatRow(renderer, leftY, "Unique WiFi clients", buf, false, leftColX + colWidth, leftColX);
+  leftY = drawCompactStatRow(renderer, leftY, "Unique WiFi clients", buf, leftColX + colWidth, leftColX);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.uniqueBleDevices));
-  leftY = Chrome::drawStatRow(renderer, leftY, "Unique BLE devices", buf, false, leftColX + colWidth, leftColX);
+  leftY = drawCompactStatRow(renderer, leftY, "Unique BLE devices", buf, leftColX + colWidth, leftColX);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.handshakesCaptured));
-  leftY = Chrome::drawStatRow(renderer, leftY, "Handshakes captured", buf, false, leftColX + colWidth, leftColX);
+  leftY = drawCompactStatRow(renderer, leftY, "Handshakes captured", buf, leftColX + colWidth, leftColX);
   endStatCard(renderer, leftColX, colWidth, bottomY, columnBottom);
 
-  // CAPTURE STATUS's 4 rows are vertically centered within the card instead of hugging the title
-  // the way SIGNALS' do — asked for explicitly, and it also reads better here since these rows
+  // CAPTURE STATUS's rows are vertically centered within the card instead of hugging the title the
+  // way SIGNALS' do — asked for explicitly, and it also reads better here since these rows
   // (WiFi monitor/BLE scan/log size/uptime) are a much more varied mix of value lengths than
   // SIGNALS' four numbers, so a centered block looks more deliberate than a top-anchored one.
   constexpr int kCaptureStatusRowCount = 5;
-  constexpr int kStatRowHeight = 20;  // mirrors Chrome::drawStatRow's internal row height
+  constexpr int kStatRowHeight = 16;  // mirrors drawCompactStatRow's internal row height
   const int captureRowsTop = beginStatCard(renderer, rightColX, colWidth, bottomY, "CAPTURE STATUS");
   const int captureRowsBlockHeight = kCaptureStatusRowCount * kStatRowHeight;
   const int captureRowsAvailable = columnBottom - captureRowsTop;
@@ -611,30 +588,27 @@ void DashboardActivity::renderFull() {
   if (wifiSniffer.isRunning()) {
     char chbuf[16];
     snprintf(chbuf, sizeof(chbuf), "ch %u", wifiSniffer.currentChannel());
-    rightY = Chrome::drawStatRow(renderer, rightY, "WiFi monitor", chbuf, false, rightColX + colWidth, rightColX);
+    rightY = drawCompactStatRow(renderer, rightY, "WiFi monitor", chbuf, rightColX + colWidth, rightColX);
   } else {
-    rightY = Chrome::drawStatRow(renderer, rightY, "WiFi monitor", "off", false, rightColX + colWidth, rightColX);
+    rightY = drawCompactStatRow(renderer, rightY, "WiFi monitor", "off", rightColX + colWidth, rightColX);
   }
-  rightY = Chrome::drawStatRow(renderer, rightY, "BLE scan", bleScanner.isRunning() ? "passive" : "off", false,
-                               rightColX + colWidth, rightColX);
+  rightY = drawCompactStatRow(renderer, rightY, "BLE scan", bleScanner.isRunning() ? "passive" : "off",
+                              rightColX + colWidth, rightColX);
 
   char sizeBuf[24];
   formatBytes(encryptedLog.currentFileSizeBytes(), sizeBuf, sizeof(sizeBuf));
-  rightY = Chrome::drawStatRow(renderer, rightY, "Encrypted log", sizeBuf, false, rightColX + colWidth,
-                               rightColX);
+  rightY = drawCompactStatRow(renderer, rightY, "Encrypted log", sizeBuf, rightColX + colWidth, rightColX);
 
   char uptimeBuf[24];
   formatUptime(millis() / 1000, uptimeBuf, sizeof(uptimeBuf));
-  rightY = Chrome::drawStatRow(renderer, rightY, "Uptime this session", uptimeBuf, false, rightColX + colWidth,
-                               rightColX);
+  rightY = drawCompactStatRow(renderer, rightY, "Uptime this session", uptimeBuf, rightColX + colWidth, rightColX);
 
   // APP_STATE.totalCaptureSeconds only accumulates at each sleep entry (see enterDeepSleep() in
   // main.cpp), so it doesn't yet include this still-running session's own time — added on here so
   // the figure shown is always current, not stale as of the last time the device slept.
   char totalUptimeBuf[24];
   formatUptime(APP_STATE.totalCaptureSeconds + millis() / 1000, totalUptimeBuf, sizeof(totalUptimeBuf));
-  rightY = Chrome::drawStatRow(renderer, rightY, "Total Uptime", totalUptimeBuf, false, rightColX + colWidth,
-                               rightColX);
+  rightY = drawCompactStatRow(renderer, rightY, "Total Uptime", totalUptimeBuf, rightColX + colWidth, rightColX);
   endStatCard(renderer, rightColX, colWidth, bottomY, columnBottom);
 
   drawRubyPanel(true);

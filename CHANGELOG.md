@@ -166,19 +166,18 @@ All notable changes to this project are documented here. Format loosely follows
   here is a frame Ruby actually heard) below -70 dBm. Hand-drawn with plain filled rectangles
   rather than a font glyph, since Space Mono has no signal-bar character.
 - **Dashboard's RECENT DEVICES card reworked: fewer entries, more per entry, plus a new SIGNAL
-  HISTORY card beside it.** The card is narrower now (half its old width) and shows each entry
-  across a full 3 lines — type/MAC, signal bars + RSSI + time-ago, and the device's name (falling
-  back to a vendor-OUI lookup, same as Device Log) — rather than 2 lines with more entries crammed
-  in. The other half of the row that opens up is SIGNAL HISTORY: two stacked tracks instead of one
-  chart alone with a lot of otherwise idle vertical room. SIGNAL (bottom) plots `RecentSightings`'
-  RSSI history as a bar per recent observation, oldest on the left, newest anchored to the right.
-  HANDSHAKES (top) is a time-bucketed histogram of the *whole session so far*, from a dedicated
-  handshake-timestamp ring rather than the shared `RecentSightings` feed — handshakes are rare
-  enough that ordinary AP/client/BLE traffic would push one out of that shared 16-slot window again
-  within moments, the opposite of "historical" for an event this infrequent. Bucket width scales
-  with session length, so the whole history always fits rather than only ever showing a fixed
-  recent window; each handshake in a bucket adds a fixed height increment, capped at the chart's
-  height.
+  HISTORY card beside it — both now extending down to fill the space beside the Mood column too**
+  (there's no card down there anymore; see "Removed" below). RECENT DEVICES is narrower now (half
+  its old width) and shows each entry across a full 3 lines — type/MAC, signal bars + RSSI +
+  time-ago, and the device's name (falling back to a vendor-OUI lookup, same as Device Log) —
+  rather than 2 lines with more entries crammed in. The other half of the row that opens up is
+  SIGNAL HISTORY, with two stacked sections instead of one chart alone with a lot of otherwise idle
+  vertical room: HANDSHAKES (top) is a plain "N ago" text list of recent captures, newest first,
+  from a dedicated handshake-timestamp ring rather than `RecentSightings`' shared, AP/client/
+  BLE-dominated 16-slot feed — handshakes are rare enough that ordinary traffic would push one out
+  of that shared feed within moments, the opposite of "historical" for an event this infrequent —
+  while SIGNAL (bottom) stays a recent-observations RSSI bar chart, oldest on the left, newest
+  anchored to the right.
 - **Ruby thinks and talks now** (`RubyThoughts.h`, `Chrome::drawThoughtBubble()`/`drawSpeechBubble()`).
   A comic-style bubble runs along the bottom edge of her box, tailing up into her face — clear of
   both the name chip up top and her eyes in the middle — showing a quirky, hacker-flavored one-liner
@@ -188,17 +187,21 @@ All notable changes to this project are documented here. Format loosely follows
   AP/client/BLE device spotted, a handshake captured, a level up, or a nearby deauth alert — each
   with 9 possible reactions to pick from (tripled from the original 3) so it isn't the exact same
   line every time.
-- **"CAPTURE SETTINGS" card, replacing the plain titleless stat rows that used to sit beside the
-  Mood column.** Same bordered/titled chrome as every other card on this screen instead of two
-  stat rows floating in a gap. Adds a new **Active DeAuth** ON/OFF row (`RubySettings::activeDeauthEnabled`)
-  alongside the existing Handshake Capture and Nearby DeAuth rows — the one opt-in capture setting
-  that wasn't shown anywhere on the dashboard before.
 - **Total Uptime**, a new row under "Uptime this session" in CAPTURE STATUS — lifetime awake time
   across every boot (`RubyAppState::totalCaptureSeconds`, already persisted at each sleep entry,
   just never previously surfaced anywhere in the UI), plus this still-running session's own
   elapsed time so the figure is always current. `formatUptime()` now takes whole seconds instead of
   milliseconds, since a lifetime total can run well past the ~49-day point where a `uint32_t`
-  millisecond count wraps.
+  millisecond count wraps. SIGNALS and CAPTURE STATUS's rows now use a smaller font/row height
+  (`drawCompactStatRow()`, Dashboard-local) so this 5th row fits without clipping past the card's
+  bottom edge.
+
+### Removed
+
+- **Dashboard's "CAPTURE SETTINGS" card** (Handshake Capture/Active DeAuth/Nearby DeAuth), added
+  earlier in this same batch of changes — all three are already on the Settings screen, and real
+  usage found them redundant clutter on the dashboard itself. RECENT DEVICES and SIGNAL HISTORY now
+  extend down to use that freed space instead (see "Added" above) rather than leaving it empty.
 
 ### Fixed
 
@@ -206,6 +209,13 @@ All notable changes to this project are documented here. Format loosely follows
   the count reached 2+ digits — drawn with a plain, unbounded `drawText` that never accounted for
   the panel's actual width. Both summary lines on that screen are now truncated to the real
   available width.
+- **Dashboard's header bar (battery badge + EXP bar) read as noticeably thicker than it needed to
+  be** — its divider always sat at the shared header height every other screen's real title relies
+  on for ascender clearance, even though this screen's title is blank and its header content is
+  only 16px tall. `Chrome::drawHeader()` now takes an optional divider-position override (every
+  other screen's call site is unaffected, keeping the default), and Dashboard passes a shorter one
+  sized to its actual content, freeing the ~12px difference for the content below instead of
+  leaving it as dead padding.
 - **`Settings → Reset signal stats` didn't reset Ruby's Level/EXP**, only the dashboard's dedup
   counters and hash rings. A MAC that had already contributed EXP could re-trigger a "new unique"
   event (and re-award EXP) the moment its dedup ring entry was cleared by the reset and it was
