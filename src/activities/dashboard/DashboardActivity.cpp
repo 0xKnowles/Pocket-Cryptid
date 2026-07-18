@@ -134,6 +134,15 @@ void drawCenteredTextIn(const GfxRenderer& renderer, int x, int width, int fontI
   const int textW = renderer.getTextWidth(fontId, text, style);
   renderer.drawText(fontId, x + (width - textW) / 2, y, text, true, style);
 }
+
+// Centered counterpart to drawBoldSmall() above, for the same reason: FONT_SMALL_ID has no bold
+// face, so the PAUSED/ACTIVE tag below needs the double-draw trick too, not a real BOLD style.
+void drawBoldSmallCenteredIn(const GfxRenderer& renderer, int x, int width, int y, const char* text) {
+  const int textW = renderer.getTextWidth(FONT_SMALL_ID, text);
+  const int textX = x + (width - textW) / 2;
+  renderer.drawText(FONT_SMALL_ID, textX, y, text, true);
+  renderer.drawText(FONT_SMALL_ID, textX + 1, y, text, true);
+}
 }  // namespace
 
 void DashboardActivity::onEnter() {
@@ -309,10 +318,12 @@ void DashboardActivity::renderFull() {
   drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, moodY, RubyBehavior::expressionLabel(expression));
   moodY += renderer.getLineHeight(FONT_SMALL_ID);
 
-  if (captureIsPaused()) {
-    drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_SMALL_ID, moodY, "-- PAUSED --", EpdFontFamily::BOLD);
-    moodY += renderer.getLineHeight(FONT_SMALL_ID);
-  }
+  // Always draw one of these two, rather than only "-- PAUSED --" when paused, so the mood
+  // column's height (and therefore where std::max(moodY, infoY) below lands) stays identical
+  // between the two states — otherwise everything from the SIGNALS/CAPTURE STATUS row down would
+  // shift up by one line's height every time capture resumed.
+  drawBoldSmallCenteredIn(renderer, rubyBoxX, rubyBoxSize, moodY, captureIsPaused() ? "-- PAUSED --" : "-- ACTIVE --");
+  moodY += renderer.getLineHeight(FONT_SMALL_ID);
 
   // Same row, to the right of the mood block: this was dead whitespace before (the RECENT DEVICES
   // card above it ends at topRowBottom, and SIGNALS/CAPTURE STATUS don't start until bottomY) —

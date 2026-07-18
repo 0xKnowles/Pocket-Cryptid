@@ -154,8 +154,9 @@ When the device is asleep, it shows a different, much larger piece of art instea
 
 ## Screens
 
-- **Dashboard** (home) — the creature, its current Mood (or "-- PAUSED --" while capture is
-  paused), whether handshake capture is switched on, a **Nearby DeAuth** row (`ALERT` during a
+- **Dashboard** (home) — the creature, its current Mood, an "-- ACTIVE --"/"-- PAUSED --" tag
+  under it (always shown, not just while paused, so the layout below never shifts between the two
+  states), whether handshake capture is switched on, a **Nearby DeAuth** row (`ALERT` during a
   spike of deauth/disassoc frames from *any* source over the air, a running `N seen` count
   otherwise, or `none` — see [Passive deauth/disassoc detection](#passive-deauthdisassoc-detection)),
   unique AP/client/BLE/handshake counts, capture status, log size, and session uptime. A banner

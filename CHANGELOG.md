@@ -7,6 +7,11 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
+- **Dashboard always shows an "-- ACTIVE --"/"-- PAUSED --" tag under Ruby's mood**, not just
+  "-- PAUSED --" while paused. The tag's row height feeds into the layout below it
+  (`std::max(moodY, infoY)`), so showing it unconditionally means the SIGNALS/CAPTURE STATUS row
+  no longer shifts up by one line every time capture resumes — the paused layout was intentionally
+  liked, this just makes both states match it instead of only one.
 - **`Settings → WiFi channel scope`** (`RubySettings::wifiChannelScope`,
   `WifiSniffer::channelPlanFor`). WiFi monitor mode hops all 13 channels by default at
   `wifiChannelDwellMs` each — a real 4-way handshake completes in well under a second, so any
@@ -216,20 +221,24 @@ All notable changes to this project are documented here. Format loosely follows
   `onEnter()`, so the first render after entering the screen gets a crisp `FULL_REFRESH` and every
   subsequent redraw (paging, cursor movement, the periodic live-feed tick) stays `FAST_REFRESH` as
   before.
-- **Dashboard's card titles ("RECENT DEVICES", "SIGNALS", "CAPTURE STATUS") and the "RUBY" name
-  chip were never actually bold on real hardware**, despite the code requesting
-  `EpdFontFamily::BOLD` for all of them. `FONT_SMALL_ID` (Space Mono 8) only has a Regular face
-  registered — no bold 8pt asset exists — and `EpdFontFamily::getFont()` silently falls back to
-  Regular when the requested style's face isn't registered, so the `BOLD` argument was a no-op the
-  whole time. Faked properly now by drawing each of those labels twice, offset one pixel
-  horizontally, the same trick dot-matrix mono fonts commonly use to fake a heavier weight without
-  a dedicated bold face.
+- **Dashboard's card titles ("RECENT DEVICES", "SIGNALS", "CAPTURE STATUS"), the "RUBY" name chip,
+  and the "-- PAUSED --"/"-- ACTIVE --" tag were never actually bold on real hardware**, despite
+  the code requesting `EpdFontFamily::BOLD` for all of them. `FONT_SMALL_ID` (Space Mono 8) only
+  has a Regular face registered — no bold 8pt asset exists — and `EpdFontFamily::getFont()`
+  silently falls back to Regular when the requested style's face isn't registered, so the `BOLD`
+  argument was a no-op the whole time. Faked properly now by drawing each of those labels twice,
+  offset one pixel horizontally, the same trick dot-matrix mono fonts commonly use to fake a
+  heavier weight without a dedicated bold face.
 
 ### Changed
 
 - **Dashboard's "Encrypted log (today)" row renamed to just "Encrypted log"** — the "(today)"
   qualifier was accurate (it's `EncryptedLog::currentFileSizeBytes()`, today's file only) but
   cluttered a label that's already tight for space next to WiFi monitor/BLE scan/uptime.
+- **Settings screen's row labels ("WiFi monitor", "BLE passive scan", etc.) now draw bold.**
+  Unlike `FONT_SMALL_ID` above, `FONT_UI_10_ID` (Space Mono 10) does have a real bold face
+  registered, so this one's a straightforward style change (`EpdFontFamily::REGULAR` →
+  `EpdFontFamily::BOLD`), not a fallback-bug fake-out.
 
 ### Removed
 

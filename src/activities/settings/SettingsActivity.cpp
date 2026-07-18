@@ -259,7 +259,7 @@ void SettingsActivity::render(RenderLock&&) {
       Chrome::drawSelectionHighlight(renderer, Chrome::contentLeft() - 4, y - 3,
                                      Chrome::contentRight(renderer) - Chrome::contentLeft() + 8, kRowHeight - 6);
     }
-    renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y, label, true, EpdFontFamily::REGULAR);
+    renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y, label, true, EpdFontFamily::BOLD);
     const int valueW = renderer.getTextWidth(FONT_UI_10_ID, value);
     renderer.drawText(FONT_UI_10_ID, Chrome::contentRight(renderer) - valueW, y, value, true);
   };
