@@ -216,6 +216,20 @@ All notable changes to this project are documented here. Format loosely follows
   `onEnter()`, so the first render after entering the screen gets a crisp `FULL_REFRESH` and every
   subsequent redraw (paging, cursor movement, the periodic live-feed tick) stays `FAST_REFRESH` as
   before.
+- **Dashboard's card titles ("RECENT DEVICES", "SIGNALS", "CAPTURE STATUS") and the "RUBY" name
+  chip were never actually bold on real hardware**, despite the code requesting
+  `EpdFontFamily::BOLD` for all of them. `FONT_SMALL_ID` (Space Mono 8) only has a Regular face
+  registered — no bold 8pt asset exists — and `EpdFontFamily::getFont()` silently falls back to
+  Regular when the requested style's face isn't registered, so the `BOLD` argument was a no-op the
+  whole time. Faked properly now by drawing each of those labels twice, offset one pixel
+  horizontally, the same trick dot-matrix mono fonts commonly use to fake a heavier weight without
+  a dedicated bold face.
+
+### Changed
+
+- **Dashboard's "Encrypted log (today)" row renamed to just "Encrypted log"** — the "(today)"
+  qualifier was accurate (it's `EncryptedLog::currentFileSizeBytes()`, today's file only) but
+  cluttered a label that's already tight for space next to WiFi monitor/BLE scan/uptime.
 
 ### Removed
 

@@ -263,12 +263,18 @@ void drawNameChip(const GfxRenderer& renderer, int x, int y) {
   constexpr int kChipInset = 5;
   constexpr int kChipPadX = 4;
   constexpr int kChipPadY = 2;
-  const int textW = renderer.getTextWidth(FONT_SMALL_ID, "RUBY", EpdFontFamily::BOLD);
+  // FONT_SMALL_ID only ships a Regular face (see fontIds.h) — requesting BOLD here silently falls
+  // back to Regular (EpdFontFamily::getFont()), so "RUBY" never actually rendered bold on real
+  // hardware. Faked below by drawing the glyphs twice, offset one pixel right, the same as
+  // DashboardActivity's card titles use for the same reason — the +1px is folded into the chip's
+  // own padding, so it doesn't need to widen the chip further.
+  const int textW = renderer.getTextWidth(FONT_SMALL_ID, "RUBY");
   const int lineH = renderer.getLineHeight(FONT_SMALL_ID);
   const int chipX = x + kChipInset;
   const int chipY = y + kChipInset;
   renderer.fillRect(chipX, chipY, textW + kChipPadX * 2, lineH + kChipPadY * 2, /*state=*/false);
-  renderer.drawText(FONT_SMALL_ID, chipX + kChipPadX, chipY + kChipPadY, "RUBY", true, EpdFontFamily::BOLD);
+  renderer.drawText(FONT_SMALL_ID, chipX + kChipPadX, chipY + kChipPadY, "RUBY", true);
+  renderer.drawText(FONT_SMALL_ID, chipX + kChipPadX + 1, chipY + kChipPadY, "RUBY", true);
 }
 
 }  // namespace

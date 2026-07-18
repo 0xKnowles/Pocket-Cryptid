@@ -95,6 +95,16 @@ constexpr int kCardBottomPad = 8;
 constexpr int kCardGap = 10;    // vertical gap between stacked cards
 constexpr int kColumnGap = 14;  // horizontal gap between the top row's two columns
 
+// FONT_SMALL_ID only ships a Regular face (see fontIds.h) — EpdFontFamily::getFont() silently
+// falls back to Regular when a style's face isn't registered, so passing BOLD here never actually
+// rendered bold on real hardware, despite asking for it. There's no bold 8pt face to register
+// instead (only space_mono_8_regular exists), so this fakes it the way dot-matrix mono fonts
+// commonly do: draw the same glyphs twice, offset one pixel to the right, thickening every stroke.
+void drawBoldSmall(const GfxRenderer& renderer, int x, int y, const char* title) {
+  renderer.drawText(FONT_SMALL_ID, x, y, title, true);
+  renderer.drawText(FONT_SMALL_ID, x + 1, y, title, true);
+}
+
 // Draws a bold section caption + rule spanning [x, x + width) at `y`. Returns the y the first row
 // should land at. Pairs with endStatCard(), which closes the rounded outline once the caller
 // knows where the last row ended — the two are separate calls (rather than one that takes a row
@@ -103,7 +113,7 @@ constexpr int kColumnGap = 14;  // horizontal gap between the top row's two colu
 // works for both the full-width SIGNALS/CAPTURE STATUS cards and the narrower top-right device
 // column.
 int beginStatCard(const GfxRenderer& renderer, int x, int width, int y, const char* title) {
-  renderer.drawText(FONT_SMALL_ID, x, y + kCardTopPad, title, true, EpdFontFamily::BOLD);
+  drawBoldSmall(renderer, x, y + kCardTopPad, title);
   const int ruleY = y + kCardTopPad + renderer.getLineHeight(FONT_SMALL_ID) + 2;
   renderer.drawLine(x, ruleY, x + width, ruleY, true);
   return ruleY + kCardTitleGap;
@@ -380,7 +390,7 @@ void DashboardActivity::renderFull() {
 
   char sizeBuf[24];
   formatBytes(encryptedLog.currentFileSizeBytes(), sizeBuf, sizeof(sizeBuf));
-  rightY = Chrome::drawStatRow(renderer, rightY, "Encrypted log (today)", sizeBuf, false, rightColX + colWidth,
+  rightY = Chrome::drawStatRow(renderer, rightY, "Encrypted log", sizeBuf, false, rightColX + colWidth,
                                rightColX);
 
   char uptimeBuf[24];
