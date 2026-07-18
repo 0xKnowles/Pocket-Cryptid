@@ -33,7 +33,9 @@ It is not a book reader. It does not read EPUBs, sync with KOReader, or talk to 
 It listens — passively, receive-only, by default — to the WiFi and Bluetooth Low Energy traffic
 already in the air around it, catalogs what it hears into an encrypted on-device log, and Ruby
 reacts with a changing expression as a visual front-end for that catalog — closer to Pwnagotchi's
-mood faces than to a pet that eats XP to level up.
+mood faces than to a pet whose appearance grows or evolves. A separate Level 1-5 badge does track
+lifetime EXP (see [Meet Ruby](#meet-ruby)), but leveling only ever changes that badge's number,
+never the creature's art.
 
 ### At a glance
 
@@ -56,6 +58,9 @@ mood faces than to a pet that eats XP to level up.
 - **Vendor lookup, always on, no setting to flip:** Recent Devices falls back to an optional
   vendor-name lookup by MAC OUI for entries with no advertised SSID/name — see
   [Vendor OUI lookup](#vendor-oui-lookup).
+- **Level 1-5 badge:** tracks lifetime EXP (handshakes worth far more than routine unique-device
+  sightings) beside Ruby's name chip — see [Meet Ruby](#meet-ruby). Cosmetic only; the creature's
+  art never changes.
 - **License:** MIT. Single PlatformIO environment (`default`), built and static-analyzed on every
   push via GitHub Actions.
 
@@ -148,8 +153,9 @@ When the device is asleep, it shows a different, much larger piece of art instea
    dozen APs beaconing every ~100ms) can write a meaningful volume of records per hour. That's
    intentional for a capture tool, but budget SD card space and export/rotate accordingly. See
    [Exporting captures](#exporting-captures).
-4. **React.** The creature (`RubyManager`) doesn't level up or grow — see [Meet Ruby](#meet-ruby)
-   above for what each expression means and when it shows.
+4. **React.** The creature's *shape* (`RubyManager`) never changes — see [Meet Ruby](#meet-ruby)
+   above for what each expression means, when it shows, and how the separate Level 1-5 badge
+   tracks lifetime EXP alongside it without touching the art.
 5. **Display.** The dashboard is mostly static: a header, Ruby's box with its live Mood readout,
    boxed RF stat panels, a footer. The creature lives in a fixed corner box that redraws on its
    own ~1.2s cadence using `HalDisplay::FAST_REFRESH` without ever touching (or `clearScreen()`-ing)
@@ -159,7 +165,8 @@ When the device is asleep, it shows a different, much larger piece of art instea
 
 ## Screens
 
-- **Dashboard** (home) — the creature, its current Mood, an "-- ACTIVE --"/"-- PAUSED --" tag
+- **Dashboard** (home) — the creature, a Level 1-5 badge beside its "RUBY" name chip (see
+  [Meet Ruby](#meet-ruby)), its current Mood, an "-- ACTIVE --"/"-- PAUSED --" tag
   under it (always shown, not just while paused, so the layout below never shifts between the two
   states), whether handshake capture is switched on, a **Nearby DeAuth** row (`ALERT` during a
   spike of deauth/disassoc frames from *any* source over the air, a running `N seen` count
