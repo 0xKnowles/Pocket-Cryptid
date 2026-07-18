@@ -30,12 +30,13 @@ bool isLandscape(const GfxRenderer& renderer) { return renderer.getScreenWidth()
 
 namespace Chrome {
 
-void drawHeader(const GfxRenderer& renderer, const char* title, int batteryPercent) {
+int drawHeader(const GfxRenderer& renderer, const char* title, int batteryPercent) {
   // Battery on the left, title right-aligned — the reverse of the original layout. Also fixes a
   // real collision in landscape: the battery badge used to right-align to the raw screen edge,
   // which is exactly where the button-hint sidebar's top pill lives (see drawFooterHints below);
   // title now right-aligns to the shared content-area edge (contentRight()) instead of the raw
   // screen edge for the same reason.
+  int leftContentRight = kMarginX;  // x just past whatever's drawn at the header's left edge
   if (batteryPercent >= 0) {
     char buf[8];
     snprintf(buf, sizeof(buf), "%d%%", batteryPercent);
@@ -50,6 +51,7 @@ void drawHeader(const GfxRenderer& renderer, const char* title, int batteryPerce
     renderer.drawRoundedRect(chipX, chipY, chipW, kChipH, 1, kChipH / 2, true);
     const int textY = chipY + (kChipH - renderer.getLineHeight(FONT_SMALL_ID)) / 2;
     renderer.drawText(FONT_SMALL_ID, chipX + kChipPadX, textY, buf);
+    leftContentRight = chipX + chipW;
   }
 
   if (title != nullptr && title[0] != '\0') {
@@ -58,6 +60,7 @@ void drawHeader(const GfxRenderer& renderer, const char* title, int batteryPerce
   }
 
   drawDivider(renderer, kHeaderHeight);
+  return leftContentRight;
 }
 
 void drawFooterHints(const GfxRenderer& renderer, const char* back, const char* confirm, const char* left,

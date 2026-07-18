@@ -25,10 +25,12 @@ constexpr int kFooterHeight = 40;
 // visual language instead of each screen picking its own curvature.
 constexpr int kCardRadius = 6;
 
-// Draws the title bar: bold title on the left, battery percentage as a rounded pill badge on the
-// right, thin rule below. batteryPercent < 0 hides the battery readout (used on screens where
-// it'd be visual noise).
-void drawHeader(const GfxRenderer& renderer, const char* title, int batteryPercent = -1);
+// Draws the title bar: battery percentage as a rounded pill badge on the left, bold title
+// right-aligned to the content edge, thin rule below. batteryPercent < 0 hides the battery
+// readout (used on screens where it'd be visual noise). Returns the x just past the battery
+// badge (or kMarginX if it wasn't drawn) — callers with a blank title (Dashboard) can use that to
+// place more content in the header row without recomputing the badge's width themselves.
+int drawHeader(const GfxRenderer& renderer, const char* title, int batteryPercent = -1);
 
 // Draws a bottom row of up to 4 button-hint tabs — rounded-outline pills, evenly spaced with a
 // visible gap between them so each one reads as its own pressable button rather than a slice of a

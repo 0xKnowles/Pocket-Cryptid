@@ -127,6 +127,22 @@ void drawBoldSmallCenteredIn(const GfxRenderer& renderer, int x, int width, int 
   renderer.drawText(FONT_SMALL_ID, textX, y, text, true);
   renderer.drawText(FONT_SMALL_ID, textX + 1, y, text, true);
 }
+
+// Header-row EXP progress bar — deliberately long enough to read clearly at a glance but nowhere
+// near the full header width, so it doesn't compete with the battery badge it sits beside for
+// "most important thing in this row." A plain inset fillRect (not fillRoundedRect) for the filled
+// portion avoids a "melted pill" look at low fill percentages, where a rounded fill narrower than
+// its own corner radius would look wrong; the rounded outline around the whole track is enough to
+// keep it reading as a pill overall.
+void drawExpBar(const GfxRenderer& renderer, int x, int y, int width, int height, float progress) {
+  renderer.drawRoundedRect(x, y, width, height, 1, height / 2, true);
+  constexpr int kFillPad = 2;
+  const int fillableWidth = width - kFillPad * 2;
+  const int filledWidth = static_cast<int>(fillableWidth * std::clamp(progress, 0.0f, 1.0f));
+  if (filledWidth > 0) {
+    renderer.fillRect(x + kFillPad, y + kFillPad, filledWidth, height - kFillPad * 2, true);
+  }
+}
 }  // namespace
 
 void DashboardActivity::onEnter() {
@@ -231,9 +247,14 @@ void DashboardActivity::renderFull() {
 
   // No title text here: "RUBY" now lives as a small chip pinned to the creature box's own
   // top-left corner (see RubySpriteRenderer::draw) instead of the shared header bar, so the
-  // header on this one screen is just the divider rule plus the battery badge.
+  // header on this one screen is just the divider rule, the battery badge, and (since the blank
+  // title leaves the rest of the row free) an EXP progress bar right beside it.
   const int battery = powerManager.getBatteryPercentage();
-  Chrome::drawHeader(renderer, "", battery);
+  const int headerLeftContentRight = Chrome::drawHeader(renderer, "", battery);
+  constexpr int kExpBarGap = 10;
+  constexpr int kExpBarWidth = 260;  // long enough to read at a glance, well short of the full row
+  constexpr int kExpBarHeight = 16;  // matches the battery badge's own pill height
+  drawExpBar(renderer, headerLeftContentRight + kExpBarGap, 5, kExpBarWidth, kExpBarHeight, RUBY.expProgress());
 
   // Top row: Ruby's box pinned top-left, "RECENT DEVICES" window beside it to the right at the
   // same height.

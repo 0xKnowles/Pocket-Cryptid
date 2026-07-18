@@ -65,6 +65,15 @@ void RubyManager::tick() {
   }
 }
 
+float RubyManager::expProgress() const {
+  const uint8_t lvl = level();
+  if (lvl >= RubyConfig::kMaxLevel) return 1.0f;
+  const uint32_t floor = RubyConfig::kLevelThresholds[lvl - 1];
+  const uint32_t nextFloor = RubyConfig::kLevelThresholds[lvl];
+  if (state.totalExp <= floor) return 0.0f;
+  return static_cast<float>(state.totalExp - floor) / static_cast<float>(nextFloor - floor);
+}
+
 RubyExpression RubyManager::currentExpression(bool deviceSleeping) const {
   if (deviceSleeping) return RubyExpression::SLEEPING;
   const unsigned long now = millis();

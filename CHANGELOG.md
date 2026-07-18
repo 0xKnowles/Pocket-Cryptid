@@ -17,6 +17,12 @@ All notable changes to this project are documented here. Format loosely follows
   drowning out rare handshakes or vice versa. Level thresholds: 0 / 2,000 / 8,000 / 20,000 /
   50,000 EXP for levels 1-5 (capturing a single handshake alone reaches level 2). Persisted
   alongside the rest of `RubyState` in `/.ruby/ruby_state.json`.
+- **Dashboard header EXP progress bar**, right beside the battery badge — fills toward the next
+  level as `RUBY.expProgress()` climbs, empty again immediately after a level-up. `Chrome::drawHeader()`
+  now returns the x just past the battery badge specifically so this bar (and anything else a
+  future blank-title screen wants to add there) can sit right next to it without recomputing the
+  badge's width. Deliberately long enough to read at a glance (260px) but far short of the full
+  header row, so it doesn't compete with the battery badge for attention.
 - **Dashboard always shows an "-- ACTIVE --"/"-- PAUSED --" tag under Ruby's mood**, not just
   "-- PAUSED --" while paused. The tag's row height feeds into the layout below it
   (`std::max(moodY, infoY)`), so showing it unconditionally means the SIGNALS/CAPTURE STATUS row

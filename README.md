@@ -58,9 +58,9 @@ never the creature's art.
 - **Vendor lookup, always on, no setting to flip:** Recent Devices falls back to an optional
   vendor-name lookup by MAC OUI for entries with no advertised SSID/name — see
   [Vendor OUI lookup](#vendor-oui-lookup).
-- **Level 1-5 badge:** tracks lifetime EXP (handshakes worth far more than routine unique-device
-  sightings) beside Ruby's name chip — see [Meet Ruby](#meet-ruby). Cosmetic only; the creature's
-  art never changes.
+- **Level 1-5 badge + header EXP bar:** tracks lifetime EXP (handshakes worth far more than routine
+  unique-device sightings) beside Ruby's name chip, with a matching progress bar next to the
+  battery badge — see [Meet Ruby](#meet-ruby). Cosmetic only; the creature's art never changes.
 - **License:** MIT. Single PlatformIO environment (`default`), built and static-analyzed on every
   push via GitHub Actions.
 
@@ -117,7 +117,8 @@ entirely by `SignalCatalog`'s counts rather than anything cosmetic. Separately, 
 worth 2000 EXP, a newly-seen unique device (AP/client/BLE) worth 1 — weighted that unevenly
 because a handshake is roughly 2000x rarer in practice, so the two end up contributing comparably
 to leveling over a typical session instead of one drowning out the other. Leveling only ever
-changes that badge's number, never the art above.
+changes that badge's number, never the art above. A matching progress bar sits in the header, next
+to the battery badge, filling up toward the next level.
 CURIOUS specifically requires several new-unique sightings within a short window, not just one —
 a single new device reads as ordinary CONTENT instead, so CURIOUS stays meaningful ("something's
 actually picking up") even in a busy RF environment where new devices show up constantly. Pausing
@@ -165,7 +166,8 @@ When the device is asleep, it shows a different, much larger piece of art instea
 
 ## Screens
 
-- **Dashboard** (home) — the creature, a Level 1-5 badge beside its "RUBY" name chip (see
+- **Dashboard** (home) — the creature, a Level 1-5 badge beside its "RUBY" name chip and a
+  matching EXP progress bar in the header next to the battery badge (see
   [Meet Ruby](#meet-ruby)), its current Mood, an "-- ACTIVE --"/"-- PAUSED --" tag
   under it (always shown, not just while paused, so the layout below never shifts between the two
   states), whether handshake capture is switched on, a **Nearby DeAuth** row (`ALERT` during a

@@ -33,6 +33,11 @@ class RubyManager : public PersistableStore<RubyManager> {
   // 1-5, derived from state.totalExp — see RubyConfig::levelForExp()/kLevelThresholds.
   uint8_t level() const { return RubyConfig::levelForExp(state.totalExp); }
 
+  // 0.0-1.0 progress from the current level's floor toward the next one; pinned to 1.0 once
+  // level() reaches RubyConfig::kMaxLevel, since there's no "next" floor beyond that. Drives the
+  // Dashboard header's EXP bar (see DashboardActivity::renderFull()).
+  float expProgress() const;
+
   // deviceSleeping short-circuits straight to SLEEPING regardless of activity timers — used by
   // SleepActivity so the creature visibly "goes quiet" the instant the screen does.
   RubyExpression currentExpression(bool deviceSleeping) const;
