@@ -12,6 +12,7 @@
 #include "CaptureControl.h"
 #include "DeauthDetector.h"
 #include "EncryptedLog.h"
+#include "LogRecord.h"
 #include "RecentSightings.h"
 #include "RubySettings.h"
 #include "SignalCatalog.h"
@@ -61,23 +62,6 @@ void formatAgo(unsigned long seenAtMs, char* out, size_t outSize) {
   } else {
     snprintf(out, outSize, "%lum ago", ageSec / 60);
   }
-}
-
-// Shorter than logRecordTypeShortName() (LogRecord.h) specifically for the RECENT DEVICES grid
-// below — that one pads to 6 chars for LogViewerActivity's single-column cards, but here every
-// character of column width is worth reclaiming to fit a second column in.
-const char* compactTypeLabel(LogRecordType type) {
-  switch (type) {
-    case LogRecordType::WifiAp:
-      return "AP";
-    case LogRecordType::WifiClient:
-      return "STA";
-    case LogRecordType::WifiHandshake:
-      return "EAP";
-    case LogRecordType::BleDevice:
-      return "BLE";
-  }
-  return "?";
 }
 
 // Paused means nothing is being observed right now, so the expression should read that way
@@ -291,7 +275,7 @@ void DashboardActivity::renderFull() {
       char agoBuf[16];
       formatAgo(entry.seenAtMs, agoBuf, sizeof(agoBuf));
       char line1[32];
-      snprintf(line1, sizeof(line1), "%s %s", compactTypeLabel(entry.type), macBuf);
+      snprintf(line1, sizeof(line1), "%s %s", logRecordTypeCompactName(entry.type), macBuf);
       renderer.drawText(FONT_SMALL_ID, entryX, entryY, line1);
       char line2[32];
       snprintf(line2, sizeof(line2), "  %d dBm  %s", entry.rssi, agoBuf);

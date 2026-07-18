@@ -28,10 +28,11 @@ class LogViewerActivity final : public Activity {
   void refreshRecordCountAndPage();
   void loadCurrentPage();
 
-  // Deliberately small: each record renders as a multi-line bordered card (type, MAC, time,
-  // RSSI, channel/address-kind, label, EAPOL message number) rather than one packed line, so
-  // fewer fit per screen than the old dense 8-line layout did.
-  static constexpr size_t kPageSize = 5;
+  // Upper bound on how many records we ever decrypt/buffer for one page. How many of those
+  // actually get drawn (and how far Up/Down page) is computed at render/nav time from the panel's
+  // real content area — see gridCapacity() in the .cpp — so this constant only needs to
+  // comfortably cover that dense grid's capacity, not match it exactly.
+  static constexpr size_t kMaxPageRecords = 32;
 
   std::vector<std::string> files;  // filenames only (no dir prefix), sorted oldest to newest
   size_t fileIndex = 0;
@@ -39,7 +40,7 @@ class LogViewerActivity final : public Activity {
   uint32_t recordCount = 0;
   uint32_t pageStart = 0;  // index of the oldest record in the currently-loaded page
 
-  LogRecordPlaintext page[kPageSize];
+  LogRecordPlaintext page[kMaxPageRecords];
   size_t pageCount = 0;
   bool decryptFailed = false;
 

@@ -11,33 +11,58 @@
 #include <ctime>
 
 #include "EncryptedLog.h"
+#include "LogRecord.h"
 #include "fontIds.h"
 #include "ui/Chrome.h"
 
 namespace {
-constexpr int kCardPadX = 8;
-constexpr int kCardPadY = 6;
-constexpr int kCardGap = 8;
+// Same tight grid geometry as Dashboard's RECENT DEVICES card and DeviceListActivity (see
+// DeviceListActivity.cpp) — this screen's old bordered, generously-padded card format only fit 5
+// records per page (~101px each) versus the ~488px of usable content height available, nowhere
+// near as dense as the rest of the app's "live feed" screens.
+constexpr int kLineHeight = 13;
+constexpr int kLineGap = 2;
+constexpr int kEntryGap = 6;
+constexpr int kEntryHeight = kLineHeight * 3 + kLineGap * 2 + kEntryGap;
+constexpr int kEntryColWidth = 224;
+constexpr int kColumnGap = 14;
 
-// Renders one record as a bordered, three-line card — type+MAC, then time/RSSI/channel-or-
-// address-kind, then the label (SSID/BLE name) plus the EAPOL message number for handshake
-// records. Returns the y for the next card. Broken into three clearly-separated lines (rather
-// than the old two packed, abbreviated lines) specifically because "hard to read" was the
-// complaint; showing the channel/address-kind and EAPOL number is the "more data" half of it.
-int drawRecordCard(const GfxRenderer& renderer, int y, const LogRecordPlaintext& rec) {
-  const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
-  const int cardX = Chrome::contentLeft() - 2;
-  const int cardWidth = Chrome::contentRight(renderer) - Chrome::contentLeft() + 4;
-  const int textX = Chrome::contentLeft() + kCardPadX - 2;
-  int ty = y + kCardPadY;
+// y where the record grid actually starts, below the filename/counter row and the "Left/Right:
+// switch file..." hint row. Spaced off each font's real getLineHeight() rather than guessed pixel
+// counts — a fixed 20px/18px guess here used to run past FONT_UI_10_ID's real line height (31px),
+// so the hint row started drawing before the filename row's descenders had finished, the same
+// category of bug as the header/divider overlap fixed in Chrome.h. Shared by gridCapacity() and
+// render() so the two can never disagree about where the grid begins.
+int gridTop(const GfxRenderer& renderer) {
+  int y = Chrome::contentTop();
+  y += renderer.getLineHeight(FONT_UI_10_ID);  // filename (left) + page counter (right) row
+  y += renderer.getLineHeight(FONT_SMALL_ID);  // "Left/Right: switch file..." hint row
+  return y + 12;                               // gap below the divider drawn at that y
+}
 
+// How many records actually fit on screen at once in the grid below — computed from the real
+// content area rather than hardcoded, so it stays correct if Chrome's header/footer geometry ever
+// changes. Shared by render() (how many of the buffered page's records to draw and how to lay
+// them out) and by the page-navigation logic below (so Up/Down page by exactly what's on screen,
+// not some unrelated fixed stride).
+size_t gridCapacity(const GfxRenderer& renderer) {
+  const int rowsPerColumn = std::max(1, (Chrome::contentBottom(renderer) - gridTop(renderer)) / kEntryHeight);
+  const int columnCount =
+      std::max(1, (Chrome::contentRight(renderer) - Chrome::contentLeft()) / (kEntryColWidth + kColumnGap));
+  return static_cast<size_t>(rowsPerColumn) * static_cast<size_t>(columnCount);
+}
+
+// Renders one record as a compact, borderless three-line entry — type+MAC, then
+// time/RSSI/channel-or-address-kind, then the label (SSID/BLE name) plus the EAPOL message number
+// for handshake records — at a fixed x/y rather than flowing down a single column, so records lay
+// out in the same multi-column grid the rest of the app's dense feeds use.
+void drawRecordEntry(const GfxRenderer& renderer, int x, int y, const LogRecordPlaintext& rec) {
   char macBuf[18];
   snprintf(macBuf, sizeof(macBuf), "%02X:%02X:%02X:%02X:%02X:%02X", rec.mac[0], rec.mac[1], rec.mac[2], rec.mac[3],
            rec.mac[4], rec.mac[5]);
-  char line1[40];
-  snprintf(line1, sizeof(line1), "%-6s %s", logRecordTypeShortName(rec.type), macBuf);
-  renderer.drawText(FONT_SMALL_ID, textX, ty, line1, true, EpdFontFamily::BOLD);
-  ty += lineHeight + 3;
+  char line1[32];
+  snprintf(line1, sizeof(line1), "%s %s", logRecordTypeCompactName(rec.type), macBuf);
+  renderer.drawText(FONT_SMALL_ID, x, y, line1, true, EpdFontFamily::BOLD);
 
   const time_t t = static_cast<time_t>(rec.unixTime);
   struct tm tmVal;
@@ -51,10 +76,9 @@ int drawRecordCard(const GfxRenderer& renderer, int y, const LogRecordPlaintext&
   } else {
     snprintf(extraBuf, sizeof(extraBuf), "ch %u", rec.extra);
   }
-  char line2[48];
-  snprintf(line2, sizeof(line2), "%s   %d dBm   %s", timeBuf, rec.rssi, extraBuf);
-  renderer.drawText(FONT_SMALL_ID, textX, ty, line2);
-  ty += lineHeight + 3;
+  char line2[40];
+  snprintf(line2, sizeof(line2), "%s  %d dBm  %s", timeBuf, rec.rssi, extraBuf);
+  renderer.drawText(FONT_SMALL_ID, x, y + kLineHeight + kLineGap, line2);
 
   char labelBuf[25] = {};
   const uint8_t len = rec.labelLen > sizeof(labelBuf) - 1 ? sizeof(labelBuf) - 1 : rec.labelLen;
@@ -62,15 +86,14 @@ int drawRecordCard(const GfxRenderer& renderer, int y, const LogRecordPlaintext&
   labelBuf[len] = '\0';
   char line3[56];
   if (rec.type == LogRecordType::WifiHandshake && rec.eapolMsgNum > 0) {
-    snprintf(line3, sizeof(line3), "%s   EAPOL msg %u/4", labelBuf[0] ? labelBuf : "(no name)", rec.eapolMsgNum);
+    snprintf(line3, sizeof(line3), "%s EAPOL %u/4", labelBuf[0] ? labelBuf : "(no name)", rec.eapolMsgNum);
   } else {
     snprintf(line3, sizeof(line3), "%s", labelBuf[0] ? labelBuf : "(no name)");
   }
-  renderer.drawText(FONT_SMALL_ID, textX, ty, line3);
-  ty += lineHeight + kCardPadY;
-
-  renderer.drawRoundedRect(cardX, y, cardWidth, ty - y, 1, Chrome::kCardRadius, true);
-  return ty + kCardGap;
+  // Column width is fixed, but a label can be up to 24 bytes plus an EAPOL suffix — truncate
+  // rather than let a long one bleed into the next column.
+  const std::string truncated = renderer.truncatedText(FONT_SMALL_ID, line3, kEntryColWidth);
+  renderer.drawText(FONT_SMALL_ID, x, y + (kLineHeight + kLineGap) * 2, truncated.c_str());
 }
 }  // namespace
 
@@ -110,7 +133,8 @@ void LogViewerActivity::refreshRecordCountAndPage() {
       file.close();
     }
   }
-  pageStart = recordCount > kPageSize ? recordCount - kPageSize : 0;
+  const size_t pageSize = std::min(gridCapacity(renderer), kMaxPageRecords);
+  pageStart = recordCount > pageSize ? recordCount - static_cast<uint32_t>(pageSize) : 0;
   loadCurrentPage();
 }
 
@@ -120,7 +144,8 @@ void LogViewerActivity::loadCurrentPage() {
   if (files.empty() || recordCount == 0) return;
 
   const std::string path = std::string(EncryptedLog::logDirectory()) + "/" + files[fileIndex];
-  pageCount = encryptedLog.decryptRecordRange(path.c_str(), pageStart, page, kPageSize);
+  const size_t pageSize = std::min(gridCapacity(renderer), kMaxPageRecords);
+  pageCount = encryptedLog.decryptRecordRange(path.c_str(), pageStart, page, pageSize);
   decryptFailed = (pageCount == 0);
 }
 
@@ -144,14 +169,16 @@ void LogViewerActivity::loop() {
     return;
   }
   if (mappedInput.wasReleased(MappedInputManager::Button::Up)) {
-    pageStart = (pageStart >= kPageSize) ? pageStart - kPageSize : 0;
+    const uint32_t pageSize = static_cast<uint32_t>(std::min(gridCapacity(renderer), kMaxPageRecords));
+    pageStart = (pageStart >= pageSize) ? pageStart - pageSize : 0;
     loadCurrentPage();
     requestUpdate();
     return;
   }
   if (mappedInput.wasReleased(MappedInputManager::Button::Down)) {
-    const uint32_t maxStart = recordCount > kPageSize ? recordCount - kPageSize : 0;
-    pageStart = std::min(pageStart + static_cast<uint32_t>(kPageSize), maxStart);
+    const uint32_t pageSize = static_cast<uint32_t>(std::min(gridCapacity(renderer), kMaxPageRecords));
+    const uint32_t maxStart = recordCount > pageSize ? recordCount - pageSize : 0;
+    pageStart = std::min(pageStart + pageSize, maxStart);
     loadCurrentPage();
     requestUpdate();
     return;
@@ -186,9 +213,11 @@ void LogViewerActivity::render(RenderLock&&) {
   }
   const int counterW = renderer.getTextWidth(FONT_SMALL_ID, counterBuf);
   renderer.drawText(FONT_SMALL_ID, Chrome::contentRight(renderer) - counterW, y + 2, counterBuf);
-  y += 20;
+  // Real getLineHeight() per font, not guessed pixel counts — see gridTop()'s comment, which uses
+  // this exact same formula so paging math never disagrees with what's actually drawn here.
+  y += renderer.getLineHeight(FONT_UI_10_ID);
   renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Left/Right: switch file   Up/Down: page");
-  y += 18;
+  y += renderer.getLineHeight(FONT_SMALL_ID);
   Chrome::drawDivider(renderer, y);
   y += 12;
 
@@ -197,9 +226,22 @@ void LogViewerActivity::render(RenderLock&&) {
   } else if (decryptFailed) {
     renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y, "Could not decrypt this page.");
   } else {
-    // Newest record in the page first.
-    for (size_t i = pageCount; i-- > 0;) {
-      y = drawRecordCard(renderer, y, page[i]);
+    const int left = Chrome::contentLeft();
+    const int rowsPerColumn = std::max(1, (Chrome::contentBottom(renderer) - y) / kEntryHeight);
+    const int columnCount =
+        std::max(1, (Chrome::contentRight(renderer) - left) / (kEntryColWidth + kColumnGap));
+    const size_t maxVisible = std::min(pageCount, static_cast<size_t>(rowsPerColumn * columnCount));
+
+    // Newest record in the page first, same reading order the old single-column layout used —
+    // just laid out column-major (top-to-bottom, then next column) like Dashboard/DeviceListActivity's
+    // grids, rather than flowing down one long column.
+    for (size_t i = 0; i < maxVisible; i++) {
+      const size_t idx = pageCount - 1 - i;
+      const size_t col = i / static_cast<size_t>(rowsPerColumn);
+      const size_t row = i % static_cast<size_t>(rowsPerColumn);
+      const int entryX = left + static_cast<int>(col) * (kEntryColWidth + kColumnGap);
+      const int entryY = y + static_cast<int>(row) * kEntryHeight;
+      drawRecordEntry(renderer, entryX, entryY, page[idx]);
     }
   }
 

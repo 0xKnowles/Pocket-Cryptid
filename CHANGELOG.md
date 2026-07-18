@@ -121,9 +121,34 @@ All notable changes to this project are documented here. Format loosely follows
   a running `N seen` count otherwise, or `none`. The dashboard banner that used to only ever announce
   a captured handshake now also announces "DEAUTH ACTIVITY NEARBY" (taking priority over the
   handshake banner if both are active at once).
+- **`logRecordTypeCompactName()`** (`LogRecord.h`) — the 2-3 letter AP/STA/EAP/BLE codes Dashboard's
+  RECENT DEVICES card already used, promoted from a copy local to `DashboardActivity.cpp` into a
+  shared sibling of `logRecordTypeShortName()` now that Device Log and Log Viewer need the same
+  compact codes for their own dense grids (see "Fixed", below).
 
 ### Fixed
 
+- **Every screen's header title overlapped the divider rule drawn directly under it.**
+  `Chrome::drawHeader()` draws the title with `FONT_UI_12_ID` BOLD at a fixed `y=6`, but that
+  font's real ascender is 28px, putting the glyphs' baseline at `y=34` — well past the old
+  `kHeaderHeight` of 28, which is where the divider was drawn. The divider rule was cutting
+  through the lower quarter of every title's letters; most visible on screens with a real title
+  (Dashboard's is blank, so it didn't show there). `kHeaderHeight` is now 40, leaving the baseline
+  a clean 6px above the divider on every screen.
+- **Device Log ran most of its 16 possible entries off the bottom of the screen.** It drew every
+  `RecentSightings` entry in one wide-spaced column (~58px per entry, two `getLineHeight()`-spaced
+  lines each) despite this file's own header comment already promising all 16 fit on one screen —
+  at that spacing only about 8 did. Rewritten to use the same tight multi-column grid Dashboard's
+  RECENT DEVICES card uses (13px lines, 224px columns), plus a third line for the label that
+  Dashboard's narrower card omits — all 16 entries now always fit, with room to spare.
+- **Log Viewer only fit 5 records per page** in a bordered, heavily-padded card format (~101px
+  per record) — nowhere near as dense as the rest of the app's live-feed screens, and its own
+  filename/hint row spacing (`y += 20`/`y += 18`, guessed rather than measured) ran past
+  `FONT_UI_10_ID`'s real line height (31px), so the "Left/Right: switch file..." hint started
+  drawing before the filename row above it had finished. Rewritten to the same borderless,
+  multi-column grid as Device Log, with page size and Up/Down's paging step both computed from the
+  real content area (`gridCapacity()`) instead of a fixed constant — around 27 records now fit per
+  page on this panel, versus 5 before.
 - **Active deauth confirmed non-functional on this hardware, via real-hardware testing** —
   `DeauthEngine`'s crash-loop concern is resolved (many bursts fired across a real test session
   with no crash or DMA-pool circuit-breaker trip), but every single burst's `esp_wifi_80211_tx()`

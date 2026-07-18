@@ -10,7 +10,12 @@
 namespace Chrome {
 
 constexpr int kMarginX = 12;
-constexpr int kHeaderHeight = 28;
+// Titles draw with FONT_UI_12_ID BOLD at a fixed y=6 (see drawHeader() below); that font's real
+// ascender is 28px, so a title's baseline lands at y=34 — well past the old kHeaderHeight of 28,
+// which put the divider rule right through the lower quarter of every header title's glyphs
+// (most visible on screens with a real title, e.g. "DEVICE LOG"/"LOG VIEWER" — Dashboard's empty
+// title hid it). 40 leaves the baseline (34) a clean 6px above the divider.
+constexpr int kHeaderHeight = 40;
 // Tall enough for a full line of FONT_SMALL_ID text inside a padded pill tab without clipping —
 // the old 22px band clipped descenders on real hardware (see MappedInputManager.h for the other
 // footer-related hardware bug this shipped alongside).

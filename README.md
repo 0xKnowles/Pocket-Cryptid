@@ -181,16 +181,18 @@ When the device is asleep, it shows a different, much larger piece of art instea
 - **Recent Devices** — a live, RAM-only feed of the last 16 WiFi/BLE observations (type, MAC,
   RSSI, SSID/name, time since seen), newest first, read-only, falling back to a vendor-name
   lookup (see [Vendor OUI lookup](#vendor-oui-lookup)) for entries with no SSID/name of their
-  own. This is separate from both `SignalCatalog` (which deliberately never
-  retains which specific MACs it has seen — only dedup counts) and the encrypted log (which
-  retains everything, but only ever encrypted at rest). Nothing shown here is persisted; it's
-  lost on reboot along with the rest of RAM. To manage the active-deauth target lists, use
-  Settings' Whitelist/Blacklist rows instead (a dedicated live network scan — see
+  own. Laid out as the same dense multi-column grid as Dashboard's RECENT DEVICES card, so all 16
+  entries always fit on screen at once. This is separate from both `SignalCatalog` (which
+  deliberately never retains which specific MACs it has seen — only dedup counts) and the
+  encrypted log (which retains everything, but only ever encrypted at rest). Nothing shown here is
+  persisted; it's lost on reboot along with the rest of RAM. To manage the active-deauth target
+  lists, use Settings' Whitelist/Blacklist rows instead (a dedicated live network scan — see
   [Active deauth](#active-deauth)).
 - **Log Viewer** — browses the encrypted capture log *on the device itself*, no PC required. See
   [On-device log decryption](#on-device-log-decryption) below for how that's possible without any
   key-entry UI. `Left`/`Right` switch between daily log files, `Up`/`Down` page through records
-  within a file (5 at a time, newest first).
+  within a file — around 27 at a time on this panel (computed from the same dense grid layout
+  Recent Devices uses, not a fixed page size), newest first.
 
 ## Raw handshake capture (crackable `.pcap` export)
 

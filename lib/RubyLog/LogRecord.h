@@ -31,6 +31,24 @@ inline const char* logRecordTypeShortName(LogRecordType type) {
   return "?";
 }
 
+// Even shorter than logRecordTypeShortName() above — used by every dense multi-column grid
+// (Dashboard's RECENT DEVICES card, DeviceListActivity, LogViewerActivity) where every character
+// of a fixed-width column is worth reclaiming; logRecordTypeShortName()'s "CLIENT"/"EAPOL" are too
+// wide to fit those columns' worst-case sizing.
+inline const char* logRecordTypeCompactName(LogRecordType type) {
+  switch (type) {
+    case LogRecordType::WifiAp:
+      return "AP";
+    case LogRecordType::WifiClient:
+      return "STA";
+    case LogRecordType::WifiHandshake:
+      return "EAP";
+    case LogRecordType::BleDevice:
+      return "BLE";
+  }
+  return "?";
+}
+
 // Fixed-size plaintext payload, AES-256-GCM encrypted as a single unit before it ever reaches
 // the SD card. 39 bytes today; keep it POD and packed so the size is portable across compilers.
 #pragma pack(push, 1)
