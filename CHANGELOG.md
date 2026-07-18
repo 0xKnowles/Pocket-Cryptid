@@ -7,31 +7,6 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
-- **Passive deauth/disassoc detector** (`DeauthDetector`, new WifiSniffer-classified frame kinds
-  `WifiFrameKind::Deauth`/`Disassoc`). Purely passive — this never transmits anything, just counts
-  deauth/disassoc management frames already flowing through the observation stream (frame
-  subtypes WifiSniffer didn't classify at all before) and flags a spike (5+ within 5s) as evidence
-  that *something* — not necessarily this device — is actively attacking a nearby network right
-  now. Surfaces as a "DEAUTH ACTIVITY NEARBY" one-shot banner on the Dashboard and a running
-  lifetime count on the Export screen's new "NEARBY THREATS" card. Deauth/disassoc frames are
-  deliberately kept out of the encrypted log and Recent Devices feed — those don't have a
-  meaningful record type for "this BSSID was targeted", and showing one there would look like an
-  ordinary device sighting.
-- **BLE tracker detector** (`TrackerDetector`, `BleObservation` now retains up to 24 bytes of
-  manufacturer-specific payload past the company ID, not just its length). Flags BLE
-  advertisements matching known tracker-network protocols — Apple Find My (the protocol AirTags
-  and Find-My-enabled accessories both use, via its documented Continuity type 0x12), Samsung
-  SmartTag, and Tile — by manufacturer data. Purely passive and purely informational: BleScanner
-  never transmits regardless. A new tracker address triggers a one-shot "TRACKER DETECTED NEARBY"
-  Dashboard banner (highest priority of the three banner types, since a tracker is the most
-  time-sensitive privacy concern); a running count of currently-tracked addresses shows on the
-  Export screen's "NEARBY THREATS" card.
-- **Persistent AP history** (`ApHistory`, `/.ruby/ap_history.txt`) — every WiFi AP this device has
-  ever seen, with first-seen/last-seen timestamps and a sighting count, surviving reboots (unlike
-  RecentSightings' RAM-only 16-entry ring, or SignalCatalog's dedup-only counters). Backed by a
-  small human-readable tab-delimited file, saved at most once a minute regardless of capture
-  density. Browse it from **Settings → AP History** (a new push/pop sub-screen, `ApHistoryActivity`,
-  paged newest-first).
 - **Vendor OUI lookup** (`lookupVendorOui`, optional `/.ruby/oui.txt` on the SD card) — an entry
   formatted like IEEE's own public OUI registry export or Wireshark's `manuf` file (one
   `AABBCC<TAB>Vendor Name` per line). No database ships in firmware; costs nothing when the file
@@ -105,17 +80,17 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
-- **BLE passive scan silently failing to start when toggled on with WiFi monitor capture already
-  running, with no indication anywhere why.** `NimBLEDevice::init()` returns `void` and can fail
-  internally (most plausibly `esp_bt_controller_init()` unable to claim its memory pool on this
-  chip's ~380 KB RAM with no PSRAM, already under pressure from WiFi's own continuous promiscuous
-  capture) without throwing or logging anywhere visible without a serial monitor attached.
-  `BleScanner::begin()` used to mark itself successful regardless, so a subsequent failed
-  `start()` looked identical to the setting simply being off. Now checks
-  `NimBLEDevice::isInitialized()` and fails loudly (`LOG_ERR`) instead. `Settings → BLE passive
-  scan` also now shows **FAILED** rather than a plain **ON** when the setting is on but the radio
-  didn't actually start, since that row (not just the Dashboard's live status) is the one place an
-  owner without a serial monitor would ever see this happened.
+- **BLE passive scan silently failing to start when toggled on, with no indication anywhere why.**
+  `NimBLEDevice::init()` returns `void` and can fail internally (confirmed via real-hardware serial
+  log: `esp_bt_controller_init()` unable to claim its memory pool — free heap was down to ~19 KB,
+  independent of WiFi monitor capture's own state) without throwing or logging anywhere visible
+  without a serial monitor attached. `BleScanner::begin()` used to mark itself successful
+  regardless, so a subsequent failed `start()` looked identical to the setting simply being off.
+  Now checks `NimBLEDevice::isInitialized()` and fails loudly (`LOG_ERR`) instead. `Settings → BLE
+  passive scan` also now shows **FAILED** rather than a plain **ON** when the setting is on but the
+  radio didn't actually start, since that row (not just the Dashboard's live status) is the one
+  place an owner without a serial monitor would ever see this happened. See "Removed", below, for
+  the actual memory fix.
 - **Sleep screen ghosting/burn-in for the entire time the device sat asleep.** `SleepActivity`
   drew its one-time "GONE QUIET" screen with a bare `displayBuffer()`, defaulting to
   `FAST_REFRESH` — the partial-update waveform, which doesn't fully clear whatever was on screen
@@ -126,6 +101,22 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Removed
 
+- **Passive deauth/disassoc detector, BLE tracker detector, and persistent AP history — added,
+  then pulled back out after real-hardware testing showed they broke BLE passive scan.** All three
+  shipped together in a batch alongside the Vendor OUI lookup (which stays — see "Added" further
+  down and the BLE fix above). `ApHistory`'s 256-entry table alone added a fixed ~14 KB of
+  permanent RAM use (`sizeof(Entry)` ≈ 56 bytes × 256), dramatically more than every sibling table
+  in `lib/SignalCatalog` (`ApScanCache` uses 32 entries, `RecentSightings`/`TrackerDetector`
+  themselves used only 16) — on a chip with ~380 KB total RAM and no PSRAM, already tight enough
+  that BLE's controller init was failing with only ~19 KB free heap in the field, confirmed via
+  serial log. `DeauthDetector` and `TrackerDetector` cost only a few hundred bytes between them and
+  weren't the actual problem, but they shipped in the same batch as the real culprit and depended
+  on BLE (in the tracker detector's case) or added Dashboard/Export UI surface for a feature set
+  that, on balance, wasn't worth trading reliable BLE capture for. Reverted `DeauthDetector.h/.cpp`,
+  `TrackerDetector.h/.cpp`, `ApHistory.h/.cpp`, `ApHistoryActivity.h/.cpp`, the `Deauth`/`Disassoc`
+  `WifiFrameKind` additions, `BleObservation::manufacturerPayload`, the Dashboard banner priority
+  chain, the Export "NEARBY THREATS" card, and Settings' AP History row — all cleanly, back to
+  their pre-existing state.
 - **The Lore feature, completely** — screen, unlock progression, and all supporting state. It
   was consistently the piece of this build that read as "a pet-sim feature bolted onto a
   recon tool" rather than something that earned its screen real estate, and the owner asked for

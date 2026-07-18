@@ -32,8 +32,6 @@ constexpr uint8_t FC_TYPE_DATA = 2;
 constexpr uint8_t FC_SUBTYPE_BEACON = 8;
 constexpr uint8_t FC_SUBTYPE_PROBE_REQ = 4;
 constexpr uint8_t FC_SUBTYPE_PROBE_RESP = 5;
-constexpr uint8_t FC_SUBTYPE_DISASSOC = 10;  // 0x0A
-constexpr uint8_t FC_SUBTYPE_DEAUTH = 12;    // 0x0C — matches DeauthEngine's own frameControl=0x00C0
 
 inline uint8_t frameType(uint16_t fc) { return (fc >> 2) & 0x3; }
 inline uint8_t frameSubtype(uint16_t fc) { return (fc >> 4) & 0xF; }
@@ -330,14 +328,6 @@ void WifiSniffer::promiscuousRxCallback(void* buf, wifi_promiscuous_pkt_type_t t
         const size_t iesLen = len - sizeof(Ieee80211Hdr);
         extractSsid(ies, iesLen, obs.ssid, &obs.ssidLen);
       }
-      matched = true;
-    } else if (subtype == FC_SUBTYPE_DEAUTH || subtype == FC_SUBTYPE_DISASSOC) {
-      // No IEs to parse here (just a 2-byte reason code) — addr3 is already the BSSID per the
-      // default assignment above, same as every other management frame. Feeds DeauthDetector
-      // (see main.cpp) — purely passive awareness of deauth/disassoc activity in the air, not
-      // necessarily this device's own DeauthEngine (a half-duplex radio can't hear its own
-      // transmission on the way out, so there's no self-detection concern to filter here).
-      obs.kind = subtype == FC_SUBTYPE_DEAUTH ? WifiFrameKind::Deauth : WifiFrameKind::Disassoc;
       matched = true;
     }
   } else if (type == WIFI_PKT_DATA && fType == FC_TYPE_DATA) {

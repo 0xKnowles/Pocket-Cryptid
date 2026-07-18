@@ -8,14 +8,12 @@
 #include <cstring>
 #include <memory>
 
-#include "ApHistory.h"
 #include "BleScanner.h"
 #include "DeauthEngine.h"
 #include "EncryptedLog.h"
 #include "RubySettings.h"
 #include "TargetList.h"
 #include "WifiSniffer.h"
-#include "activities/devices/ApHistoryActivity.h"
 #include "activities/targets/TargetPickerActivity.h"
 #include "fontIds.h"
 #include "ui/Chrome.h"
@@ -130,9 +128,6 @@ void SettingsActivity::activateSelected() {
       activityManager.pushActivity(
           std::make_unique<TargetPickerActivity>(renderer, mappedInput, TargetListKind::Blacklist));
       return;
-    case RowApHistory:
-      activityManager.pushActivity(std::make_unique<ApHistoryActivity>(renderer, mappedInput));
-      return;
     case RowRevealKey:
       showingKey = encryptedLog.revealDecryptionKeyHex(revealedKeyHex, sizeof(revealedKeyHex));
       wipeArmed = false;
@@ -245,9 +240,6 @@ void SettingsActivity::render(RenderLock&&) {
   snprintf(countBuf, sizeof(countBuf), "%u saved >", static_cast<unsigned>(targetList.count(TargetListKind::Blacklist)));
   drawRow(RowBlacklist, "Blacklist", countBuf);
   y += kRowHeight;
-  snprintf(countBuf, sizeof(countBuf), "%u known >", static_cast<unsigned>(apHistory.count()));
-  drawRow(RowApHistory, "AP History", countBuf);
-  y += kRowHeight;
   drawRow(RowRevealKey, "Reveal log key", "show >");
   y += kRowHeight;
   drawRow(RowWipeLog, "Wipe encrypted log", wipeArmed ? "confirm?" : "erase >");
@@ -282,7 +274,6 @@ void SettingsActivity::render(RenderLock&&) {
         Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (const auto& line : lines) {
-      if (y + lineHeight > Chrome::contentBottom(renderer)) break;  // hard stop — never draw past the screen's floor
       renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
       y += lineHeight;
     }
@@ -295,7 +286,6 @@ void SettingsActivity::render(RenderLock&&) {
         Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (const auto& line : lines) {
-      if (y + lineHeight > Chrome::contentBottom(renderer)) break;
       renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
       y += lineHeight;
     }
@@ -309,7 +299,6 @@ void SettingsActivity::render(RenderLock&&) {
         Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (const auto& line : lines) {
-      if (y + lineHeight > Chrome::contentBottom(renderer)) break;
       renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
       y += lineHeight;
     }
@@ -322,7 +311,6 @@ void SettingsActivity::render(RenderLock&&) {
         Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (const auto& line : lines) {
-      if (y + lineHeight > Chrome::contentBottom(renderer)) break;
       renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
       y += lineHeight;
     }

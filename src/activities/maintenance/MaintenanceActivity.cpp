@@ -7,11 +7,9 @@
 #include <cstddef>
 #include <cstdio>
 
-#include "DeauthDetector.h"
 #include "DeauthEngine.h"
 #include "EncryptedLog.h"
 #include "PcapWriter.h"
-#include "TrackerDetector.h"
 #include "WifiSniffer.h"
 #include "fontIds.h"
 #include "ui/Chrome.h"
@@ -130,35 +128,14 @@ void MaintenanceActivity::render(RenderLock&&) {
   }
   endCard(renderer, leftColX, colWidth, top, std::min(leftY, columnBottom));
 
-  // RIGHT: an always-on passive-detector card, then raw-capture/active-deauth cards stacked below
-  // only when there's something to show for them — those two are opt-in features most owners
-  // never turn on, but the detector card costs nothing (purely passive, no setting to flip) so it
-  // always has something to report.
-  int rightY = top;
-  {
-    const int cardTop = rightY;
-    rightY = beginCard(renderer, rightColX, colWidth, rightY, "NEARBY THREATS");
-    snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(deauthDetector.totalDeauthFrames()));
-    rightY = Chrome::drawStatRow(renderer, rightY, "Deauth frames heard", valueBuf, false, rightColX + colWidth,
-                                 rightColX);
-    snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(deauthDetector.totalDisassocFrames()));
-    rightY = Chrome::drawStatRow(renderer, rightY, "Disassoc frames heard", valueBuf, false, rightColX + colWidth,
-                                 rightColX);
-    snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(trackerDetector.count()));
-    rightY = Chrome::drawStatRow(renderer, rightY, "BLE trackers seen", valueBuf, false, rightColX + colWidth,
-                                 rightColX);
-    endCard(renderer, rightColX, colWidth, cardTop, std::min(rightY, columnBottom));
-    rightY += kCardGap;
-  }
-
+  // RIGHT: raw-capture card and/or active-deauth card, stacked, only when there's something to
+  // show — both are opt-in features most owners never turn on.
   const LogDirSummary pcapSummary = summarizeDir(PcapWriter::captureDirectory());
   const bool hasPcap = pcapSummary.fileCount > 0;
   const bool hasDeauth = deauthEngine.burstsSent() > 0;
+  int rightY = top;
 
-  // Guard against the column already being full by the time we get here — starting a card past
-  // columnBottom would draw it entirely off-screen instead of just being tight on room.
-  if (hasPcap && rightY < columnBottom) {
-    const int cardTop = rightY;
+  if (hasPcap) {
     rightY = beginCard(renderer, rightColX, colWidth, rightY, "RAW CAPTURE");
     snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(pcapSummary.fileCount));
     rightY = Chrome::drawStatRow(renderer, rightY, "Files", valueBuf, false, rightColX + colWidth, rightColX);
@@ -174,10 +151,14 @@ void MaintenanceActivity::render(RenderLock&&) {
       renderer.drawText(FONT_SMALL_ID, rightColX, rightY, line.c_str());
       rightY += smallLineHeight;
     }
+    const int cardTop = top;
     endCard(renderer, rightColX, colWidth, cardTop, std::min(rightY, columnBottom));
     rightY += kCardGap;
   }
 
+  // Guard against the (currently implausible, but not structurally impossible) case where the
+  // raw-capture card above already used the whole column — starting a second card past
+  // columnBottom would draw it entirely off-screen instead of just being tight on room.
   if (hasDeauth && rightY < columnBottom) {
     const int cardTop = rightY;
     rightY = beginCard(renderer, rightColX, colWidth, rightY, "ACTIVE DEAUTH");
@@ -186,6 +167,11 @@ void MaintenanceActivity::render(RenderLock&&) {
     snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(deauthEngine.framesTransmitted()));
     rightY = Chrome::drawStatRow(renderer, rightY, "Frames sent", valueBuf, false, rightColX + colWidth, rightColX);
     endCard(renderer, rightColX, colWidth, cardTop, std::min(rightY, columnBottom));
+  }
+
+  if (!hasPcap && !hasDeauth) {
+    renderer.drawText(FONT_SMALL_ID, rightColX, top + kCardTopPad,
+                      "Raw capture and active deauth are both off — nothing else to report.");
   }
 
   renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), firmwareLineY,
