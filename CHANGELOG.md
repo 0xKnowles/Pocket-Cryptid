@@ -14,9 +14,11 @@ All notable changes to this project are documented here. Format loosely follows
   device (AP/client/BLE) is worth `kExpPerUniqueDevice` (1 EXP) — chosen to roughly match the
   real-world ratio (about 1 handshake per ~2000 unique devices seen) so the two contribute
   comparably to leveling over a typical session, rather than common unique-device sightings
-  drowning out rare handshakes or vice versa. Level thresholds: 0 / 2,000 / 8,000 / 20,000 /
-  50,000 EXP for levels 1-5 (capturing a single handshake alone reaches level 2). Persisted
-  alongside the rest of `RubyState` in `/.ruby/ruby_state.json`.
+  drowning out rare handshakes or vice versa. Level thresholds: 0 / 10,000 / 40,000 / 100,000 /
+  250,000 EXP for levels 1-5 (5x the original 2,000/8,000/20,000/50,000 — real overnight testing
+  reached level 3 in a single 5-hour unattended run, leveling much faster than intended for a
+  "lifetime progress" badge; now takes 5 captured handshakes alone to reach level 2, instead of
+  just 1). Persisted alongside the rest of `RubyState` in `/.ruby/ruby_state.json`.
 - **Dashboard header EXP progress bar**, right beside the battery badge — fills toward the next
   level as `RUBY.expProgress()` climbs, empty again immediately after a level-up. `Chrome::drawHeader()`
   now returns the x just past the battery badge specifically so this bar (and anything else a

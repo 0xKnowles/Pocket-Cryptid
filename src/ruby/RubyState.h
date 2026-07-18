@@ -65,9 +65,12 @@ constexpr uint32_t kExpPerUniqueDevice = 1;
 constexpr uint32_t kExpPerHandshake = 2000;
 
 // Level 1-5. kLevelThresholds[i] is the EXP floor for level i+1 — kLevelThresholds[0] is always 0
-// (everyone starts at level 1). Capturing a single handshake alone is enough to reach level 2.
+// (everyone starts at level 1). 5x the original thresholds (2000/8000/20000/50000) — real overnight
+// testing (a 5-hour unattended run) reached level 3 in one sitting, leveling far faster than
+// intended for a "lifetime progress" badge. Now takes 5 handshakes (10000 EXP) alone to reach
+// level 2, instead of just 1.
 constexpr uint8_t kMaxLevel = 5;
-constexpr uint32_t kLevelThresholds[kMaxLevel] = {0, 2000, 8000, 20000, 50000};
+constexpr uint32_t kLevelThresholds[kMaxLevel] = {0, 10000, 40000, 100000, 250000};
 
 inline uint8_t levelForExp(uint32_t exp) {
   uint8_t level = 1;
