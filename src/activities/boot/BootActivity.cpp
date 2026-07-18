@@ -103,16 +103,13 @@ void BootActivity::onEnter() {
   renderer.drawText(FONT_UI_12_ID, pageWidth - kTitleMarginX - versionW, kTitleMarginY, versionLabel, true,
                     EpdFontFamily::BOLD);
 
-  // "Pocket RF Analyzer" + "listening..." centered under the Ruby/version row as one title block
-  // — same open top margin (verified clear via pixel sampling down to y=40 before the
-  // character's hair/horns start), so plain black text reads fine here in both branches.
-  // "listening..." used to sit pinned to the bottom of the screen, over the full-art branch's
-  // dark e-waste pile (needing white text there to stay readable); moved up here instead so it
-  // reads as part of the title rather than a separate element at the opposite edge of the screen.
+  // "Pocket RF Analyzer" and "listening..." share one line right under the Ruby/version row,
+  // rather than stacking as two lines — stacked, the second line landed low enough to overlap the
+  // character's head on real hardware (the "clear down to y=40" margin this used to rely on
+  // doesn't hold for every boot.bmp). Keeping both on one line at the same fixed top position
+  // keeps this whole title block clear of the art regardless of where the head actually starts.
   const int titleBlockY = kTitleMarginY + 22;
-  const int titleLineHeight = renderer.getLineHeight(FONT_SMALL_ID);
-  renderer.drawCenteredText(FONT_SMALL_ID, titleBlockY, "Pocket RF Analyzer");
-  renderer.drawCenteredText(FONT_SMALL_ID, titleBlockY + titleLineHeight, "listening...");
+  renderer.drawCenteredText(FONT_SMALL_ID, titleBlockY, "Pocket RF Analyzer — listening...");
 
   renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 }

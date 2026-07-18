@@ -128,6 +128,12 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **Boot screen's "listening..." overlapped the character's head** on real hardware — it sat on a
+  second line stacked directly under "Pocket RF Analyzer", which the previous layout assumed was
+  clear down to `y=40`, an assumption that didn't hold for every `boot.bmp`. "Pocket RF Analyzer"
+  and "listening..." now share a single line ("Pocket RF Analyzer — listening...") right under the
+  Ruby/version row, keeping the whole title block clear of the art regardless of where the
+  character's head actually starts.
 - **Every screen's header title overlapped the divider rule drawn directly under it.**
   `Chrome::drawHeader()` draws the title with `FONT_UI_12_ID` BOLD at a fixed `y=6`, but that
   font's real ascender is 28px, putting the glyphs' baseline at `y=34` — well past the old
