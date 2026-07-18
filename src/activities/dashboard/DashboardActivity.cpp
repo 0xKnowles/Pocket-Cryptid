@@ -254,7 +254,22 @@ void DashboardActivity::renderFull() {
   constexpr int kExpBarGap = 10;
   constexpr int kExpBarWidth = 260;  // long enough to read at a glance, well short of the full row
   constexpr int kExpBarHeight = 16;  // matches the battery badge's own pill height
-  drawExpBar(renderer, headerLeftContentRight + kExpBarGap, 5, kExpBarWidth, kExpBarHeight, RUBY.expProgress());
+  const int expBarX = headerLeftContentRight + kExpBarGap;
+  drawExpBar(renderer, expBarX, 5, kExpBarWidth, kExpBarHeight, RUBY.expProgress());
+
+  // "<earned this level>/<still needed to level up> EXP" beside the bar — same vertical centering
+  // formula the battery badge above uses for its own percentage text.
+  char expLabelBuf[24];
+  uint32_t expInto = 0, expNeededForLevel = 0;
+  RUBY.expIntoLevel(expInto, expNeededForLevel);
+  if (expNeededForLevel == 0) {
+    snprintf(expLabelBuf, sizeof(expLabelBuf), "MAX");
+  } else {
+    snprintf(expLabelBuf, sizeof(expLabelBuf), "%lu/%lu EXP", static_cast<unsigned long>(expInto),
+             static_cast<unsigned long>(expNeededForLevel - expInto));
+  }
+  const int expLabelY = 5 + (kExpBarHeight - renderer.getLineHeight(FONT_SMALL_ID)) / 2;
+  renderer.drawText(FONT_SMALL_ID, expBarX + kExpBarWidth + kExpBarGap, expLabelY, expLabelBuf);
 
   // Top row: Ruby's box pinned top-left, "RECENT DEVICES" window beside it to the right at the
   // same height.

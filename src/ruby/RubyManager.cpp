@@ -74,6 +74,19 @@ float RubyManager::expProgress() const {
   return static_cast<float>(state.totalExp - floor) / static_cast<float>(nextFloor - floor);
 }
 
+void RubyManager::expIntoLevel(uint32_t& intoLevel, uint32_t& neededForLevel) const {
+  const uint8_t lvl = level();
+  if (lvl >= RubyConfig::kMaxLevel) {
+    intoLevel = 0;
+    neededForLevel = 0;
+    return;
+  }
+  const uint32_t floor = RubyConfig::kLevelThresholds[lvl - 1];
+  const uint32_t nextFloor = RubyConfig::kLevelThresholds[lvl];
+  intoLevel = state.totalExp - floor;
+  neededForLevel = nextFloor - floor;
+}
+
 RubyExpression RubyManager::currentExpression(bool deviceSleeping) const {
   if (deviceSleeping) return RubyExpression::SLEEPING;
   const unsigned long now = millis();

@@ -38,6 +38,10 @@ class RubyManager : public PersistableStore<RubyManager> {
   // Dashboard header's EXP bar (see DashboardActivity::renderFull()).
   float expProgress() const;
 
+  // Raw numbers behind expProgress(), for the "N/M EXP" label next to the bar: EXP earned since
+  // the current level's floor, and EXP needed to cross into the next one. Both 0 at max level.
+  void expIntoLevel(uint32_t& intoLevel, uint32_t& neededForLevel) const;
+
   // deviceSleeping short-circuits straight to SLEEPING regardless of activity timers — used by
   // SleepActivity so the creature visibly "goes quiet" the instant the screen does.
   RubyExpression currentExpression(bool deviceSleeping) const;
