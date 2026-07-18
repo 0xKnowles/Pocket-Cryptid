@@ -30,7 +30,7 @@ bool isLandscape(const GfxRenderer& renderer) { return renderer.getScreenWidth()
 
 namespace Chrome {
 
-int drawHeader(const GfxRenderer& renderer, const char* title, int batteryPercent) {
+int drawHeader(const GfxRenderer& renderer, const char* title, int batteryPercent, int dividerY) {
   // Battery on the left, title right-aligned — the reverse of the original layout. Also fixes a
   // real collision in landscape: the battery badge used to right-align to the raw screen edge,
   // which is exactly where the button-hint sidebar's top pill lives (see drawFooterHints below);
@@ -59,7 +59,7 @@ int drawHeader(const GfxRenderer& renderer, const char* title, int batteryPercen
     renderer.drawText(FONT_UI_12_ID, contentRight(renderer) - titleW, 6, title, true, EpdFontFamily::BOLD);
   }
 
-  drawDivider(renderer, kHeaderHeight);
+  drawDivider(renderer, dividerY);
   return leftContentRight;
 }
 
