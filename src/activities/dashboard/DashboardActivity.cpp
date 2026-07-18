@@ -34,6 +34,14 @@ constexpr unsigned long kHandshakeBannerMs = 4000;
 constexpr unsigned long kLevelUpBannerMs = 4000;
 constexpr unsigned long kSpeechBubbleMs = 4000;
 
+// Chrome::kHeaderHeight (40px) is sized for a real title's full ascender clearance, which this
+// screen's blank title never needs — its header row is just the 16px-tall battery badge/EXP bar
+// pair starting at y=5 (bottom edge y=21). A shorter, Dashboard-specific divider position (instead
+// of the shared kHeaderHeight every other screen's real title relies on) removes the otherwise-idle
+// ~12px of vertical padding that made this header band read as noticeably thicker than it needed
+// to be, and the freed space is passed straight on to rubyBoxY below.
+constexpr int kDashboardHeaderHeight = 28;
+
 // Takes whole seconds rather than ms — the lifetime "Total Uptime" figure (APP_STATE.totalCaptureSeconds
 // plus this session's own elapsed time) can run well past the ~49-day point where a uint32_t ms count
 // wraps, but seconds alone comfortably covers a device's realistic service life.
@@ -231,7 +239,7 @@ void DashboardActivity::onEnter() {
   // are columns now instead of a full-width stack.
   rubyBoxSize = 230;
   rubyBoxX = Chrome::contentLeft();
-  rubyBoxY = Chrome::contentTop();
+  rubyBoxY = kDashboardHeaderHeight + 8;
 
   // Seed from the live counts rather than 0, so sightings that happened before this screen was
   // entered don't read as "new" and fire a speech-bubble reaction on the very first render.
@@ -397,7 +405,7 @@ void DashboardActivity::renderFull() {
   // header on this one screen is just the divider rule, the battery badge, and (since the blank
   // title leaves the rest of the row free) an EXP progress bar right beside it.
   const int battery = powerManager.getBatteryPercentage();
-  const int headerLeftContentRight = Chrome::drawHeader(renderer, "", battery);
+  const int headerLeftContentRight = Chrome::drawHeader(renderer, "", battery, kDashboardHeaderHeight);
   constexpr int kExpBarGap = 10;
   constexpr int kExpBarWidth = 260;  // long enough to read at a glance, well short of the full row
   constexpr int kExpBarHeight = 16;  // matches the battery badge's own pill height
