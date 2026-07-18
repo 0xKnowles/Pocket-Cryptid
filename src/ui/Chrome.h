@@ -71,6 +71,17 @@ constexpr int kSignalBarsWidth = 15;
 constexpr int kSignalBarsHeight = 13;
 void drawSignalBars(const GfxRenderer& renderer, int x, int y, int8_t rssi);
 
+// Bubble chrome for Ruby's mood/reaction callouts (see RubySpriteRenderer.h) — a white-filled,
+// black-outlined rounded box (so it stays legible over whatever's underneath: bitmap art, the
+// procedural silhouette, or its static noise) sized to fit up to 2 wrapped lines of FONT_SMALL_ID
+// text, at (x, y). (tailX, tailY) is a point on Ruby's own face the bubble visibly "belongs" to,
+// regardless of exactly where it's anchored. Speech gets a solid triangular pointer (the classic
+// "I'm saying this" convention, used for one-shot event reactions); thought gets two shrinking
+// trailing dots instead (the classic "I'm thinking this" convention, used for the ambient
+// mood-driven quip) — same box chrome either way, only the tail differs.
+void drawSpeechBubble(const GfxRenderer& renderer, int x, int y, int width, int tailX, int tailY, const char* text);
+void drawThoughtBubble(const GfxRenderer& renderer, int x, int y, int width, int tailX, int tailY, const char* text);
+
 int contentTop();     // y just below the header
 int contentBottom(const GfxRenderer& renderer);  // y just above the footer
 int contentLeft();

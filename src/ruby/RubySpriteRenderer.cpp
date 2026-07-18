@@ -9,7 +9,9 @@
 #include <cstdio>
 
 #include "RubyEmbeddedArt.h"
+#include "RubyThoughts.h"
 #include "fontIds.h"
+#include "ui/Chrome.h"
 
 namespace {
 
@@ -290,10 +292,36 @@ void drawNameChip(const GfxRenderer& renderer, int x, int y, uint8_t level) {
   renderer.drawText(FONT_SMALL_ID, badgeX + kChipPadX + 1, chipY + kChipPadY, levelBuf, true);
 }
 
+// Mood/reaction bubble, anchored to the box's top-right corner — the mirror image of
+// drawNameChip's top-left placement above. Sized narrower than the box so it never collides with
+// the name chip + level badge occupying the top-left strip. tailX/tailY point at roughly eye
+// level, near the box's horizontal center, so the bubble visibly "belongs" to Ruby regardless of
+// which expression/art is showing underneath.
+void drawBubble(const GfxRenderer& renderer, int x, int y, int boxSize, const char* reactionText,
+                RubyExpression expression) {
+  const char* thought = RubyThoughts::thoughtFor(expression);
+  const bool isReaction = reactionText != nullptr && reactionText[0] != '\0';
+  const char* text = isReaction ? reactionText : thought;
+  if (!text || !text[0]) return;
+
+  constexpr int kBubbleInset = 5;
+  constexpr int kBubbleWidth = 125;
+  const int bubbleX = x + boxSize - kBubbleWidth - kBubbleInset;
+  const int bubbleY = y + kBubbleInset;
+  const int tailX = x + boxSize / 2;
+  const int tailY = y + boxSize / 3;
+
+  if (isReaction) {
+    Chrome::drawSpeechBubble(renderer, bubbleX, bubbleY, kBubbleWidth, tailX, tailY, text);
+  } else {
+    Chrome::drawThoughtBubble(renderer, bubbleX, bubbleY, kBubbleWidth, tailX, tailY, text);
+  }
+}
+
 }  // namespace
 
 void RubySpriteRenderer::draw(GfxRenderer& renderer, int x, int y, int boxSize, RubyExpression expression,
-                                    uint8_t animFrame, uint8_t level) {
+                                    uint8_t animFrame, uint8_t level, const char* reactionText) {
   renderer.fillRect(x, y, boxSize, boxSize, /*state=*/false);  // clear to white before redrawing
 
   if (!tryDrawBitmap(renderer, x, y, boxSize, expression)) {
@@ -317,7 +345,10 @@ void RubySpriteRenderer::draw(GfxRenderer& renderer, int x, int y, int boxSize, 
     }
   }
 
-  if (expression != RubyExpression::SLEEPING) drawNameChip(renderer, x, y, level);
+  if (expression != RubyExpression::SLEEPING) {
+    drawNameChip(renderer, x, y, level);
+    drawBubble(renderer, x, y, boxSize, reactionText, expression);
+  }
 
   // The box's rounded frame is drawn last, on top of the bitmap/silhouette/noise/name chip, and
   // lives here rather than in the caller because this is also what runs on the box-only "strict

@@ -23,6 +23,7 @@
 #include "ruby/RubyBehavior.h"
 #include "ruby/RubyManager.h"
 #include "ruby/RubySpriteRenderer.h"
+#include "ruby/RubyThoughts.h"
 #include "ui/Chrome.h"
 
 namespace {
@@ -30,6 +31,7 @@ constexpr unsigned long kFullRedrawIntervalMs = 5000;
 constexpr unsigned long kPetRedrawIntervalMs = 1200;
 constexpr unsigned long kHandshakeBannerMs = 4000;
 constexpr unsigned long kLevelUpBannerMs = 4000;
+constexpr unsigned long kSpeechBubbleMs = 4000;
 
 void formatUptime(unsigned long ms, char* out, size_t outSize) {
   const unsigned long totalSec = ms / 1000;
@@ -189,10 +191,23 @@ void DashboardActivity::onEnter() {
   rubyBoxX = Chrome::contentLeft();
   rubyBoxY = Chrome::contentTop();
 
+  // Seed from the live counts rather than 0, so sightings that happened before this screen was
+  // entered don't read as "new" and fire a speech-bubble reaction on the very first render.
+  const auto& stats = SIGNAL_CATALOG.getStats();
+  lastUniqueWifiAPs = stats.uniqueWifiAPs;
+  lastUniqueWifiClients = stats.uniqueWifiClients;
+  lastUniqueBleDevices = stats.uniqueBleDevices;
+
   pendingRenderKind = RenderKind::Full;
   lastFullRenderMs = 0;
   lastPeriodicFullRefreshMs = millis();
   requestUpdate();
+}
+
+void DashboardActivity::armSpeechBubble(const char* text) {
+  speechBubbleActive = true;
+  speechBubbleUntilMs = millis() + kSpeechBubbleMs;
+  speechBubbleText = text;
 }
 
 void DashboardActivity::loop() {
@@ -228,6 +243,7 @@ void DashboardActivity::loop() {
   if (RUBY.consumeJustCapturedHandshake()) {
     handshakeBannerActive = true;
     handshakeBannerUntilMs = millis() + kHandshakeBannerMs;
+    armSpeechBubble(RubyThoughts::speechForHandshake(static_cast<uint8_t>(millis())));
     pendingRenderKind = RenderKind::Full;
     requestUpdate();
     return;
@@ -244,6 +260,7 @@ void DashboardActivity::loop() {
     levelUpBannerActive = true;
     levelUpBannerUntilMs = millis() + kLevelUpBannerMs;
     levelUpBannerLevel = newLevel;
+    armSpeechBubble(RubyThoughts::speechForLevelUp(static_cast<uint8_t>(millis())));
     pendingRenderKind = RenderKind::Full;
     requestUpdate();
     return;
@@ -257,10 +274,46 @@ void DashboardActivity::loop() {
 
   // DeauthDetector's own alertActive() is already time-windowed (see its class comment) — this
   // just notices the on/off transition so a redraw actually happens at both ends, the same way
-  // the two consume-and-flag banners above do.
+  // the two consume-and-flag banners above do. The speech bubble only reacts to the rising edge
+  // (alert starting) — there's nothing worth saying about it quietly ending.
   const bool deauthAlertNow = deauthDetector.alertActive();
   if (deauthAlertNow != lastDeauthAlertState) {
+    if (deauthAlertNow) armSpeechBubble(RubyThoughts::speechForDeauthAlert(static_cast<uint8_t>(millis())));
     lastDeauthAlertState = deauthAlertNow;
+    pendingRenderKind = RenderKind::Full;
+    requestUpdate();
+    return;
+  }
+
+  if (speechBubbleActive && millis() >= speechBubbleUntilMs) {
+    speechBubbleActive = false;
+    pendingRenderKind = RenderKind::Full;
+    requestUpdate();
+    return;
+  }
+
+  // A fresh unique sighting of any kind is also worth a quip — checked in a fixed AP/client/BLE
+  // order so at most one fires per tick even if more than one count happens to jump in the same
+  // loop() call; the others are still recorded as "last seen" below so they don't fire stale on a
+  // later tick once this one's reaction has already cleared.
+  const auto& freshStats = SIGNAL_CATALOG.getStats();
+  LogRecordType newDeviceType = LogRecordType::WifiAp;
+  bool sawNewDevice = false;
+  if (freshStats.uniqueWifiAPs > lastUniqueWifiAPs) {
+    newDeviceType = LogRecordType::WifiAp;
+    sawNewDevice = true;
+  } else if (freshStats.uniqueWifiClients > lastUniqueWifiClients) {
+    newDeviceType = LogRecordType::WifiClient;
+    sawNewDevice = true;
+  } else if (freshStats.uniqueBleDevices > lastUniqueBleDevices) {
+    newDeviceType = LogRecordType::BleDevice;
+    sawNewDevice = true;
+  }
+  lastUniqueWifiAPs = freshStats.uniqueWifiAPs;
+  lastUniqueWifiClients = freshStats.uniqueWifiClients;
+  lastUniqueBleDevices = freshStats.uniqueBleDevices;
+  if (sawNewDevice) {
+    armSpeechBubble(RubyThoughts::speechForNewDevice(newDeviceType, static_cast<uint8_t>(millis())));
     pendingRenderKind = RenderKind::Full;
     requestUpdate();
     return;
@@ -279,8 +332,9 @@ void DashboardActivity::loop() {
 void DashboardActivity::drawRubyPanel(bool withNoise) {
   const RubyExpression expression = effectiveExpression();
   const uint8_t frame = RUBY.animFrame();
+  const char* reactionText = speechBubbleActive ? speechBubbleText : nullptr;
   RubySpriteRenderer::draw(renderer, rubyBoxX, rubyBoxY, rubyBoxSize,
-                           withNoise ? expression : RubyExpression::SLEEPING, frame, RUBY.level());
+                           withNoise ? expression : RubyExpression::SLEEPING, frame, RUBY.level(), reactionText);
   lastAnimFrameRendered = frame;
   lastPetRenderMs = millis();
 }

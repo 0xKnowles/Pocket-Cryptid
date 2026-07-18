@@ -171,6 +171,14 @@ All notable changes to this project are documented here. Format loosely follows
   `RecentSightings` ring buffer's RSSI history as a bar per observation, oldest on the left, newest
   always anchored to the right edge, giving signal strength an actual at-a-glance visual instead of
   only the per-entry dBm figure.
+- **Ruby thinks and talks now** (`RubyThoughts.h`, `Chrome::drawThoughtBubble()`/`drawSpeechBubble()`).
+  A comic-style thought bubble sits in the top-right corner of her box (mirroring the RUBY name
+  chip's top-left placement), showing a quirky, hacker-flavored one-liner tied to her current mood
+  — "ooh, what's this OUI?" while CURIOUS, "no bytes... send help" while BORED, and so on — updating
+  on the same ~1.2s cadence as her expression itself. A pointed speech bubble briefly takes over
+  instead for a few seconds whenever something actually happens: a new AP/client/BLE device spotted,
+  a handshake captured, a level up, or a nearby deauth alert — each with a small set of reactions to
+  pick from so it isn't the exact same line every time.
 
 ### Fixed
 

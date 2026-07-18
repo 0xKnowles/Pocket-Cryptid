@@ -31,6 +31,7 @@ class DashboardActivity final : public Activity {
   void renderFull();
   void renderRubyBoxOnly();
   void drawRubyPanel(bool withNoise);
+  void armSpeechBubble(const char* text);
 
   enum class RenderKind { Full, RubyOnly };
   RenderKind pendingRenderKind = RenderKind::Full;
@@ -47,6 +48,21 @@ class DashboardActivity final : public Activity {
   // DeauthDetector::alertActive() is itself already time-windowed, so no separate until-timestamp
   // is needed here — just the last-known state, to notice the on/off transition and redraw.
   bool lastDeauthAlertState = false;
+
+  // Ruby's one-shot speech-bubble reaction (see RubySpriteRenderer::draw's reactionText param) —
+  // same timed on/off shape as the banners above, but a fixed string literal from RubyThoughts
+  // rather than a formatted buffer, so no backing char array is needed here. Falls back to the
+  // ambient mood-driven thought bubble whenever this isn't active.
+  bool speechBubbleActive = false;
+  unsigned long speechBubbleUntilMs = 0;
+  const char* speechBubbleText = nullptr;
+  // Last-seen SignalCatalog unique counts, so a fresh sighting (this tick's count > last tick's)
+  // can fire a "new device" reaction exactly once per increase rather than every redraw it's still
+  // true. Seeded from the live counts in onEnter() so pre-existing sightings from before this
+  // screen was entered don't spuriously fire a reaction on the very first render.
+  uint32_t lastUniqueWifiAPs = 0;
+  uint32_t lastUniqueWifiClients = 0;
+  uint32_t lastUniqueBleDevices = 0;
 
   int rubyBoxX = 0;
   int rubyBoxY = 0;

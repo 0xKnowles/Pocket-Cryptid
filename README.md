@@ -128,6 +128,14 @@ actually picking up") even in a busy RF environment where new devices show up co
 capture (see [Screens](#screens)) shows BORED immediately, since nothing's being observed anymore,
 rather than freezing whatever mood was showing right before Pause.
 
+Ruby also has something to say about it. A thought bubble in the box's top-right corner (`RubyThoughts.h`)
+shows a quirky, hacker-flavored one-liner tied to whichever mood is currently showing — "ooh, what's
+this OUI?" while CURIOUS, "netstat -a: empty :(" while LONELY — updating on the same ~1.2s cadence as
+the art itself. It's briefly replaced by a pointed speech bubble reacting to something that just
+happened — a new AP/client/BLE device, a captured handshake, a level up, a nearby deauth alert — each
+with a small set of possible lines so it isn't the same one every time, before fading back to the
+ambient thought bubble.
+
 When the device is asleep, it shows a different, much larger piece of art instead:
 
 <p align="center">
@@ -180,7 +188,10 @@ When the device is asleep, it shows a different, much larger piece of art instea
   creature's box, a narrow **RECENT DEVICES** card shows a handful of the latest observations in
   full detail (type/MAC, signal bars + RSSI + time-ago, device name), and a **SIGNAL HISTORY** card
   next to it plots the same feed's RSSI as a live bar chart — oldest reading on the left, newest
-  always at the right edge. A banner briefly announces "DEAUTH ACTIVITY NEARBY", "LEVEL UP → Lv.N",
+  always at the right edge. A thought bubble in the box's top-right corner shows a quirky,
+  hacker-flavored one-liner reflecting Ruby's current mood, briefly replaced by a speech bubble
+  reacting to a new device, a captured handshake, a level up, or a nearby deauth alert (see
+  [Meet Ruby](#meet-ruby)). A banner briefly announces "DEAUTH ACTIVITY NEARBY", "LEVEL UP → Lv.N",
   or "HANDSHAKE CAPTURED" (in that priority order) when any of them happens.
   `Confirm` → Settings, `Left` → toggle Pause (same button pauses and resumes WiFi/BLE capture —
   no screen change, and it stops `DeauthEngine` too since that only ever fires from the observation

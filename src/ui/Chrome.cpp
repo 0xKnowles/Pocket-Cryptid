@@ -180,6 +180,53 @@ void drawSignalBars(const GfxRenderer& renderer, int x, int y, int8_t rssi) {
   }
 }
 
+namespace {
+constexpr int kBubblePadX = 6;
+constexpr int kBubblePadY = 4;
+constexpr int kBubbleMaxLines = 2;
+constexpr int kBubbleRadius = 8;
+
+// Wraps text, sizes a box tightly around however many lines that actually took (1 or 2, never a
+// fixed worst-case height), and draws the chrome shared by both bubble kinds. Returns the box's
+// height so the caller can anchor its own tail/dots off the bottom edge.
+int drawBubbleBox(const GfxRenderer& renderer, int x, int y, int width, const char* text) {
+  const int maxTextWidth = width - kBubblePadX * 2;
+  const auto lines = renderer.wrappedText(FONT_SMALL_ID, text, maxTextWidth, kBubbleMaxLines);
+  const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
+  const int height = kBubblePadY * 2 + lineHeight * static_cast<int>(lines.size());
+  renderer.fillRoundedRect(x, y, width, height, kBubbleRadius, Color::White);
+  renderer.drawRoundedRect(x, y, width, height, 1, kBubbleRadius, true);
+  int textY = y + kBubblePadY;
+  for (const auto& line : lines) {
+    renderer.drawText(FONT_SMALL_ID, x + kBubblePadX, textY, line.c_str());
+    textY += lineHeight;
+  }
+  return height;
+}
+}  // namespace
+
+void drawSpeechBubble(const GfxRenderer& renderer, int x, int y, int width, int tailX, int tailY, const char* text) {
+  const int height = drawBubbleBox(renderer, x, y, width, text);
+  // Small solid triangle bridging the box's bottom edge to the tail point, drawn last so it isn't
+  // cut off by the box's own outline.
+  const int baseX = x + width / 4;
+  const int xs[3] = {baseX, baseX + 14, tailX};
+  const int ys[3] = {y + height, y + height, tailY};
+  renderer.fillPolygon(xs, ys, 3, true);
+}
+
+void drawThoughtBubble(const GfxRenderer& renderer, int x, int y, int width, int tailX, int tailY, const char* text) {
+  const int height = drawBubbleBox(renderer, x, y, width, text);
+  const int baseX = x + width / 4;
+  const int baseY = y + height;
+  const int dot1X = baseX + (tailX - baseX) / 3;
+  const int dot1Y = baseY + (tailY - baseY) / 3;
+  const int dot2X = baseX + (tailX - baseX) * 2 / 3;
+  const int dot2Y = baseY + (tailY - baseY) * 2 / 3;
+  renderer.fillRect(dot1X - 3, dot1Y - 3, 6, 6, true);
+  renderer.fillRect(dot2X - 2, dot2Y - 2, 4, 4, true);
+}
+
 int contentTop() { return kHeaderHeight + 8; }
 
 int contentBottom(const GfxRenderer& renderer) {
