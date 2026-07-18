@@ -7,6 +7,16 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
+- **`Settings → WiFi channel scope`** (`RubySettings::wifiChannelScope`,
+  `WifiSniffer::channelPlanFor`). WiFi monitor mode hops all 13 channels by default at
+  `wifiChannelDwellMs` each — a real 4-way handshake completes in well under a second, so any
+  single channel is only actually being listened to roughly 1/13th of the time, which is most of
+  why passive handshake capture can yield as little as 0-2/hour. This new row cycles between "All
+  (1-13)" and locking onto one specific channel (visible per-network in the live scan behind
+  `Whitelist`/`Blacklist`), raising that channel's duty cycle to 100% at the cost of not seeing
+  anything on the other 12. Takes effect the next time WiFi monitor mode restarts, same as the
+  existing dwell-time setting right above it — not applied live to an already-running capture
+  session.
 - **Crash-loop guard for repeated silent restarts** (`silentRebootCount`, `main.cpp`). Real-hardware
   testing found BLE passive scan fragmenting the DMA-capable memory pool `EncryptedLog`'s hardware
   AES needs badly enough, immediately at boot, to trip the existing DMA-pool circuit breaker within
@@ -97,6 +107,18 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **`Settings → Active deauth` could keep showing ON after it had actually gone silently
+  inactive.** Turning off `Raw handshake capture` correctly disabled the live `DeauthEngine` (it
+  refuses to run without something capturing the handshake it forces), but left
+  `SETTINGS.activeDeauthEnabled` itself untouched — so the row still read ON, and turning raw
+  capture back on later would silently re-arm active deauth with no fresh confirmation from that
+  row at all. Toggling raw capture off now also clears the `activeDeauthEnabled` setting itself,
+  not just the runtime engine, so the row and reality can't drift apart, and re-enabling deauth
+  always requires an explicit, fresh toggle.
+- **`Settings → WiFi monitor`, toggled off then back on, silently dropped raw handshake capture**
+  even if it had been on — `wifiSniffer.start()` was called there without passing
+  `SETTINGS.rawHandshakeCaptureEnabled` through, defaulting to `false`. Fixed alongside wiring in
+  the new channel-scope setting above, since both needed the same call site touched anyway.
 - **Ruby's mood was pinned on CURIOUS almost permanently in any reasonably active RF
   environment.** `RubyBehavior::expressionFor()` used to trigger CURIOUS off *any single*
   new-unique WiFi/BLE sighting within the last 90 seconds — in a target-rich environment (a busy

@@ -47,6 +47,13 @@ class RubySettings : public PersistableStore<RubySettings> {
   // reverse. 100-1000 is a sane range.
   uint16_t wifiChannelDwellMs = 300;
 
+  // 0 = hop all 13 channels (the default); 1-13 = lock onto just that one, skipping the hop
+  // entirely (see WifiSniffer::channelPlanFor). A handshake completes in well under a second, so
+  // hopping across 13 channels means the radio is only actually on any given one ~1/13th of the
+  // time — locking to a known target's channel (visible in the live scan behind Settings'
+  // Whitelist/Blacklist rows) raises that to 100%, the single biggest lever for catching one.
+  uint8_t wifiChannelScope = 0;
+
   // Biased quarter-hour UTC offset, same convention as upstream HalClock (48 = UTC+0, 0 =
   // UTC-12, 104 = UTC+14). Used only for on-screen time display; log records always store real
   // unix time (or boot-relative time if the clock was never set — see EncryptedLog).

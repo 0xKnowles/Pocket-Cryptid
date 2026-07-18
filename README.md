@@ -162,9 +162,11 @@ When the device is asleep, it shows a different, much larger piece of art instea
   `Right` → Export/Maintenance, `Up` → Recent Devices, `Down` → Log Viewer, `Back` → force a full
   ghost-clearing refresh.
 - **Settings** — toggle WiFi/BLE capture (BLE off by default — see
-  [Hardware](#hardware) for why), adjust WiFi channel dwell time, set the ghost-clear
-  refresh interval, choose what a short Power-button tap does (Refresh / Screenshot / Pause — a
-  long hold is always Sleep, not configurable), turn on
+  [Hardware](#hardware) for why), adjust WiFi channel dwell time, lock WiFi monitor to a single
+  channel instead of hopping all 13 (see
+  [Raw handshake capture](#raw-handshake-capture-crackable-pcap-export) for why that matters), set
+  the ghost-clear refresh interval, choose what a short Power-button tap does (Refresh /
+  Screenshot / Pause — a long hold is always Sleep, not configurable), turn on
   [raw handshake capture](#raw-handshake-capture-crackable-pcap-export) or
   [active deauth](#active-deauth) (both off by default), manage the whitelist/blacklist (opens
   a live network scan to add/remove targets — see [Active deauth](#active-deauth)), reveal the
@@ -210,6 +212,19 @@ strength of networks you own, offline, with tools like [hashcat](https://hashcat
   PMKID mode without needing the rest of the handshake at all.
 - Turn it back off when you're not actively auditing — it's meant to be run deliberately, not left
   on as a background default.
+
+**Realistic capture rates are low — 0-2 handshakes/hour of passive listening is normal, not
+broken.** WiFi monitor mode hops all 13 channels by default, spending `wifiChannelDwellMs` (300ms)
+on each, so any single channel is only actually being listened to roughly 1/13th of the time. A
+real 4-way handshake completes in well under a second, and a stationary network's clients don't
+renegotiate one often on their own — combine an inherently rare event with an ~8% chance of being
+on the right channel when it happens, and a low hourly count is just the math working as expected.
+Two real levers to improve it:
+- **`Settings → WiFi channel scope`** locks monitor mode onto one known channel instead of hopping
+  all 13 (see it per-network in the live scan behind `Whitelist`/`Blacklist`), raising that
+  channel's duty cycle to 100% — at the cost of missing everything on the other 12.
+- **[Active deauth](#active-deauth)**, below, is the bigger lever: it forces a handshake to happen
+  *now*, on the channel already being listened to, instead of waiting on one to happen by chance.
 
 By itself, this path only ever *listens* — nothing here transmits or provokes a handshake into
 happening; it records what a passive monitor already sees handshakes doing on their own. A held

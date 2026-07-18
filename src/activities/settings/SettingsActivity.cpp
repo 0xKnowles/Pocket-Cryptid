@@ -59,7 +59,11 @@ void SettingsActivity::adjustSelected(int direction) {
     case RowWifiEnabled:
       SETTINGS.wifiSniffEnabled = !SETTINGS.wifiSniffEnabled;
       if (SETTINGS.wifiSniffEnabled) {
-        wifiSniffer.start(WifiSniffer::kAllChannels, WifiSniffer::kAllChannelsCount, SETTINGS.wifiChannelDwellMs);
+        const uint8_t* wifiChannels;
+        size_t wifiChannelCount;
+        WifiSniffer::channelPlanFor(SETTINGS.wifiChannelScope, wifiChannels, wifiChannelCount);
+        wifiSniffer.start(wifiChannels, wifiChannelCount, SETTINGS.wifiChannelDwellMs,
+                           SETTINGS.rawHandshakeCaptureEnabled);
       } else {
         wifiSniffer.stop();
       }
@@ -83,6 +87,15 @@ void SettingsActivity::adjustSelected(int direction) {
       const int next = static_cast<int>(SETTINGS.wifiChannelDwellMs) + direction * kWifiDwellStepMs;
       SETTINGS.wifiChannelDwellMs =
           static_cast<uint16_t>(std::clamp(next, static_cast<int>(kWifiDwellMinMs), static_cast<int>(kWifiDwellMaxMs)));
+      break;
+    }
+    case RowWifiChannelScope: {
+      // 0 = all 13 channels, 1-13 = a single locked channel — cycles 0..13..0. Takes effect the
+      // next time WiFi monitor mode (re)starts (toggle it off/on, or reboot), same as
+      // RowWifiDwell's dwell-time setting right above — not applied live to an already-running
+      // WifiSniffer.
+      const int next = std::clamp(static_cast<int>(SETTINGS.wifiChannelScope) + direction, 0, 13);
+      SETTINGS.wifiChannelScope = static_cast<uint8_t>(next);
       break;
     }
     case RowGhostClearInterval: {
@@ -110,7 +123,12 @@ void SettingsActivity::adjustSelected(int direction) {
       SETTINGS.rawHandshakeCaptureEnabled = !SETTINGS.rawHandshakeCaptureEnabled;
       wifiSniffer.setRawCaptureEnabled(SETTINGS.rawHandshakeCaptureEnabled);
       // Turning raw capture off must also stop active deauth — see DeauthEngine's class comment
-      // on why it refuses to run without something capturing the handshake it forces.
+      // on why it refuses to run without something capturing the handshake it forces. Clearing
+      // the setting too (not just disabling the live engine) matters: without this, the Active
+      // deauth row kept showing ON — SETTINGS.activeDeauthEnabled never actually changed — even
+      // though deauthEngine itself had gone silently inactive, and turning raw capture back on
+      // later would silently resurrect it with no fresh confirmation from this row at all.
+      if (!SETTINGS.rawHandshakeCaptureEnabled) SETTINGS.activeDeauthEnabled = false;
       deauthEngine.setEnabled(SETTINGS.activeDeauthEnabled && SETTINGS.rawHandshakeCaptureEnabled);
       break;
     case RowActiveDeauth:
@@ -256,6 +274,13 @@ void SettingsActivity::render(RenderLock&&) {
   snprintf(valueBuf, sizeof(valueBuf), "%u ms/channel", SETTINGS.wifiChannelDwellMs);
   drawRow(RowWifiDwell, "WiFi channel dwell", valueBuf);
   y += kRowHeight;
+  if (SETTINGS.wifiChannelScope == 0) {
+    drawRow(RowWifiChannelScope, "WiFi channel scope", "All (1-13)");
+  } else {
+    snprintf(valueBuf, sizeof(valueBuf), "Ch %u only", SETTINGS.wifiChannelScope);
+    drawRow(RowWifiChannelScope, "WiFi channel scope", valueBuf);
+  }
+  y += kRowHeight;
   if (SETTINGS.fullRefreshIntervalMin == 0) {
     drawRow(RowGhostClearInterval, "Ghost-clear refresh", "off");
   } else {
@@ -314,6 +339,20 @@ void SettingsActivity::render(RenderLock&&) {
         "badly enough to crash-loop, so turning this on refuses while raw capture is on (turn that "
         "off first). FAILED means NimBLE itself couldn't initialize; ON means it's actually "
         "scanning.",
+        Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
+    const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
+    for (const auto& line : lines) {
+      if (y + lineHeight > Chrome::contentBottom(renderer)) break;  // hard stop — never draw past the screen's floor
+      renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
+      y += lineHeight;
+    }
+  } else if (selected == RowWifiChannelScope) {
+    const auto lines = renderer.wrappedText(
+        FONT_SMALL_ID,
+        "All hops across 13 channels, so any one is only listened to ~1/13th of the time. Locking "
+        "to a single known channel (see it in Whitelist/Blacklist's live scan) raises that to "
+        "100% — the biggest lever for actually catching a handshake. Takes effect next time WiFi "
+        "monitor restarts.",
         Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (const auto& line : lines) {

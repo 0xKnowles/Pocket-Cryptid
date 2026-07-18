@@ -52,6 +52,16 @@ class WifiSniffer {
   static constexpr uint8_t kAllChannels[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};
   static constexpr size_t kAllChannelsCount = sizeof(kAllChannels);
 
+  // Translates RubySettings::wifiChannelScope (0 = hop all 13 channels; 1-13 = lock onto just
+  // that one, skipping the hop entirely — see tick()'s `channelCount > 1` guard) into a
+  // channels/count pair start() can take directly. Locking to a single known channel raises its
+  // duty cycle from ~1/13 to 100%, which matters a lot for catching a handshake that completes in
+  // well under a second — see README's capture-rate discussion. The single-channel case needs
+  // storage that outlives the call, since start() only ever stores the pointer it's given rather
+  // than copying; this owns that storage (a function-local static, safe here since only one
+  // channel plan is ever in effect at a time).
+  static void channelPlanFor(uint8_t scope, const uint8_t*& outChannels, size_t& outCount);
+
   bool begin();
   void end();
 

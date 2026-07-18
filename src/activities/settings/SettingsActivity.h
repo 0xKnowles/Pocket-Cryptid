@@ -20,6 +20,7 @@ class SettingsActivity final : public Activity {
     RowWifiEnabled = 0,
     RowBleEnabled,
     RowWifiDwell,
+    RowWifiChannelScope,
     RowGhostClearInterval,
     RowPowerShortPress,
     RowRawCapture,

@@ -128,8 +128,10 @@ LogRecordType mapWifiKindToLogType(WifiFrameKind kind) {
 
 void startCaptureIfEnabled() {
   if (SETTINGS.wifiSniffEnabled) {
-    wifiSniffer.start(WifiSniffer::kAllChannels, WifiSniffer::kAllChannelsCount, SETTINGS.wifiChannelDwellMs,
-                       SETTINGS.rawHandshakeCaptureEnabled);
+    const uint8_t* channels;
+    size_t channelCount;
+    WifiSniffer::channelPlanFor(SETTINGS.wifiChannelScope, channels, channelCount);
+    wifiSniffer.start(channels, channelCount, SETTINGS.wifiChannelDwellMs, SETTINGS.rawHandshakeCaptureEnabled);
   }
   if (SETTINGS.bleSniffEnabled && SETTINGS.rawHandshakeCaptureEnabled) {
     // Both draw heavily from the same DMA-capable pool at once — real-hardware testing showed

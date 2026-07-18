@@ -14,6 +14,18 @@
 
 WifiSniffer wifiSniffer;
 
+void WifiSniffer::channelPlanFor(uint8_t scope, const uint8_t*& outChannels, size_t& outCount) {
+  static uint8_t singleChannel;
+  if (scope == 0 || scope > 13) {
+    outChannels = kAllChannels;
+    outCount = kAllChannelsCount;
+    return;
+  }
+  singleChannel = scope;
+  outChannels = &singleChannel;
+  outCount = 1;
+}
+
 namespace {
 
 // Minimal 802.11 header. addr4 (WDS, ToDS&&FromDS) is never present on the frame kinds we care
