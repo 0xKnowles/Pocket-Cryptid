@@ -107,6 +107,24 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **Active deauth confirmed non-functional on this hardware, via real-hardware testing** —
+  `DeauthEngine`'s crash-loop concern is resolved (many bursts fired across a real test session
+  with no crash or DMA-pool circuit-breaker trip), but every single burst's `esp_wifi_80211_tx()`
+  call was rejected by the WiFi driver itself, logging `wifi: unsupport frame type: 0c0` once per
+  frame — matching ESP-IDF's own documented/community-reported behavior: its raw-TX allowlist
+  (beacon/probe request/probe response/action/non-QoS data) hard-codes out deauth specifically, at
+  the driver level, independent of anything this codebase does. `burstsSent()`/`framesTransmitted()`
+  kept counting up normally the whole time despite nothing reaching the air, silently overstating
+  success — `DeauthEngine` now tracks `framesRejectedByDriver()` too, logs a clear warning per
+  rejected burst, and the Export screen's ACTIVE DEAUTH card shows a **Rejected by driver** count
+  alongside the existing attempted/sent ones. The only known way past the driver-level rejection —
+  patching ESP-IDF's precompiled `libnet80211.a` to weaken/override
+  `ieee80211_raw_frame_sanity_check` — is a real, community-used technique, but every example found
+  targets classic ESP32/S2/S3 (Xtensa); this device is an ESP32-C3 (RISC-V, a different toolchain
+  with no confirmed working precedent for this specific patch), and even on the platforms it's
+  most tried on it isn't reliably successful. Not attempted here given that and this project's own
+  prior multi-session dead end from a similarly-scoped precompiled-SDK patch attempt (see the
+  software-AES/`custom_sdkconfig` history further down this file).
 - **`Settings → Active deauth` could keep showing ON after it had actually gone silently
   inactive.** Turning off `Raw handshake capture` correctly disabled the live `DeauthEngine` (it
   refuses to run without something capturing the handshake it forces), but left

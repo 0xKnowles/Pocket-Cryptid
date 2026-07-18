@@ -101,6 +101,7 @@ bool DeauthEngine::sendDeauthBurst(const MacAddress& bssid, uint8_t channel) {
   for (uint8_t i = 0; i < kFramesPerBurst; i++) {
     if (esp_wifi_80211_tx(WIFI_IF_STA, &frame, sizeof(frame), true) != ESP_OK) {
       anyFailed = true;
+      totalFramesRejected++;
     }
     totalFrames++;
     delay(2);
@@ -142,5 +143,13 @@ void DeauthEngine::onObservation(const WifiObservation& obs) {
 
   LOG_INF("DEAUTH", "Deauth burst: %02X:%02X:%02X:%02X:%02X:%02X ch%u", obs.bssid.bytes[0], obs.bssid.bytes[1],
           obs.bssid.bytes[2], obs.bssid.bytes[3], obs.bssid.bytes[4], obs.bssid.bytes[5], obs.channel);
-  sendDeauthBurst(obs.bssid, obs.channel);
+  if (!sendDeauthBurst(obs.bssid, obs.channel)) {
+    // Confirmed via real-hardware testing to be the normal outcome, not an occasional glitch:
+    // stock ESP-IDF's esp_wifi_80211_tx() rejects every deauth-frame-type TX attempt outright
+    // (its own driver logs "wifi: unsupport frame type: 0c0" once per frame) — see
+    // framesRejectedByDriver()'s comment on WifiSniffer.h for why. Logged once per burst here
+    // rather than per-frame, since the driver's own log already fires kFramesPerBurst times.
+    LOG_ERR("DEAUTH", "Burst rejected by driver — frame type 0xC0 (deauth) isn't supported by "
+                       "esp_wifi_80211_tx() on stock ESP-IDF; nothing was actually transmitted");
+  }
 }

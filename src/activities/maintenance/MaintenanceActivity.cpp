@@ -166,6 +166,12 @@ void MaintenanceActivity::render(RenderLock&&) {
     rightY = Chrome::drawStatRow(renderer, rightY, "Bursts attempted", valueBuf, false, rightColX + colWidth, rightColX);
     snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(deauthEngine.framesTransmitted()));
     rightY = Chrome::drawStatRow(renderer, rightY, "Frames sent", valueBuf, false, rightColX + colWidth, rightColX);
+    // Confirmed via real-hardware testing: stock ESP-IDF's esp_wifi_80211_tx() rejects every
+    // deauth-frame-type TX attempt outright (see DeauthEngine::framesRejectedByDriver()'s
+    // comment) — if this equals "Frames sent" above, nothing has actually reached the air despite
+    // every burst/frame counter above incrementing normally.
+    snprintf(valueBuf, sizeof(valueBuf), "%lu", static_cast<unsigned long>(deauthEngine.framesRejectedByDriver()));
+    rightY = Chrome::drawStatRow(renderer, rightY, "Rejected by driver", valueBuf, false, rightColX + colWidth, rightColX);
     endCard(renderer, rightColX, colWidth, cardTop, std::min(rightY, columnBottom));
   }
 

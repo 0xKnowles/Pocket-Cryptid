@@ -24,26 +24,27 @@
 // "beacon/probe request/probe response/action and non-QoS data frame" as supported — deauth
 // (a different management subtype) is not on that list.
 //
-// **Transmit capability: re-enabled, pending real-hardware confirmation.** The first attempt
-// (WifiSniffer bringing the radio up in WIFI_MODE_STA unconditionally, for the whole session)
-// crash-looped real X3 hardware: esp-aes (hardware crypto, needed for EncryptedLog's every write)
-// couldn't allocate its own interrupt and aborted, every single boot. WifiSniffer stayed reverted
-// to WIFI_MODE_NULL as its resting state (see its class comment) — but the actual trigger for
-// that crash looks like it was *ordering*, not concurrency: STA mode came up before
-// EncryptedLog had ever written a record, so the interrupt-hungry STA driver and esp-aes's very
-// first interrupt request collided at the worst possible moment (boot). With WIFI_MODE_NULL as
-// the resting state, esp-aes claims and holds its interrupt during ordinary logging long before
-// any burst can fire, so sendDeauthBurst() now switches to WIFI_MODE_STA only for the duration of
-// one burst (a handful of milliseconds), then immediately reverts to WIFI_MODE_NULL — asking the
-// driver to reconfigure a radio that's already running, not to grab a fresh interrupt at boot.
-// This mirrors what github.com/yattsu/biscuit's WiFi deauther does on the same hardware (STA mode
-// + esp_wifi_80211_tx), with one difference: Biscuit never runs anything like EncryptedLog's
-// always-on background AES logging concurrently with it, so it never had a reason to discover
-// (or avoid) the ordering issue above. **Still needs confirmation on a real device** — this
-// environment can't compile-test interrupt behavior or watch for the DMA-pool fragmentation that
-// repeatedly toggling STA mode over a long session could plausibly cause (the existing
-// heap-health circuit breaker in main.cpp is the safety net if that happens: a silent restart,
-// not a hard crash).
+// **Transmit capability: confirmed NOT functional on stock ESP-IDF, via real-hardware testing.**
+// The transient-WIFI_MODE_STA approach (switching only for the duration of one burst, then
+// immediately reverting to WIFI_MODE_NULL) did fix the earlier crash-loop concern — many bursts
+// fired across a real test session with no crash and no DMA-pool circuit-breaker trip. But every
+// single burst's `esp_wifi_80211_tx()` call was rejected by the WiFi driver itself, which logs
+// "wifi: unsupport frame type: 0c0" once per rejected frame (0x00C0 == kFrameControlDeauth) —
+// confirmed via serial log, and matches ESP-IDF's own documented/community-reported behavior:
+// esp_wifi_80211_tx()'s frame-type allowlist (beacon/probe request/probe response/action/non-QoS
+// data) hard-codes out deauth specifically, at the driver level, regardless of what this class or
+// WifiSniffer's WIFI_MODE_STA sequencing does. See framesRejectedByDriver() — if it equals
+// framesTransmitted(), which is the observed norm rather than an occasional glitch, nothing has
+// actually reached the air despite bursts/frames counting up normally.
+//
+// The only known way past this (used by some community deauther projects) is replacing ESP-IDF's
+// precompiled libnet80211.a with a reverse-engineered patched build that removes the frame-type
+// check — a binary patch to the SDK itself, not an application-level fix, and out of scope here
+// unless a future session takes that on deliberately. Until then, this class still runs (bursts
+// still get attempted, counted, and logged) but should be treated as a no-op for actually forcing
+// a handshake — [Raw handshake capture](#raw-handshake-capture-crackable-pcap-export)'s passive
+// path, optionally with `Settings → WiFi channel scope` locked to a known target's channel, is the
+// only capture path confirmed to actually work on this firmware.
 class DeauthEngine {
  public:
   bool begin();
@@ -62,6 +63,15 @@ class DeauthEngine {
 
   uint32_t burstsSent() const { return totalBursts; }
   uint32_t framesTransmitted() const { return totalFrames; }
+
+  // How many of framesTransmitted()'s attempts esp_wifi_80211_tx() itself rejected outright,
+  // logging "wifi: unsupport frame type: 0c0" — confirmed via real-hardware testing to be every
+  // single one. See this class's own comment above: stock
+  // ESP-IDF's raw-TX path only allows beacon/probe request/probe response/action/non-QoS-data
+  // frames through; deauth (a different management subtype, frame control 0x00C0) isn't on that
+  // allowlist and gets rejected at the driver level before it ever reaches the air, regardless of
+  // what this class does. If this equals framesTransmitted(), nothing has actually transmitted.
+  uint32_t framesRejectedByDriver() const { return totalFramesRejected; }
 
  private:
   // Minimum gap between deauth bursts aimed at the same BSSID — keeps this from hammering one
@@ -92,6 +102,7 @@ class DeauthEngine {
   bool enabled = false;
   uint32_t totalBursts = 0;
   uint32_t totalFrames = 0;
+  uint32_t totalFramesRejected = 0;
   BssidTrack trackers[kTrackCapacity] = {};
 };
 

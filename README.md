@@ -49,7 +49,7 @@ mood faces than to a pet that eats XP to level up.
 - **Opt-in, off by default:** raw plaintext `.pcap` handshake export for offline auditing with
   hashcat/`hcxpcapngtool` (with on-device PMKID-capable-capture visibility), and an active-deauth
   capability gated by a two-list whitelist/blacklist system — see
-  [Active deauth](#active-deauth) for its current real-hardware confirmation status.
+  [Active deauth](#active-deauth) for why it's currently confirmed non-functional on this hardware.
 - **On-device management:** a live network-scan picker to build the whitelist/blacklist without a
   PC, a Power-button action you can set to Screenshot/Pause/Refresh, and a Settings screen for
   every capture toggle.
@@ -235,21 +235,28 @@ its transmit capability.
 
 ## Active deauth
 
-> **Status: transmit capability re-enabled, pending real-hardware confirmation.** The first
-> attempt at this (bringing the whole session up in `WIFI_MODE_STA` to get a TX-capable interface)
-> crashed the device on every boot on real X3 hardware — see [CHANGELOG](CHANGELOG.md) for the
-> root cause. `DeauthEngine` now switches to `WIFI_MODE_STA` only for the duration of a single
-> burst, then immediately reverts — a targeted fix for what looks like an interrupt-allocation
-> *ordering* problem rather than a fundamental incompatibility. **This has not yet been verified
-> on a physical device in this state** — treat it as untested until confirmed, and watch for the
-> same symptoms as before (repeated silent restarts, or a hard crash) the first time you test it.
-> If enabled, it **will attempt to actually transmit** — this is not a simulation.
+> **Status: confirmed NOT functional on this hardware, via real-hardware testing.** The
+> transient-`WIFI_MODE_STA` approach did fix the earlier crash-loop (many bursts fired across a
+> real session with no crash). But every burst's `esp_wifi_80211_tx()` call was rejected by the
+> WiFi driver itself — it logs `wifi: unsupport frame type: 0c0` once per rejected frame — matching
+> ESP-IDF's own documented behavior: its raw-TX allowlist (beacon/probe request/probe
+> response/action/non-QoS data) hard-codes out deauth specifically, at the driver level. Bursts
+> still get attempted, counted, and logged (see `Settings → Active deauth`/Export's ACTIVE DEAUTH
+> card, which shows a **Rejected by driver** count), but nothing actually reaches the air. The only
+> known way past this — patching ESP-IDF's precompiled `libnet80211.a` to weaken/override
+> `ieee80211_raw_frame_sanity_check` — is a real, community-used technique, but every example found
+> targets classic ESP32/S2/S3 (Xtensa); this device is an **ESP32-C3 (RISC-V)**, a different
+> toolchain with no confirmed working precedent, and even on the platforms it's most tried on it
+> isn't reliable. Not attempted here as a result — passive capture (below), optionally with
+> `Settings → WiFi channel scope` locked to a known target's channel, is the only capture path
+> confirmed to actually work on this firmware.
 
 Passive capture alone often isn't enough to actually catch a handshake — a real 4-way handshake
 completes in well under a second, and the radio has to already be parked on the right channel
-when it happens. **Active deauth** closes that gap by transmitting real 802.11 deauthentication
-frames at a target network, forcing a client to reconnect so the resulting handshake lands in raw
-capture above instead of waiting — often in vain — for one to happen on its own.
+when it happens. **Active deauth** is meant to close that gap by transmitting real 802.11
+deauthentication frames at a target network, forcing a client to reconnect so the resulting
+handshake lands in raw capture above instead of waiting — often in vain — for one to happen on its
+own. On this hardware, per the status above, it doesn't currently manage to transmit anything.
 
 - **Off by default**, and requires raw handshake capture to also be on — forcing a handshake
   nobody's capturing verbatim would just be disruption for nothing. Turn it on at
@@ -267,17 +274,18 @@ capture above instead of waiting — often in vain — for one to happen on its 
     the SD card out — entries live under `[whitelist]`/`[blacklist]` section headers.
 - Each targeted BSSID gets a short burst of deauth frames, then a 30-second cooldown before it's
   attacked again, and attacks stop entirely for a BSSID once its handshake has been captured —
-  this isn't meant to be a sustained flood against any one network.
+  this isn't meant to be a sustained flood against any one network. (Currently moot on this
+  hardware per the status above — no frame actually transmits regardless of cooldown/targeting.)
 - Frame transmission uses `esp_wifi_80211_tx()`, the same raw-TX primitive most community ESP32
-  deauther projects use. It works in practice on hardware that can support it, but deauth frames
-  aren't among the types ESP-IDF's own documentation calls "supported" for that function — this
-  is a widely-used technique, not an officially documented one.
+  deauther projects use, but ESP-IDF's own driver rejects the deauth frame type outright before it
+  ever reaches the air — see the status note above.
 
-**This is real RF interference against whatever it targets.** Transmitting deauthentication
-frames at a network you don't own or don't have explicit authorization to test is illegal in most
-jurisdictions, regardless of how small the transmitting device is. Only enable this against
-networks you own or are explicitly authorized to audit — the both-lists-empty default exists so
-that flipping the setting on can never itself put you outside that boundary; you have to
+**Treat this as real RF interference against whatever it targets, should the underlying driver
+restriction ever get lifted (by this project or a future ESP-IDF release).** Transmitting
+deauthentication frames at a network you don't own or don't have explicit authorization to test is
+illegal in most jurisdictions, regardless of how small the transmitting device is. Only enable
+this against networks you own or are explicitly authorized to audit — the both-lists-empty default
+exists so that flipping the setting on can never itself put you outside that boundary; you have to
 deliberately add a target first.
 
 ## Vendor OUI lookup
