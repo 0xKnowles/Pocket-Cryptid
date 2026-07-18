@@ -24,10 +24,10 @@ class RubySpriteRenderer {
   // Draws into a boxSize x boxSize square with top-left at (x, y). animFrame cycles the jitter
   // and eye state (2 frames is enough for a believable "breathing"/blink loop at a slow tick).
   // level (1-5) shows as a small badge next to the name chip — ignored when expression is
-  // SLEEPING, since the chip itself doesn't draw then either. A mood/reaction bubble is drawn in
-  // the box's top-right corner (mirroring the name chip's top-left placement), also skipped while
-  // SLEEPING: reactionText nullptr (the default) shows the ambient thought bubble for the current
-  // expression (see RubyThoughts::thoughtFor); passing a non-null one-shot event reaction (e.g.
+  // SLEEPING, since the chip itself doesn't draw then either. A mood/reaction bubble runs along
+  // the box's bottom edge, clear of both the name chip up top and the face in the middle, also
+  // skipped while SLEEPING: reactionText nullptr (the default) shows the ambient thought bubble
+  // for the current expression (see RubyThoughts::thoughtFor); passing a non-null one-shot event reaction (e.g.
   // RubyThoughts::speechForHandshake) shows that as a speech bubble instead for as long as the
   // caller keeps passing it.
   static void draw(GfxRenderer& renderer, int x, int y, int boxSize, RubyExpression expression,

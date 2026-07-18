@@ -292,11 +292,13 @@ void drawNameChip(const GfxRenderer& renderer, int x, int y, uint8_t level) {
   renderer.drawText(FONT_SMALL_ID, badgeX + kChipPadX + 1, chipY + kChipPadY, levelBuf, true);
 }
 
-// Mood/reaction bubble, anchored to the box's top-right corner — the mirror image of
-// drawNameChip's top-left placement above. Sized narrower than the box so it never collides with
-// the name chip + level badge occupying the top-left strip. tailX/tailY point at roughly eye
-// level, near the box's horizontal center, so the bubble visibly "belongs" to Ruby regardless of
-// which expression/art is showing underneath.
+// Mood/reaction bubble, run along the bottom of the box rather than tucked in a corner — clear of
+// the name chip + level badge up top, and clear of Ruby's own face/eyes in the middle, wherever
+// the art happens to place them. Reserves the box's worst-case (2-line) height so the bubble sits
+// flush against the box's bottom edge regardless of how many lines this particular quip actually
+// needs. tailX/tailY point at roughly the box's vertical center — close enough to the bubble that
+// the tail reads as a short connector, not a spike running the length of the box — so it visibly
+// "belongs" to Ruby regardless of which expression/art is showing underneath.
 void drawBubble(const GfxRenderer& renderer, int x, int y, int boxSize, const char* reactionText,
                 RubyExpression expression) {
   const char* thought = RubyThoughts::thoughtFor(expression);
@@ -305,16 +307,17 @@ void drawBubble(const GfxRenderer& renderer, int x, int y, int boxSize, const ch
   if (!text || !text[0]) return;
 
   constexpr int kBubbleInset = 5;
-  constexpr int kBubbleWidth = 125;
-  const int bubbleX = x + boxSize - kBubbleWidth - kBubbleInset;
-  const int bubbleY = y + kBubbleInset;
+  const int bubbleWidth = boxSize - kBubbleInset * 2;
+  const int maxBubbleHeight = Chrome::kBubblePadY * 2 + renderer.getLineHeight(FONT_SMALL_ID) * Chrome::kBubbleMaxLines;
+  const int bubbleX = x + kBubbleInset;
+  const int bubbleY = y + boxSize - kBubbleInset - maxBubbleHeight;
   const int tailX = x + boxSize / 2;
-  const int tailY = y + boxSize / 3;
+  const int tailY = y + boxSize / 2;
 
   if (isReaction) {
-    Chrome::drawSpeechBubble(renderer, bubbleX, bubbleY, kBubbleWidth, tailX, tailY, text);
+    Chrome::drawSpeechBubble(renderer, bubbleX, bubbleY, bubbleWidth, tailX, tailY, text);
   } else {
-    Chrome::drawThoughtBubble(renderer, bubbleX, bubbleY, kBubbleWidth, tailX, tailY, text);
+    Chrome::drawThoughtBubble(renderer, bubbleX, bubbleY, bubbleWidth, tailX, tailY, text);
   }
 }
 

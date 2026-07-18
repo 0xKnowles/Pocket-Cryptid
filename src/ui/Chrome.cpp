@@ -182,8 +182,6 @@ void drawSignalBars(const GfxRenderer& renderer, int x, int y, int8_t rssi) {
 
 namespace {
 constexpr int kBubblePadX = 6;
-constexpr int kBubblePadY = 4;
-constexpr int kBubbleMaxLines = 2;
 constexpr int kBubbleRadius = 8;
 
 // Wraps text, sizes a box tightly around however many lines that actually took (1 or 2, never a
@@ -207,22 +205,24 @@ int drawBubbleBox(const GfxRenderer& renderer, int x, int y, int width, const ch
 
 void drawSpeechBubble(const GfxRenderer& renderer, int x, int y, int width, int tailX, int tailY, const char* text) {
   const int height = drawBubbleBox(renderer, x, y, width, text);
-  // Small solid triangle bridging the box's bottom edge to the tail point, drawn last so it isn't
-  // cut off by the box's own outline.
+  // Small solid triangle bridging whichever of the box's top/bottom edges sits closer to the tail
+  // point (so this works whether the bubble is anchored above or below its target), drawn last so
+  // it isn't cut off by the box's own outline.
+  const int edgeY = (tailY < y + height / 2) ? y : y + height;
   const int baseX = x + width / 4;
   const int xs[3] = {baseX, baseX + 14, tailX};
-  const int ys[3] = {y + height, y + height, tailY};
+  const int ys[3] = {edgeY, edgeY, tailY};
   renderer.fillPolygon(xs, ys, 3, true);
 }
 
 void drawThoughtBubble(const GfxRenderer& renderer, int x, int y, int width, int tailX, int tailY, const char* text) {
   const int height = drawBubbleBox(renderer, x, y, width, text);
+  const int edgeY = (tailY < y + height / 2) ? y : y + height;
   const int baseX = x + width / 4;
-  const int baseY = y + height;
   const int dot1X = baseX + (tailX - baseX) / 3;
-  const int dot1Y = baseY + (tailY - baseY) / 3;
+  const int dot1Y = edgeY + (tailY - edgeY) / 3;
   const int dot2X = baseX + (tailX - baseX) * 2 / 3;
-  const int dot2Y = baseY + (tailY - baseY) * 2 / 3;
+  const int dot2Y = edgeY + (tailY - edgeY) * 2 / 3;
   renderer.fillRect(dot1X - 3, dot1Y - 3, 6, 6, true);
   renderer.fillRect(dot2X - 2, dot2Y - 2, 4, 4, true);
 }

@@ -164,21 +164,24 @@ All notable changes to this project are documented here. Format loosely follows
   here is a frame Ruby actually heard) below -70 dBm. Hand-drawn with plain filled rectangles
   rather than a font glyph, since Space Mono has no signal-bar character.
 - **Dashboard's RECENT DEVICES card reworked: fewer entries, more per entry, plus a new SIGNAL
-  HISTORY chart beside it.** The card is narrower now (half its old width) and shows each entry
+  HISTORY card beside it.** The card is narrower now (half its old width) and shows each entry
   across a full 3 lines — type/MAC, signal bars + RSSI + time-ago, and the device's name (falling
   back to a vendor-OUI lookup, same as Device Log) — rather than 2 lines with more entries crammed
-  in. The other half of the row that opens up is a new live strip chart plotting the same
-  `RecentSightings` ring buffer's RSSI history as a bar per observation, oldest on the left, newest
-  always anchored to the right edge, giving signal strength an actual at-a-glance visual instead of
-  only the per-entry dBm figure.
+  in. The other half of the row that opens up is SIGNAL HISTORY: two aligned tracks sharing the
+  same 16-slot timeline (oldest on the left, newest anchored to the right) from the same
+  `RecentSightings` ring buffer — a HANDSHAKES track on top (a full-height spike marking any slot
+  whose sighting was a captured handshake, blank otherwise) and a SIGNAL track below it (the RSSI
+  history as a bar per observation) — stacked instead of one chart alone with a lot of otherwise
+  idle vertical room.
 - **Ruby thinks and talks now** (`RubyThoughts.h`, `Chrome::drawThoughtBubble()`/`drawSpeechBubble()`).
-  A comic-style thought bubble sits in the top-right corner of her box (mirroring the RUBY name
-  chip's top-left placement), showing a quirky, hacker-flavored one-liner tied to her current mood
-  — "ooh, what's this OUI?" while CURIOUS, "no bytes... send help" while BORED, and so on — updating
-  on the same ~1.2s cadence as her expression itself. A pointed speech bubble briefly takes over
-  instead for a few seconds whenever something actually happens: a new AP/client/BLE device spotted,
-  a handshake captured, a level up, or a nearby deauth alert — each with 9 possible reactions to pick
-  from (tripled from the original 3) so it isn't the exact same line every time.
+  A comic-style bubble runs along the bottom edge of her box, tailing up into her face — clear of
+  both the name chip up top and her eyes in the middle — showing a quirky, hacker-flavored one-liner
+  tied to her current mood — "ooh, what's this OUI?" while CURIOUS, "no bytes... send help" while
+  BORED, and so on — updating on the same ~1.2s cadence as her expression itself. A pointed speech
+  bubble briefly takes over instead for a few seconds whenever something actually happens: a new
+  AP/client/BLE device spotted, a handshake captured, a level up, or a nearby deauth alert — each
+  with 9 possible reactions to pick from (tripled from the original 3) so it isn't the exact same
+  line every time.
 
 ### Fixed
 

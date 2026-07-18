@@ -73,14 +73,24 @@ void drawSignalBars(const GfxRenderer& renderer, int x, int y, int8_t rssi);
 
 // Bubble chrome for Ruby's mood/reaction callouts (see RubySpriteRenderer.h) — a white-filled,
 // black-outlined rounded box (so it stays legible over whatever's underneath: bitmap art, the
-// procedural silhouette, or its static noise) sized to fit up to 2 wrapped lines of FONT_SMALL_ID
-// text, at (x, y). (tailX, tailY) is a point on Ruby's own face the bubble visibly "belongs" to,
-// regardless of exactly where it's anchored. Speech gets a solid triangular pointer (the classic
-// "I'm saying this" convention, used for one-shot event reactions); thought gets two shrinking
-// trailing dots instead (the classic "I'm thinking this" convention, used for the ambient
-// mood-driven quip) — same box chrome either way, only the tail differs.
+// procedural silhouette, or its static noise) sized to fit up to kBubbleMaxLines wrapped lines of
+// FONT_SMALL_ID text, at (x, y). (tailX, tailY) is a point on Ruby's own face the bubble visibly
+// "belongs" to, regardless of exactly where it's anchored — the tail/dots sprout from whichever of
+// the box's top or bottom edges sits closer to that point, so the same call works whether the
+// bubble is anchored above or below the target (e.g. a bubble sitting near the bottom of Ruby's
+// box, tailing up into her face, vs. one near the top, tailing down). Speech gets a solid
+// triangular pointer (the classic "I'm saying this" convention, used for one-shot event
+// reactions); thought gets two shrinking trailing dots instead (the classic "I'm thinking this"
+// convention, used for the ambient mood-driven quip) — same box chrome either way, only the tail
+// differs.
 void drawSpeechBubble(const GfxRenderer& renderer, int x, int y, int width, int tailX, int tailY, const char* text);
 void drawThoughtBubble(const GfxRenderer& renderer, int x, int y, int width, int tailX, int tailY, const char* text);
+
+// Exposed so callers can reserve the box's worst-case (2-line) height before drawing, when they
+// need to anchor the bubble's position by its bottom edge (e.g. flush against the bottom of a
+// container) rather than its top-left corner.
+constexpr int kBubblePadY = 4;
+constexpr int kBubbleMaxLines = 2;
 
 int contentTop();     // y just below the header
 int contentBottom(const GfxRenderer& renderer);  // y just above the footer

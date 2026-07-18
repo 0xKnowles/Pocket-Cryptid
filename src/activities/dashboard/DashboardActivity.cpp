@@ -149,6 +149,29 @@ void drawExpBar(const GfxRenderer& renderer, int x, int y, int width, int height
   }
 }
 
+// Handshake-activity visualizer sharing the exact same 16-slot timeline as drawSignalHistoryChart
+// below it (oldest on the left, newest anchored to the right), so the two read as one aligned
+// two-track strip rather than unrelated charts. This is about *whether* a slot's sighting was a
+// WifiHandshake frame, not a continuous quantity like RSSI, so a full-height spike marks a hit and
+// everything else is left blank — the rarest, biggest-deal observation this device makes gets the
+// most visually blunt treatment.
+void drawHandshakeVisualizer(const GfxRenderer& renderer, int x, int y, int width, int height) {
+  constexpr int kBarGap = 2;
+  const size_t capacity = RecentSightings::kCapacity;
+  const size_t liveCount = recentSightings.count();
+  const int barWidth =
+      std::max(1, (width - kBarGap * static_cast<int>(capacity - 1)) / static_cast<int>(capacity));
+
+  for (size_t slot = 0; slot < capacity; slot++) {
+    const size_t indexFromNewest = capacity - 1 - slot;
+    if (indexFromNewest >= liveCount) continue;  // ring not full yet -- leave this slot blank
+    const auto& entry = recentSightings.at(indexFromNewest);
+    if (entry.type != LogRecordType::WifiHandshake) continue;  // only handshakes get a spike
+    const int barX = x + static_cast<int>(slot) * (barWidth + kBarGap);
+    renderer.fillRect(barX, y, barWidth, height, true);
+  }
+}
+
 // Live strip chart of RecentSightings' RSSI history — one bar per ring-buffer slot, oldest on the
 // left, newest always anchored to the right edge (a slot with no sighting yet, when the ring isn't
 // full, is just left blank rather than shifting everything right). Unlike Chrome::drawSignalBars'
@@ -437,7 +460,23 @@ void DashboardActivity::renderFull() {
   endStatCard(renderer, deviceColX, devicesWidth, cardTop, deviceRowsBottom);
 
   const int chartTop = beginStatCard(renderer, chartX, chartWidth, cardTop, "SIGNAL HISTORY");
-  drawSignalHistoryChart(renderer, chartX, chartTop, chartWidth, deviceRowsBottom - chartTop);
+  // Two aligned tracks sharing the same 16-slot timeline, stacked rather than one chart alone in
+  // the card (RSSI by itself rarely needs the whole card's height to read clearly, leaving a lot
+  // of otherwise-idle space). Small captions tell the two apart since their shapes — a full-height
+  // spike vs. a variable-height bar — aren't self-explanatory the way SIGNAL HISTORY's single
+  // chart was.
+  constexpr int kSubGap = 4;
+  const int subLabelHeight = renderer.getLineHeight(FONT_SMALL_ID);
+  const int trackHeight = (deviceRowsBottom - chartTop - kSubGap) / 2;
+
+  drawBoldSmall(renderer, chartX, chartTop, "HANDSHAKES");
+  const int handshakeGraphY = chartTop + subLabelHeight;
+  drawHandshakeVisualizer(renderer, chartX, handshakeGraphY, chartWidth, trackHeight - subLabelHeight);
+
+  const int signalLabelY = chartTop + trackHeight + kSubGap;
+  drawBoldSmall(renderer, chartX, signalLabelY, "SIGNAL");
+  const int signalGraphY = signalLabelY + subLabelHeight;
+  drawSignalHistoryChart(renderer, chartX, signalGraphY, chartWidth, deviceRowsBottom - signalGraphY);
   endStatCard(renderer, chartX, chartWidth, cardTop, deviceRowsBottom);
 
   // Mood text sits under the box, centered within the box's own column (not the whole screen —
