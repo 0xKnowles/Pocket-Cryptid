@@ -87,12 +87,26 @@ constexpr unsigned long POWER_LONG_PRESS_MS = 1200;
 }  // namespace
 
 RTC_NOINIT_ATTR uint32_t silentRebootMagic;
+// Counts consecutive silent restarts (see silentRestart() below) — survives ESP.restart() the
+// same way silentRebootMagic does. Real hardware testing found a case where BLE passive scan
+// starting at boot fragmented the DMA-capable pool down below HEAP_DMA_LARGEST_BLOCK_MIN
+// immediately, every single boot — the circuit breaker below correctly detected that and
+// restarted, but since the exact same fragmentation reproduced identically on the very next boot,
+// the device was stuck silently restarting every ~1 second forever, which looks and feels exactly
+// like a hang from the outside. This counter is how setup() notices "restarting alone isn't fixing
+// this" and forces the likely-guilty settings off instead of trying the same thing again.
+RTC_NOINIT_ATTR uint32_t silentRebootCount;
+// Loops of 3 consecutive silent restarts within the same boot chain are treated as unrecoverable
+// by restarting alone — see the crash-loop guard in setup().
+constexpr uint32_t kMaxConsecutiveSilentReboots = 3;
 static unsigned long allowSleepAt = 0;
 static unsigned long bootMillis = 0;
 
 void silentRestart() {
   silentRebootMagic = SILENT_REBOOT_MAGIC;
-  LOG_DBG("MAIN", "Silent restart (heap defrag)");
+  silentRebootCount++;
+  LOG_DBG("MAIN", "Silent restart (heap defrag), consecutive count now %u",
+         static_cast<unsigned>(silentRebootCount));
   delay(50);
   ESP.restart();
 }
@@ -193,6 +207,12 @@ void setup() {
 
   const bool isSilentReboot = (silentRebootMagic == SILENT_REBOOT_MAGIC);
   silentRebootMagic = 0;
+  if (!isSilentReboot) {
+    // A real power-on/wake, not a link in a silentRestart() chain — start the consecutive-count
+    // fresh rather than trust whatever RTC_NOINIT_ATTR happened to retain (undefined on true
+    // power-on; stale but harmless on a deep-sleep wake, which also isn't a silent reboot).
+    silentRebootCount = 0;
+  }
 
   gpio.begin();
   powerManager.begin();
@@ -235,6 +255,24 @@ void setup() {
   APP_STATE.bootCount++;
   APP_STATE.saveToFile();
 
+  // Crash-loop guard: restarting alone hasn't broken whatever's causing repeated silent restarts
+  // (most plausibly BLE passive scan's controller/host buffers fragmenting the same DMA-capable
+  // pool EncryptedLog's hardware AES needs — see silentRebootCount's comment above — reproducing
+  // identically on every boot). Force the DMA-hungry opt-ins off and fall through to a normal,
+  // visible boot screen instead of the silent-restart splash-skip, so recovery is visible rather
+  // than looking like the device is still just hanging.
+  bool skipBootSplash = isSilentReboot;
+  if (isSilentReboot && silentRebootCount >= kMaxConsecutiveSilentReboots) {
+    LOG_ERR("MAIN", "%u consecutive silent restarts — disabling BLE/raw capture/active deauth to break the loop",
+           static_cast<unsigned>(silentRebootCount));
+    SETTINGS.bleSniffEnabled = false;
+    SETTINGS.rawHandshakeCaptureEnabled = false;
+    SETTINGS.activeDeauthEnabled = false;
+    SETTINGS.saveToFile();
+    silentRebootCount = 0;
+    skipBootSplash = false;
+  }
+
   // Bridge the X3's battery-backed DS3231 RTC into POSIX time so log timestamps are real
   // calendar time out of the box. X4 has no RTC chip — its clock stays unset (and log records
   // fall back to boot-relative timestamps, see EncryptedLog) unless a future settings screen
@@ -264,7 +302,7 @@ void setup() {
 
   setupDisplayAndFonts();
 
-  if (!isSilentReboot) {
+  if (!skipBootSplash) {
     activityManager.goToBoot();
   }
 

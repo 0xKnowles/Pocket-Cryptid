@@ -92,6 +92,22 @@ bool SignalCatalog::observeBle(const BleObservation& obs) {
   return false;
 }
 
+void SignalCatalog::resetStats() {
+  stats = Stats{};
+  apRing = HashRing<kApCapacity>{};
+  clientRing = HashRing<kClientCapacity>{};
+  bleRing = HashRing<kBleCapacity>{};
+  for (auto& tracker : handshakeTrackers) tracker = HandshakeTracker{};
+
+  if (saveToFile()) {
+    dirty = false;
+    lastSaveMs = millis();
+    LOG_INF("SIGCAT", "Signal stats reset");
+  } else {
+    LOG_ERR("SIGCAT", "Failed to persist signal stats reset");
+  }
+}
+
 void SignalCatalog::tick() {
   if (!dirty) return;
   const unsigned long now = millis();

@@ -7,6 +7,23 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
+- **Crash-loop guard for repeated silent restarts** (`silentRebootCount`, `main.cpp`). Real-hardware
+  testing found BLE passive scan fragmenting the DMA-capable memory pool `EncryptedLog`'s hardware
+  AES needs badly enough, immediately at boot, to trip the existing DMA-pool circuit breaker within
+  under a second — every single boot, identically, forever. Restarting alone never fixed it, so the
+  device sat in an endless ~1-second restart loop that looked and felt exactly like a hang. Now
+  counts consecutive silent restarts across a `RTC_NOINIT_ATTR` boot chain, and after 3 in a row,
+  force-disables BLE passive scan, raw handshake capture, and active deauth, persists that, resets
+  the count, and falls through to a normal (not silent-restart-skipped) boot screen — so the device
+  recovers into a working, capturing state instead of looping forever, and it's visible that a
+  recovery happened rather than looking like it's still just hanging.
+- **`Settings → Reset signal stats`** (`SignalCatalog::resetStats()`) — zeroes the Dashboard's
+  SIGNALS card (unique AP/client/BLE counts, handshakes captured) and clears the dedup rings behind
+  them, so a MAC already seen before the reset can register as "new" again afterward rather than
+  being silently ignored forever. Same arm-then-confirm-within-5-seconds pattern as `Wipe encrypted
+  log`, as an independent action — arming one doesn't arm the other. Persists immediately rather
+  than waiting for the usual debounced save. Doesn't touch the encrypted log or raw captures, only
+  the dashboard counters.
 - **Vendor OUI lookup** (`lookupVendorOui`, optional `/.ruby/oui.txt` on the SD card) — an entry
   formatted like IEEE's own public OUI registry export or Wireshark's `manuf` file (one
   `AABBCC<TAB>Vendor Name` per line). No database ships in firmware; costs nothing when the file
@@ -80,6 +97,15 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **BLE passive scan enabling itself caused an endless ~1-second restart loop, presenting as a full
+  system hang.** Root-caused via real-hardware serial log after the fix above wasn't enough on its
+  own: BLE's controller/host buffers fragment the same DMA-capable pool `EncryptedLog`'s hardware
+  AES needs down to ~3-4 KB immediately at boot (below `HEAP_DMA_LARGEST_BLOCK_MIN`), which
+  correctly trips the existing DMA-pool circuit breaker (see `main.cpp`) — but since the exact same
+  fragmentation reproduces identically on the very next boot, the device silently restarted forever
+  instead of recovering. `bleSniffEnabled` now defaults to `false` (previously `true`, auto-starting
+  on every boot) so this risky path never runs without deliberate opt-in, and the new crash-loop
+  guard (see "Added", above) breaks the cycle even for a user who does opt in.
 - **BLE passive scan silently failing to start when toggled on, with no indication anywhere why.**
   `NimBLEDevice::init()` returns `void` and can fail internally (confirmed via real-hardware serial
   log: `esp_bt_controller_init()` unable to claim its memory pool — free heap was down to ~19 KB,

@@ -48,6 +48,13 @@ class SignalCatalog : public PersistableStore<SignalCatalog> {
   const Stats& getStats() const { return stats; }
   void setNewUniqueCallback(NewUniqueCallback cb) { onNewUnique = std::move(cb); }
 
+  // Zeroes the lifetime counters (Dashboard's SIGNALS card) and clears the dedup rings/handshake
+  // trackers that back them — a counter-only reset without also clearing the rings would leave
+  // every already-seen MAC unable to register as "new" again, permanently undercounting from that
+  // point on. Saves immediately rather than waiting for tick()'s debounce, since this is a
+  // deliberate one-off action, not a high-frequency mutation.
+  void resetStats();
+
   // Debounced persistence — call periodically (e.g. once per second) from the main loop. Only
   // actually writes to SD when the counters have changed and kSaveIntervalMs has elapsed, so a
   // busy RF environment doesn't turn into a write-every-loop-iteration problem.

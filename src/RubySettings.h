@@ -19,7 +19,14 @@ class RubySettings : public PersistableStore<RubySettings> {
 
  public:
   bool wifiSniffEnabled = true;
-  bool bleSniffEnabled = true;
+
+  // Off by default, unlike wifiSniffEnabled above — real-hardware testing (serial log) found this
+  // radio fragmenting the DMA-capable pool EncryptedLog's hardware AES needs badly enough,
+  // immediately at boot, to trip the DMA-pool circuit breaker (main.cpp) on every single boot —
+  // an endless ~1-second restart loop that looks and feels exactly like a hang. A crash-loop guard
+  // now forces this back off automatically after 3 consecutive silent restarts, but this radio
+  // should still never start on its own; only a deliberate opt-in in Settings should risk it.
+  bool bleSniffEnabled = false;
 
   // Off by default: captures verbatim WPA handshake bytes (ANonce/SNonce/MIC included) to a
   // plaintext .pcap on SD for offline auditing with hashcat/hcxpcapngtool, instead of the

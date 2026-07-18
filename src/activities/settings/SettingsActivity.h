@@ -28,12 +28,18 @@ class SettingsActivity final : public Activity {
     RowBlacklist,
     RowRevealKey,
     RowWipeLog,
+    RowResetStats,
     RowCount,
   };
 
   int selected = 0;
   bool wipeArmed = false;
   unsigned long wipeArmedUntilMs = 0;
+  // Separate arm state from wipeArmed above — these are two independent destructive actions, and
+  // sharing one flag would make both rows show "confirm?" simultaneously whenever either was
+  // armed.
+  bool statsResetArmed = false;
+  unsigned long statsResetArmedUntilMs = 0;
   bool showingKey = false;
   char revealedKeyHex[65] = {};
 

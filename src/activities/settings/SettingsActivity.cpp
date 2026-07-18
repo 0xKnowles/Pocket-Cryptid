@@ -12,6 +12,7 @@
 #include "DeauthEngine.h"
 #include "EncryptedLog.h"
 #include "RubySettings.h"
+#include "SignalCatalog.h"
 #include "TargetList.h"
 #include "WifiSniffer.h"
 #include "activities/targets/TargetPickerActivity.h"
@@ -44,12 +45,14 @@ void SettingsActivity::onEnter() {
   Activity::onEnter();
   selected = 0;
   wipeArmed = false;
+  statsResetArmed = false;
   showingKey = false;
   requestUpdate();
 }
 
 void SettingsActivity::adjustSelected(int direction) {
   wipeArmed = false;
+  statsResetArmed = false;
   showingKey = false;
 
   switch (selected) {
@@ -131,6 +134,7 @@ void SettingsActivity::activateSelected() {
     case RowRevealKey:
       showingKey = encryptedLog.revealDecryptionKeyHex(revealedKeyHex, sizeof(revealedKeyHex));
       wipeArmed = false;
+      statsResetArmed = false;
       requestUpdate();
       return;
     case RowWipeLog:
@@ -141,6 +145,19 @@ void SettingsActivity::activateSelected() {
         wipeArmed = true;
         wipeArmedUntilMs = millis() + kWipeArmWindowMs;
       }
+      statsResetArmed = false;
+      showingKey = false;
+      requestUpdate();
+      return;
+    case RowResetStats:
+      if (statsResetArmed && millis() < statsResetArmedUntilMs) {
+        SIGNAL_CATALOG.resetStats();
+        statsResetArmed = false;
+      } else {
+        statsResetArmed = true;
+        statsResetArmedUntilMs = millis() + kWipeArmWindowMs;
+      }
+      wipeArmed = false;
       showingKey = false;
       requestUpdate();
       return;
@@ -154,6 +171,10 @@ void SettingsActivity::loop() {
     wipeArmed = false;
     requestUpdate();
   }
+  if (statsResetArmed && millis() >= statsResetArmedUntilMs) {
+    statsResetArmed = false;
+    requestUpdate();
+  }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     onGoHome();
@@ -163,6 +184,7 @@ void SettingsActivity::loop() {
     selected = (selected - 1 + RowCount) % RowCount;
     showingKey = false;
     wipeArmed = false;
+    statsResetArmed = false;
     requestUpdate();
     return;
   }
@@ -170,6 +192,7 @@ void SettingsActivity::loop() {
     selected = (selected + 1) % RowCount;
     showingKey = false;
     wipeArmed = false;
+    statsResetArmed = false;
     requestUpdate();
     return;
   }
@@ -243,6 +266,8 @@ void SettingsActivity::render(RenderLock&&) {
   drawRow(RowRevealKey, "Reveal log key", "show >");
   y += kRowHeight;
   drawRow(RowWipeLog, "Wipe encrypted log", wipeArmed ? "confirm?" : "erase >");
+  y += kRowHeight;
+  drawRow(RowResetStats, "Reset signal stats", statsResetArmed ? "confirm?" : "reset >");
   y += kRowHeight + 8;
 
   if (showingKey) {
@@ -265,6 +290,24 @@ void SettingsActivity::render(RenderLock&&) {
   } else if (wipeArmed) {
     renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y,
                       "Press Confirm again to permanently erase the log and its key.", true, EpdFontFamily::BOLD);
+  } else if (statsResetArmed) {
+    renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y,
+                      "Press Confirm again to zero the SIGNALS counts and forget every device seen so far.", true,
+                      EpdFontFamily::BOLD);
+  } else if (selected == RowBleEnabled) {
+    const auto lines = renderer.wrappedText(
+        FONT_SMALL_ID,
+        "Off by default: this radio has fragmented this device's memory badly enough to trigger "
+        "repeated silent restarts that look like a hang. 3 restarts in a row now force this (and "
+        "raw capture/active deauth) back off automatically. FAILED means NimBLE itself couldn't "
+        "initialize; ON means it's actually scanning. Enable with caution.",
+        Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
+    const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
+    for (const auto& line : lines) {
+      if (y + lineHeight > Chrome::contentBottom(renderer)) break;  // hard stop — never draw past the screen's floor
+      renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
+      y += lineHeight;
+    }
   } else if (selected == RowPowerShortPress) {
     const auto lines = renderer.wrappedText(
         FONT_SMALL_ID,
@@ -274,6 +317,7 @@ void SettingsActivity::render(RenderLock&&) {
         Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (const auto& line : lines) {
+      if (y + lineHeight > Chrome::contentBottom(renderer)) break;  // hard stop — never draw past the screen's floor
       renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
       y += lineHeight;
     }
@@ -286,6 +330,7 @@ void SettingsActivity::render(RenderLock&&) {
         Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (const auto& line : lines) {
+      if (y + lineHeight > Chrome::contentBottom(renderer)) break;  // hard stop — never draw past the screen's floor
       renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
       y += lineHeight;
     }
@@ -299,6 +344,7 @@ void SettingsActivity::render(RenderLock&&) {
         Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (const auto& line : lines) {
+      if (y + lineHeight > Chrome::contentBottom(renderer)) break;  // hard stop — never draw past the screen's floor
       renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
       y += lineHeight;
     }
@@ -311,6 +357,7 @@ void SettingsActivity::render(RenderLock&&) {
         Chrome::contentRight(renderer) - Chrome::contentLeft(), 8);
     const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
     for (const auto& line : lines) {
+      if (y + lineHeight > Chrome::contentBottom(renderer)) break;  // hard stop — never draw past the screen's floor
       renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, line.c_str());
       y += lineHeight;
     }

@@ -158,13 +158,14 @@ When the device is asleep, it shows a different, much larger piece of art instea
   `DeauthEngine` too since that only ever fires from the observation stream capture produces),
   `Right` → Export/Maintenance, `Up` → Recent Devices, `Down` → Log Viewer, `Back` → force a full
   ghost-clearing refresh.
-- **Settings** — toggle WiFi/BLE capture, adjust WiFi channel dwell time, set the ghost-clear
+- **Settings** — toggle WiFi/BLE capture (BLE off by default — see
+  [Hardware](#hardware) for why), adjust WiFi channel dwell time, set the ghost-clear
   refresh interval, choose what a short Power-button tap does (Refresh / Screenshot / Pause — a
   long hold is always Sleep, not configurable), turn on
   [raw handshake capture](#raw-handshake-capture-crackable-pcap-export) or
   [active deauth](#active-deauth) (both off by default), manage the whitelist/blacklist (opens
   a live network scan to add/remove targets — see [Active deauth](#active-deauth)), reveal the
-  log's AES key, wipe the log.
+  log's AES key, wipe the log, or reset the Dashboard's SIGNALS counters back to zero.
 - **Export/Maintenance** — how to pull captures off the SD card, plus the current session's
   record count and (when any exist) raw-capture file stats, a PMKID-capable-capture count, and
   deauth burst/frame counters.
@@ -294,6 +295,17 @@ bar along the bottom to a vertical strip along the right edge, with rotated text
 
 The ESP32-C3 has integrated WiFi 802.11 b/g/n and Bluetooth 5 (LE only) — both capture paths run
 on the same radio hardware the original firmware used for book downloads and OTA updates.
+
+**BLE passive scan is off by default**, unlike WiFi monitor capture. Real-hardware testing found
+that starting it fragments the same DMA-capable memory pool `EncryptedLog`'s hardware AES needs
+down to just a few KB, immediately at boot — tripping a proactive safety restart every single
+time, identically, before the device ever became interactive. Restarting alone didn't fix anything
+since the exact same fragmentation reproduced on the very next boot, so the device sat in an
+endless ~1-second restart loop that looked and felt exactly like a hang. A crash-loop guard now
+forces BLE (and raw handshake capture and active deauth, the other two "extra" capture paths) back
+off automatically after 3 restarts in a row, so a device stuck in that loop recovers into a
+working state on its own — but the underlying memory pressure that causes it in the first place
+isn't fixed, just contained. Turn BLE on deliberately, in Settings, with that in mind.
 
 ## Look and feel
 
