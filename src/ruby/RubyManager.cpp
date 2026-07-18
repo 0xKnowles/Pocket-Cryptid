@@ -38,9 +38,12 @@ void RubyManager::begin() {
 
 void RubyManager::onSignalEvent(RfEventType type) {
   // Note: no persisted RubyState field changes here anymore (that used to be totalCaptures/
-  // unlockedLoreCount, driving lore unlocks) — lastCaptureMillis/lastHandshakeMillis below are
-  // session-only timers RubyBehavior uses for the live expression, not saved to disk.
+  // unlockedLoreCount, driving lore unlocks) — lastCaptureMillis/lastHandshakeMillis/
+  // recentEventTimes below are session-only timers RubyBehavior uses for the live expression, not
+  // saved to disk.
   lastCaptureMillis = millis();
+  recentEventTimes[recentEventNext] = lastCaptureMillis;
+  recentEventNext = (recentEventNext + 1) % RubyConfig::kRecentEventCapacity;
   if (type == RfEventType::HandshakeCaptured) {
     lastHandshakeMillis = millis();
     justCapturedHandshake = true;
@@ -60,7 +63,12 @@ void RubyManager::tick() {
 
 RubyExpression RubyManager::currentExpression(bool deviceSleeping) const {
   if (deviceSleeping) return RubyExpression::SLEEPING;
-  return RubyBehavior::expressionFor(millis() - lastCaptureMillis, millis() - lastHandshakeMillis);
+  const unsigned long now = millis();
+  uint8_t burstCount = 0;
+  for (unsigned long t : recentEventTimes) {
+    if (t != 0 && now - t <= RubyConfig::kCuriousWindowMs) burstCount++;
+  }
+  return RubyBehavior::expressionFor(now - lastCaptureMillis, now - lastHandshakeMillis, burstCount);
 }
 
 bool RubyManager::consumeJustCapturedHandshake() {

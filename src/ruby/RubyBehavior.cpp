@@ -2,9 +2,10 @@
 
 namespace RubyBehavior {
 
-RubyExpression expressionFor(unsigned long msSinceLastCapture, unsigned long msSinceLastHandshake) {
+RubyExpression expressionFor(unsigned long msSinceLastCapture, unsigned long msSinceLastHandshake,
+                             uint8_t recentSightingBurstCount) {
   if (msSinceLastHandshake <= RubyConfig::kExcitedWindowMs) return RubyExpression::EXCITED;
-  if (msSinceLastCapture <= RubyConfig::kCuriousWindowMs) return RubyExpression::CURIOUS;
+  if (recentSightingBurstCount >= RubyConfig::kCuriousBurstThreshold) return RubyExpression::CURIOUS;
   if (msSinceLastCapture <= RubyConfig::kContentWindowMs) return RubyExpression::CONTENT;
   if (msSinceLastCapture <= RubyConfig::kBoredWindowMs) return RubyExpression::BORED;
   return RubyExpression::LONELY;

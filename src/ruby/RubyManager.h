@@ -56,6 +56,13 @@ class RubyManager : public PersistableStore<RubyManager> {
   bool dirty = false;
   bool justCapturedHandshake = false;
   unsigned long lastSaveMs = 0;
+
+  // Ring of recent new-unique-sighting timestamps (any type), used to tell a genuine burst of
+  // activity (CURIOUS) apart from ordinary single sightings (CONTENT) — see RubyBehavior's class
+  // comment. 0 means "unused slot," never a real timestamp (millis() is only ever 0 in the first
+  // instant after boot, well before this could matter).
+  unsigned long recentEventTimes[RubyConfig::kRecentEventCapacity] = {};
+  size_t recentEventNext = 0;
 };
 
 #define RUBY RubyManager::getInstance()

@@ -79,6 +79,14 @@ const char* compactTypeLabel(LogRecordType type) {
   return "?";
 }
 
+// Paused means nothing is being observed right now, so the expression should read that way
+// immediately rather than lag behind whatever real activity was happening right before Pause was
+// pressed — BORED already has its own "half-lidded" face art (see RubySpriteRenderer::drawFace),
+// so this reuses it rather than adding a new expression just for this.
+RubyExpression effectiveExpression() {
+  return captureIsPaused() ? RubyExpression::BORED : RUBY.currentExpression(false);
+}
+
 constexpr int kCardOutsetX = 6;   // border stroke sits this far outside the card's text column
 constexpr int kCardTitleGap = 6;  // space between the title rule and the first row
 constexpr int kCardTopPad = 6;
@@ -190,7 +198,7 @@ void DashboardActivity::loop() {
 }
 
 void DashboardActivity::drawRubyPanel(bool withNoise) {
-  const RubyExpression expression = RUBY.currentExpression(false);
+  const RubyExpression expression = effectiveExpression();
   const uint8_t frame = RUBY.animFrame();
   RubySpriteRenderer::draw(renderer, rubyBoxX, rubyBoxY, rubyBoxSize,
                            withNoise ? expression : RubyExpression::SLEEPING, frame);
@@ -272,7 +280,7 @@ void DashboardActivity::renderFull() {
   // taller than the guessed 20px, so "Mood" and its value ("Curious", etc.) visibly overlapped.
   // Using renderer.getLineHeight() per font fixes that at its source instead of just padding the
   // guess further.
-  const RubyExpression expression = RUBY.currentExpression(false);
+  const RubyExpression expression = effectiveExpression();
   int moodY = topRowBottom + 6;
   drawCenteredTextIn(renderer, rubyBoxX, rubyBoxSize, FONT_UI_12_ID, moodY, "Mood", EpdFontFamily::BOLD);
   moodY += renderer.getLineHeight(FONT_UI_12_ID);

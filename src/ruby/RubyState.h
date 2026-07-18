@@ -35,5 +35,16 @@ constexpr unsigned long kContentWindowMs = 20UL * 60 * 1000;    // steady recent
 constexpr unsigned long kBoredWindowMs = 60UL * 60 * 1000;      // getting quiet
 // Anything beyond kBoredWindowMs is LONELY.
 
+// CURIOUS used to fire off any single new-unique sighting within kCuriousWindowMs — in a
+// target-rich environment (a busy street, an apartment building) a new AP/client/BLE device can
+// realistically show up more often than every 90 seconds indefinitely, which pinned the
+// expression on CURIOUS permanently instead of it ever reading as the steady CONTENT baseline.
+// Requiring a real burst (this many new-unique sightings within the window, not just one) makes
+// CURIOUS mean what it's supposed to: "something just picked up," not "the radio is still on."
+constexpr uint8_t kCuriousBurstThreshold = 3;
+// Ring size for tracking recent new-unique-sighting timestamps (see RubyManager) — only needs to
+// comfortably outlast kCuriousBurstThreshold entries within kCuriousWindowMs, not a long history.
+constexpr size_t kRecentEventCapacity = 8;
+
 constexpr const char* kStatePath = "/.ruby/ruby_state.json";
 }  // namespace RubyConfig

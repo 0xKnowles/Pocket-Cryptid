@@ -99,8 +99,8 @@ reaction to what's been heard most recently over the air:
 </tr>
 <tr>
 <td align="center">A handshake was just<br>captured — rare, the<br>biggest find.</td>
-<td align="center">Any new unique device<br>was seen moments ago.</td>
-<td align="center">Steady recent<br>RF activity.</td>
+<td align="center">A real burst of new<br>unique devices, not<br>just one.</td>
+<td align="center">Steady recent<br>RF activity — the<br>everyday baseline.</td>
 <td align="center">Quiet for a while.</td>
 <td align="center">Quiet for a<br>long while.</td>
 </tr>
@@ -108,8 +108,11 @@ reaction to what's been heard most recently over the air:
 
 There's no XP, no stages, nothing to "feed" permanently — just a mood, the same idea as
 Pwnagotchi's faces, driven entirely by `SignalCatalog`'s counts rather than anything cosmetic.
-Pausing capture (see [Screens](#screens)) freezes it in place rather than showing a mood, since
-there's nothing new to react to while paused.
+CURIOUS specifically requires several new-unique sightings within a short window, not just one —
+a single new device reads as ordinary CONTENT instead, so CURIOUS stays meaningful ("something's
+actually picking up") even in a busy RF environment where new devices show up constantly. Pausing
+capture (see [Screens](#screens)) shows BORED immediately, since nothing's being observed anymore,
+rather than freezing whatever mood was showing right before Pause.
 
 When the device is asleep, it shows a different, much larger piece of art instead:
 

@@ -97,6 +97,20 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **Ruby's mood was pinned on CURIOUS almost permanently in any reasonably active RF
+  environment.** `RubyBehavior::expressionFor()` used to trigger CURIOUS off *any single*
+  new-unique WiFi/BLE sighting within the last 90 seconds — in a target-rich environment (a busy
+  street, an apartment building), a new device can realistically show up more often than every 90
+  seconds indefinitely, so CONTENT's "steady baseline" state could almost never actually surface.
+  `RubyManager` now tracks a small ring of recent new-unique-sighting timestamps
+  (`kRecentEventCapacity`), and CURIOUS requires a real burst — `kCuriousBurstThreshold` (3)
+  sightings within the window, not just one — so ordinary single sightings correctly read as
+  CONTENT, and CURIOUS goes back to meaning "something just picked up" the way it was intended to.
+- **Pausing capture left Ruby's expression frozen on whatever it was the instant before Pause was
+  pressed**, instead of reflecting that nothing is being observed anymore — noticeable since the
+  natural decay toward BORED/LONELY can take up to 20-60 minutes of real elapsed time.
+  `DashboardActivity` now shows BORED immediately whenever `captureIsPaused()`, reusing its
+  existing "half-lidded" face art rather than adding a new expression just for this.
 - **BLE passive scan + raw handshake capture together still crash-looped even after the fix
   below**, confirmed via real-hardware serial log: BLE alone settles at a steep but survivable
   ~63 KB of heap use once running (free heap dropped from 71196 to 8144 bytes across an 8-second
