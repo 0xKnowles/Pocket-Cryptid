@@ -133,7 +133,7 @@ shows a quirky, hacker-flavored one-liner tied to whichever mood is currently sh
 this OUI?" while CURIOUS, "netstat -a: empty :(" while LONELY — updating on the same ~1.2s cadence as
 the art itself. It's briefly replaced by a pointed speech bubble reacting to something that just
 happened — a new AP/client/BLE device, a captured handshake, a level up, a nearby deauth alert — each
-with a small set of possible lines so it isn't the same one every time, before fading back to the
+with 9 possible lines to pick from so it isn't the same one every time, before fading back to the
 ambient thought bubble.
 
 When the device is asleep, it shows a different, much larger piece of art instead:

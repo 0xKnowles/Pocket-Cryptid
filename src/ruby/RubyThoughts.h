@@ -22,7 +22,7 @@ const char* thoughtFor(RubyExpression expression);
 // pick which one with e.g. `millis() % kVariantCount` once, at the moment the reaction fires, and
 // hold onto the returned pointer for as long as the bubble stays on screen (same one-shot pattern
 // DashboardActivity's timed banners already use), rather than re-picking on every redraw.
-constexpr uint8_t kVariantCount = 3;
+constexpr uint8_t kVariantCount = 9;
 
 const char* speechForNewDevice(LogRecordType type, uint8_t variant);
 const char* speechForHandshake(uint8_t variant);

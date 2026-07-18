@@ -177,8 +177,8 @@ All notable changes to this project are documented here. Format loosely follows
   — "ooh, what's this OUI?" while CURIOUS, "no bytes... send help" while BORED, and so on — updating
   on the same ~1.2s cadence as her expression itself. A pointed speech bubble briefly takes over
   instead for a few seconds whenever something actually happens: a new AP/client/BLE device spotted,
-  a handshake captured, a level up, or a nearby deauth alert — each with a small set of reactions to
-  pick from so it isn't the exact same line every time.
+  a handshake captured, a level up, or a nearby deauth alert — each with 9 possible reactions to pick
+  from (tripled from the original 3) so it isn't the exact same line every time.
 
 ### Fixed
 
