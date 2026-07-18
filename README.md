@@ -85,9 +85,9 @@ Prefer to build it yourself, audit the source first, or you're developing agains
 
 ## Meet Ruby
 
-The creature doesn't level up or evolve — it's one fixed shape, already fully itself. What
-changes is its **expression**, redrawn in a small fixed corner box on the dashboard as a live
-reaction to what's been heard most recently over the air:
+The creature's *shape* doesn't change — it's one fixed form, already fully itself. What changes
+frame to frame is its **expression**, redrawn in a small fixed corner box on the dashboard as a
+live reaction to what's been heard most recently over the air:
 
 <table>
 <tr>
@@ -106,8 +106,13 @@ reaction to what's been heard most recently over the air:
 </tr>
 </table>
 
-There's no XP, no stages, nothing to "feed" permanently — just a mood, the same idea as
-Pwnagotchi's faces, driven entirely by `SignalCatalog`'s counts rather than anything cosmetic.
+There's no stage, nothing to "feed" — just a mood, the same idea as Pwnagotchi's faces, driven
+entirely by `SignalCatalog`'s counts rather than anything cosmetic. Separately, a small **Level
+1-5** badge sits next to the "RUBY" name chip, tracking lifetime EXP: a captured handshake is
+worth 2000 EXP, a newly-seen unique device (AP/client/BLE) worth 1 — weighted that unevenly
+because a handshake is roughly 2000x rarer in practice, so the two end up contributing comparably
+to leveling over a typical session instead of one drowning out the other. Leveling only ever
+changes that badge's number, never the art above.
 CURIOUS specifically requires several new-unique sightings within a short window, not just one —
 a single new device reads as ordinary CONTENT instead, so CURIOUS stays meaningful ("something's
 actually picking up") even in a busy RF environment where new devices show up constantly. Pausing

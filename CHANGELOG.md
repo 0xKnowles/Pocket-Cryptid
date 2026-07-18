@@ -7,6 +7,16 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
+- **Level 1-5 badge, tracking lifetime EXP** (`RubyState::totalExp`, `RubyConfig::levelForExp()`).
+  Shown next to the existing "RUBY" name chip on the dashboard — no changes to the creature's
+  art/expressions, just a small "Lv.N" badge beside it. EXP comes from two very differently-sized
+  rewards: a captured handshake is worth `kExpPerHandshake` (2000 EXP) and a newly-seen unique
+  device (AP/client/BLE) is worth `kExpPerUniqueDevice` (1 EXP) — chosen to roughly match the
+  real-world ratio (about 1 handshake per ~2000 unique devices seen) so the two contribute
+  comparably to leveling over a typical session, rather than common unique-device sightings
+  drowning out rare handshakes or vice versa. Level thresholds: 0 / 2,000 / 8,000 / 20,000 /
+  50,000 EXP for levels 1-5 (capturing a single handshake alone reaches level 2). Persisted
+  alongside the rest of `RubyState` in `/.ruby/ruby_state.json`.
 - **Dashboard always shows an "-- ACTIVE --"/"-- PAUSED --" tag under Ruby's mood**, not just
   "-- PAUSED --" while paused. The tag's row height feeds into the layout below it
   (`std::max(moodY, infoY)`), so showing it unconditionally means the SIGNALS/CAPTURE STATUS row

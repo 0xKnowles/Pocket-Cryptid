@@ -10,9 +10,11 @@
 // checked first and overrides the built-in art if present, letting anyone swap in custom art
 // without recompiling. Falls back further still to a jittered silhouette polygon with procedural
 // eyes/mouth/noise only if a bitmap somehow fails to parse.
-// Unlike a pet that grows through stages, there's one fixed identity: what changes from frame to
-// frame is the *expression*, driven by RubyExpression, the same way Pwnagotchi's face reacts to
-// what it just found rather than the pet "leveling up."
+// There's one fixed identity: what changes from frame to frame is the *expression*, driven by
+// RubyExpression, the same way Pwnagotchi's face reacts to what it just found — the art itself
+// never grows or changes stage. A small Level 1-5 badge next to the name chip (see
+// RubyState.h/RubyConfig::levelForExp()) tracks lifetime EXP progress alongside it, entirely
+// separate from and without touching the creature's appearance.
 //
 // This is also what gets redrawn on every "strict partial refresh" tick: callers own clearing and
 // redrawing only the box below, then calling GfxRenderer::displayBuffer(FAST_REFRESH) — see
@@ -21,8 +23,10 @@ class RubySpriteRenderer {
  public:
   // Draws into a boxSize x boxSize square with top-left at (x, y). animFrame cycles the jitter
   // and eye state (2 frames is enough for a believable "breathing"/blink loop at a slow tick).
+  // level (1-5) shows as a small badge next to the name chip — ignored when expression is
+  // SLEEPING, since the chip itself doesn't draw then either.
   static void draw(GfxRenderer& renderer, int x, int y, int boxSize, RubyExpression expression,
-                   uint8_t animFrame);
+                   uint8_t animFrame, uint8_t level);
 
   // Small portrait used on the sleep screen and boot splash — same silhouette generator, fixed
   // frame 0, SLEEPING expression (closed eyes, no noise), kept perfectly static across frames.

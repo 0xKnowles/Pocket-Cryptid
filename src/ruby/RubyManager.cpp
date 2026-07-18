@@ -37,18 +37,22 @@ void RubyManager::begin() {
 }
 
 void RubyManager::onSignalEvent(RfEventType type) {
-  // Note: no persisted RubyState field changes here anymore (that used to be totalCaptures/
-  // unlockedLoreCount, driving lore unlocks) — lastCaptureMillis/lastHandshakeMillis/
-  // recentEventTimes below are session-only timers RubyBehavior uses for the live expression, not
-  // saved to disk.
+  // lastCaptureMillis/lastHandshakeMillis/recentEventTimes below are session-only timers
+  // RubyBehavior uses for the live expression, not saved to disk. state.totalExp is the one
+  // persisted field this touches — see RubyState.h's class comment for why a handshake and a
+  // unique device are weighted so differently.
   lastCaptureMillis = millis();
   recentEventTimes[recentEventNext] = lastCaptureMillis;
   recentEventNext = (recentEventNext + 1) % RubyConfig::kRecentEventCapacity;
   if (type == RfEventType::HandshakeCaptured) {
     lastHandshakeMillis = millis();
     justCapturedHandshake = true;
+    state.totalExp += RubyConfig::kExpPerHandshake;
     LOG_INF("RUBY", "%s: handshake captured", state.designation);
+  } else {
+    state.totalExp += RubyConfig::kExpPerUniqueDevice;
   }
+  dirty = true;
 }
 
 void RubyManager::tick() {
@@ -86,6 +90,7 @@ void RubyManager::toJson(JsonDocument& doc) const {
   doc["initialized"] = state.initialized;
   doc["birthUnixTime"] = state.birthUnixTime;
   doc["designation"] = state.designation;
+  doc["totalExp"] = state.totalExp;
 }
 
 bool RubyManager::fromJson(JsonVariantConst doc) {
@@ -93,5 +98,6 @@ bool RubyManager::fromJson(JsonVariantConst doc) {
   state.birthUnixTime = doc["birthUnixTime"] | 0;
   const char* designation = doc["designation"] | "";
   strncpy(state.designation, designation, sizeof(state.designation) - 1);
+  state.totalExp = doc["totalExp"] | 0;
   return true;
 }

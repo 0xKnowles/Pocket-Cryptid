@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 
 #include "RubyEmbeddedArt.h"
 #include "fontIds.h"
@@ -259,10 +260,11 @@ void drawStaticNoise(const GfxRenderer& renderer, int x, int y, int boxSize, Rub
 // chip (rather than relying on blank margin in the art) so it stays legible regardless of
 // whether the box is showing bitmap art, the procedural silhouette fallback, or dark pixels from
 // either one happen to land in that corner.
-void drawNameChip(const GfxRenderer& renderer, int x, int y) {
+void drawNameChip(const GfxRenderer& renderer, int x, int y, uint8_t level) {
   constexpr int kChipInset = 5;
   constexpr int kChipPadX = 4;
   constexpr int kChipPadY = 2;
+  constexpr int kBadgeGap = 4;  // gap between the RUBY chip and the level badge beside it
   // FONT_SMALL_ID only ships a Regular face (see fontIds.h) — requesting BOLD here silently falls
   // back to Regular (EpdFontFamily::getFont()), so "RUBY" never actually rendered bold on real
   // hardware. Faked below by drawing the glyphs twice, offset one pixel right, the same as
@@ -272,15 +274,26 @@ void drawNameChip(const GfxRenderer& renderer, int x, int y) {
   const int lineH = renderer.getLineHeight(FONT_SMALL_ID);
   const int chipX = x + kChipInset;
   const int chipY = y + kChipInset;
-  renderer.fillRect(chipX, chipY, textW + kChipPadX * 2, lineH + kChipPadY * 2, /*state=*/false);
+  const int chipH = lineH + kChipPadY * 2;
+  renderer.fillRect(chipX, chipY, textW + kChipPadX * 2, chipH, /*state=*/false);
   renderer.drawText(FONT_SMALL_ID, chipX + kChipPadX, chipY + kChipPadY, "RUBY", true);
   renderer.drawText(FONT_SMALL_ID, chipX + kChipPadX + 1, chipY + kChipPadY, "RUBY", true);
+
+  // Level badge — same chip styling, sitting right next to the name chip rather than folded into
+  // it, so it reads as a separate, at-a-glance stat rather than part of the creature's name.
+  char levelBuf[8];
+  snprintf(levelBuf, sizeof(levelBuf), "Lv.%u", level);
+  const int levelTextW = renderer.getTextWidth(FONT_SMALL_ID, levelBuf);
+  const int badgeX = chipX + textW + kChipPadX * 2 + kBadgeGap;
+  renderer.fillRect(badgeX, chipY, levelTextW + kChipPadX * 2, chipH, /*state=*/false);
+  renderer.drawText(FONT_SMALL_ID, badgeX + kChipPadX, chipY + kChipPadY, levelBuf, true);
+  renderer.drawText(FONT_SMALL_ID, badgeX + kChipPadX + 1, chipY + kChipPadY, levelBuf, true);
 }
 
 }  // namespace
 
 void RubySpriteRenderer::draw(GfxRenderer& renderer, int x, int y, int boxSize, RubyExpression expression,
-                                    uint8_t animFrame) {
+                                    uint8_t animFrame, uint8_t level) {
   renderer.fillRect(x, y, boxSize, boxSize, /*state=*/false);  // clear to white before redrawing
 
   if (!tryDrawBitmap(renderer, x, y, boxSize, expression)) {
@@ -304,7 +317,7 @@ void RubySpriteRenderer::draw(GfxRenderer& renderer, int x, int y, int boxSize, 
     }
   }
 
-  if (expression != RubyExpression::SLEEPING) drawNameChip(renderer, x, y);
+  if (expression != RubyExpression::SLEEPING) drawNameChip(renderer, x, y, level);
 
   // The box's rounded frame is drawn last, on top of the bitmap/silhouette/noise/name chip, and
   // lives here rather than in the caller because this is also what runs on the box-only "strict
@@ -316,5 +329,6 @@ void RubySpriteRenderer::draw(GfxRenderer& renderer, int x, int y, int boxSize, 
 }
 
 void RubySpriteRenderer::drawPortrait(GfxRenderer& renderer, int x, int y, int boxSize) {
-  draw(renderer, x, y, boxSize, RubyExpression::SLEEPING, 0);
+  // level is irrelevant here — draw() only shows the badge when expression != SLEEPING.
+  draw(renderer, x, y, boxSize, RubyExpression::SLEEPING, 0, 1);
 }

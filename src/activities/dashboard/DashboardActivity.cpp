@@ -216,7 +216,7 @@ void DashboardActivity::drawRubyPanel(bool withNoise) {
   const RubyExpression expression = effectiveExpression();
   const uint8_t frame = RUBY.animFrame();
   RubySpriteRenderer::draw(renderer, rubyBoxX, rubyBoxY, rubyBoxSize,
-                           withNoise ? expression : RubyExpression::SLEEPING, frame);
+                           withNoise ? expression : RubyExpression::SLEEPING, frame, RUBY.level());
   lastAnimFrameRendered = frame;
   lastPetRenderMs = millis();
 }

@@ -30,6 +30,9 @@ class RubyManager : public PersistableStore<RubyManager> {
 
   const RubyState& getState() const { return state; }
 
+  // 1-5, derived from state.totalExp — see RubyConfig::levelForExp()/kLevelThresholds.
+  uint8_t level() const { return RubyConfig::levelForExp(state.totalExp); }
+
   // deviceSleeping short-circuits straight to SLEEPING regardless of activity timers — used by
   // SleepActivity so the creature visibly "goes quiet" the instant the screen does.
   RubyExpression currentExpression(bool deviceSleeping) const;
