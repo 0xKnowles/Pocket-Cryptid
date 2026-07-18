@@ -597,6 +597,21 @@ void DashboardActivity::renderFull() {
   leftY = drawCompactStatRow(renderer, leftY, "Unique BLE devices", buf, leftColX + colWidth, leftColX);
   snprintf(buf, sizeof(buf), "%lu", static_cast<unsigned long>(stats.handshakesCaptured));
   leftY = drawCompactStatRow(renderer, leftY, "Handshakes captured", buf, leftColX + colWidth, leftColX);
+
+  // Slightly larger than the rows above — Chrome::drawStatRow's own FONT_UI_10_ID, rather than
+  // the smaller drawCompactStatRow font every other SIGNALS row uses — a deliberate emphasis for
+  // the one row here that names an actual device rather than just a count. Sits in what would
+  // otherwise be idle space below the 4 counter rows, since this card's border already extends
+  // all the way to columnBottom regardless of how much the rows above it actually fill.
+  char lastHandshakeBuf[18];
+  const MacAddress& lastHandshakeBssid = RUBY.lastHandshakeBssid();
+  if (lastHandshakeBssid == MacAddress{}) {
+    snprintf(lastHandshakeBuf, sizeof(lastHandshakeBuf), "none yet");
+  } else {
+    formatMac(lastHandshakeBssid, lastHandshakeBuf);
+  }
+  leftY = Chrome::drawStatRow(renderer, leftY + 4, "Last Hand Shook:", lastHandshakeBuf, false, leftColX + colWidth,
+                              leftColX);
   endStatCard(renderer, leftColX, colWidth, bottomY, columnBottom);
 
   // CAPTURE STATUS's rows are vertically centered within the card instead of hugging the title the

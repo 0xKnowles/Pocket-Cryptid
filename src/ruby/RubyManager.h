@@ -66,10 +66,11 @@ class RubyManager : public PersistableStore<RubyManager> {
   const uint32_t* handshakeTimestamps() const { return state.handshakeTimestamps; }
   uint8_t handshakeHistoryNext() const { return state.handshakeHistoryNext; }
 
-  // BSSID of the most recently captured handshake — session-only (not persisted alongside the
-  // timestamp ring above; only ever read at the moment consumeJustCapturedHandshake() is true, for
-  // the Dashboard's one-shot "HANDSHAKE CAPTURED" banner, so it doesn't need to survive a reboot).
-  const MacAddress& lastHandshakeBssid() const { return lastHandshakeBssid_; }
+  // Persisted BSSID of the most recently captured handshake — see RubyState::lastHandshakeBssid.
+  // Used both for the Dashboard's one-shot "HANDSHAKE CAPTURED" banner (read at the moment
+  // consumeJustCapturedHandshake() is true) and its always-visible "Last Hand Shook:" row on the
+  // SIGNALS card, which is why this survives a reboot instead of resetting to blank.
+  const MacAddress& lastHandshakeBssid() const { return state.lastHandshakeBssid; }
 
   // deviceSleeping short-circuits straight to SLEEPING regardless of activity timers — used by
   // SleepActivity so the creature visibly "goes quiet" the instant the screen does.
@@ -97,7 +98,6 @@ class RubyManager : public PersistableStore<RubyManager> {
   bool dirty = false;
   bool justCapturedHandshake = false;
   unsigned long lastSaveMs = 0;
-  MacAddress lastHandshakeBssid_;
 
   // 0 = no pending level-up event; otherwise the level just reached, awaiting one
   // consumeJustLeveledUp() poll. 0 is never a real level (levels run 1-5), so it doubles as the

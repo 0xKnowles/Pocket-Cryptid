@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "RfTypes.h"
+
 // Ruby's *shape* never changes — she's a fixed, already-fully-formed creature (see
 // RubySpriteRenderer) whose *expression* reacts to what it's currently hearing, closer to
 // Pwnagotchi's mood faces than to a pet that visibly evolves. EXCITED/CURIOUS are short-lived
@@ -48,6 +50,12 @@ struct RubyState {
   // ring has wrapped yet.
   uint32_t handshakeTimestamps[kHandshakeHistoryCapacity] = {};
   uint8_t handshakeHistoryNext = 0;
+
+  // BSSID of the single most recent handshake capture (pairs with handshakeTimestamps[newest] —
+  // same event, not a separate one) — persisted so it survives a reboot rather than reading blank
+  // until the next handshake this session. Default (all-zero) doubles as "no handshake yet ever",
+  // since a real BSSID heard over the air is never legitimately all-zero.
+  MacAddress lastHandshakeBssid;
 
   bool exists() const { return initialized; }
 };

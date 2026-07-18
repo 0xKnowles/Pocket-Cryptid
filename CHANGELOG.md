@@ -208,6 +208,12 @@ All notable changes to this project are documented here. Format loosely follows
   under attack, not the spoofable source address sending the frames) and `SignalCatalog`'s
   new-unique callback now passes along the MAC/BSSID behind every event, not just which kind of
   event happened, so `RubyManager` can remember which network a captured handshake belonged to.
+- **"Last Hand Shook:" row on the SIGNALS card**, showing the BSSID of the most recent handshake
+  capture ("none yet" until the first one) — persisted (`RubyState::lastHandshakeBssid`, the same
+  event the newest entry in the HANDSHAKES history already tracks the *time* of) so it survives a
+  reboot instead of reading blank until the next capture. Drawn slightly larger than SIGNALS' other
+  rows (`Chrome::drawStatRow`'s original font, not the smaller `drawCompactStatRow` the rest of the
+  card uses) in space that was otherwise sitting idle below the 4 counter rows.
 
 ### Removed
 

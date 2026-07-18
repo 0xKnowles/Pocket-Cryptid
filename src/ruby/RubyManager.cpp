@@ -49,7 +49,7 @@ void RubyManager::onSignalEvent(RfEventType type, const MacAddress& mac) {
   if (type == RfEventType::HandshakeCaptured) {
     lastHandshakeMillis = millis();
     justCapturedHandshake = true;
-    lastHandshakeBssid_ = mac;
+    state.lastHandshakeBssid = mac;
     state.totalExp += RubyConfig::kExpPerHandshake;
     // Recorded here (not by DashboardActivity polling consumeJustCapturedHandshake()) so a
     // handshake captured while a different screen is active still lands in the persisted
@@ -132,6 +132,7 @@ void RubyManager::resetExp() {
   justLeveledUpTo = 0;
   memset(state.handshakeTimestamps, 0, sizeof(state.handshakeTimestamps));
   state.handshakeHistoryNext = 0;
+  state.lastHandshakeBssid = MacAddress{};
   if (saveToFile()) {
     dirty = false;
     lastSaveMs = millis();
@@ -154,6 +155,8 @@ void RubyManager::toJson(JsonDocument& doc) const {
   JsonArray handshakeTimes = doc["handshakeTimestamps"].to<JsonArray>();
   for (uint32_t t : state.handshakeTimestamps) handshakeTimes.add(t);
   doc["handshakeHistoryNext"] = state.handshakeHistoryNext;
+  JsonArray bssidArr = doc["lastHandshakeBssid"].to<JsonArray>();
+  for (uint8_t b : state.lastHandshakeBssid.bytes) bssidArr.add(b);
 }
 
 bool RubyManager::fromJson(JsonVariantConst doc) {
@@ -172,5 +175,14 @@ bool RubyManager::fromJson(JsonVariantConst doc) {
     state.handshakeTimestamps[i++] = v.as<uint32_t>();
   }
   state.handshakeHistoryNext = doc["handshakeHistoryNext"] | 0;
+
+  // Same missing-on-old-file tolerance as the timestamp ring above — an absent/empty array just
+  // leaves the BSSID at its zero-initialized default, correctly read as "no handshake yet ever".
+  JsonArrayConst bssidArr = doc["lastHandshakeBssid"];
+  size_t bi = 0;
+  for (JsonVariantConst v : bssidArr) {
+    if (bi >= 6) break;
+    state.lastHandshakeBssid.bytes[bi++] = v.as<uint8_t>();
+  }
   return true;
 }

@@ -189,7 +189,9 @@ When the device is asleep, it shows a different, much larger piece of art instea
   RAM-only feed) so it stays genuinely historical rather than resetting to empty on every power-on
   — handshakes are too rare to track meaningfully via a feed any ordinary AP/client/BLE traffic
   cycles through in moments anyway. **SIGNAL** (bottom) is the same recent-observations feed's RSSI
-  as a live bar chart. Below that, **SIGNALS** (unique AP/client/BLE/handshake counts) and
+  as a live bar chart. Below that, **SIGNALS** (unique AP/client/BLE/handshake counts, plus a
+  "Last Hand Shook:" row — slightly larger than the others — showing the BSSID of the most recent
+  handshake capture, "none yet" until the first one) and
   **CAPTURE STATUS** (WiFi monitor/BLE scan
   state, log size, this session's uptime, and lifetime Total Uptime across every boot) sit side by
   side. A bubble along the bottom edge of Ruby's box, tailing up into her face, shows a quirky,
