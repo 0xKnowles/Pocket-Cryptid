@@ -176,9 +176,12 @@ When the device is asleep, it shows a different, much larger piece of art instea
   states), whether handshake capture is switched on, a **Nearby DeAuth** row (`ALERT` during a
   spike of deauth/disassoc frames from *any* source over the air, a running `N seen` count
   otherwise, or `none` — see [Passive deauth/disassoc detection](#passive-deauthdisassoc-detection)),
-  unique AP/client/BLE/handshake counts, capture status, log size, and session uptime. A banner
-  briefly announces "DEAUTH ACTIVITY NEARBY", "LEVEL UP → Lv.N", or "HANDSHAKE CAPTURED" (in that
-  priority order) when any of them happens.
+  unique AP/client/BLE/handshake counts, capture status, log size, and session uptime. Beside the
+  creature's box, a narrow **RECENT DEVICES** card shows a handful of the latest observations in
+  full detail (type/MAC, signal bars + RSSI + time-ago, device name), and a **SIGNAL HISTORY** card
+  next to it plots the same feed's RSSI as a live bar chart — oldest reading on the left, newest
+  always at the right edge. A banner briefly announces "DEAUTH ACTIVITY NEARBY", "LEVEL UP → Lv.N",
+  or "HANDSHAKE CAPTURED" (in that priority order) when any of them happens.
   `Confirm` → Settings, `Left` → toggle Pause (same button pauses and resumes WiFi/BLE capture —
   no screen change, and it stops `DeauthEngine` too since that only ever fires from the observation
   stream capture produces), `Right` → Export/Maintenance, `Up` → Recent Devices, `Down` → Log
@@ -202,8 +205,9 @@ When the device is asleep, it shows a different, much larger piece of art instea
   lookup (see [Vendor OUI lookup](#vendor-oui-lookup)) for entries with no SSID/name of their
   own. Each entry's RSSI reading is paired with a small 4-bar signal-strength icon (like a phone's
   signal indicator) for an at-a-glance read on how strong the observation was, without parsing the
-  dBm number. Laid out as the same dense multi-column grid as Dashboard's RECENT DEVICES card, so all 16
-  entries always fit on screen at once. This is separate from both `SignalCatalog` (which
+  dBm number. Laid out as a dense multi-column grid so all 16 entries always fit on screen at
+  once — this expanded, read-only view is where Dashboard's own narrower RECENT DEVICES card sends
+  you for the full feed. This is separate from both `SignalCatalog` (which
   deliberately never retains which specific MACs it has seen — only dedup counts) and the
   encrypted log (which retains everything, but only ever encrypted at rest). Nothing shown here is
   persisted; it's lost on reboot along with the rest of RAM. To manage the active-deauth target

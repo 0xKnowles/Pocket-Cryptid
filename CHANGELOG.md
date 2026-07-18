@@ -163,6 +163,14 @@ All notable changes to this project are documented here. Format loosely follows
   Device Log, and Log Viewer. 4 bars at -50 dBm or stronger, down to 1 bar (never 0 — every entry
   here is a frame Ruby actually heard) below -70 dBm. Hand-drawn with plain filled rectangles
   rather than a font glyph, since Space Mono has no signal-bar character.
+- **Dashboard's RECENT DEVICES card reworked: fewer entries, more per entry, plus a new SIGNAL
+  HISTORY chart beside it.** The card is narrower now (half its old width) and shows each entry
+  across a full 3 lines — type/MAC, signal bars + RSSI + time-ago, and the device's name (falling
+  back to a vendor-OUI lookup, same as Device Log) — rather than 2 lines with more entries crammed
+  in. The other half of the row that opens up is a new live strip chart plotting the same
+  `RecentSightings` ring buffer's RSSI history as a bar per observation, oldest on the left, newest
+  always anchored to the right edge, giving signal strength an actual at-a-glance visual instead of
+  only the per-entry dBm figure.
 
 ### Fixed
 

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdio>
+#include <string>
 
 #include "BleScanner.h"
 #include "CaptureControl.h"
@@ -16,6 +17,7 @@
 #include "RecentSightings.h"
 #include "RubySettings.h"
 #include "SignalCatalog.h"
+#include "VendorOui.h"
 #include "WifiSniffer.h"
 #include "fontIds.h"
 #include "ruby/RubyBehavior.h"
@@ -142,6 +144,35 @@ void drawExpBar(const GfxRenderer& renderer, int x, int y, int width, int height
   const int filledWidth = static_cast<int>(fillableWidth * std::clamp(progress, 0.0f, 1.0f));
   if (filledWidth > 0) {
     renderer.fillRect(x + kFillPad, y + kFillPad, filledWidth, height - kFillPad * 2, true);
+  }
+}
+
+// Live strip chart of RecentSightings' RSSI history — one bar per ring-buffer slot, oldest on the
+// left, newest always anchored to the right edge (a slot with no sighting yet, when the ring isn't
+// full, is just left blank rather than shifting everything right). Unlike Chrome::drawSignalBars'
+// 4-level bucketing (built for a tiny fixed-size icon), this maps RSSI continuously across the
+// chart's full height, since a real chart has the vertical room to show more than 4 steps of
+// resolution. kRssiFloor/kRssiCeil are a typical WiFi/BLE dBm range, not a hard limit — a reading
+// outside it just clamps to the shortest/tallest bar instead of drawing off-chart.
+void drawSignalHistoryChart(const GfxRenderer& renderer, int x, int y, int width, int height) {
+  constexpr int kRssiFloor = -90;
+  constexpr int kRssiCeil = -30;
+  constexpr int kBarGap = 2;
+  const size_t capacity = RecentSightings::kCapacity;
+  const size_t liveCount = recentSightings.count();
+  const int barWidth =
+      std::max(1, (width - kBarGap * static_cast<int>(capacity - 1)) / static_cast<int>(capacity));
+  const int baseline = y + height;
+
+  for (size_t slot = 0; slot < capacity; slot++) {
+    const size_t indexFromNewest = capacity - 1 - slot;
+    if (indexFromNewest >= liveCount) continue;  // ring not full yet -- leave this slot blank
+    const auto& entry = recentSightings.at(indexFromNewest);
+    const float norm =
+        std::clamp(static_cast<float>(entry.rssi - kRssiFloor) / (kRssiCeil - kRssiFloor), 0.0f, 1.0f);
+    const int barHeight = std::max(2, static_cast<int>(height * norm));
+    const int barX = x + static_cast<int>(slot) * (barWidth + kBarGap);
+    renderer.fillRect(barX, baseline - barHeight, barWidth, barHeight, true);
   }
 }
 }  // namespace
@@ -290,39 +321,40 @@ void DashboardActivity::renderFull() {
   const int expLabelY = 5 + (kExpBarHeight - renderer.getLineHeight(FONT_SMALL_ID)) / 2;
   renderer.drawText(FONT_SMALL_ID, expBarX + kExpBarWidth + kExpBarGap, expLabelY, expLabelBuf);
 
-  // Top row: Ruby's box pinned top-left, "RECENT DEVICES" window beside it to the right at the
-  // same height.
+  // Top row: Ruby's box pinned top-left, then two side-by-side windows to the right at the same
+  // height — a narrower "RECENT DEVICES" list (fewer entries, but a full 3 lines each) and a new
+  // "SIGNAL HISTORY" strip chart, so signal strength has a real dynamic visual instead of only the
+  // per-entry dBm number to its left.
   const int deviceColX = rubyBoxX + rubyBoxSize + kColumnGap;
   const int deviceColWidth = Chrome::contentRight(renderer) - deviceColX;
   const int topRowBottom = rubyBoxY + rubyBoxSize;
+  const int devicesWidth = (deviceColWidth - kColumnGap) / 2;
+  const int chartX = deviceColX + devicesWidth + kColumnGap;
+  const int chartWidth = deviceColWidth - devicesWidth - kColumnGap;
 
   int cardTop = rubyBoxY;
-  int y = beginStatCard(renderer, deviceColX, deviceColWidth, cardTop, "RECENT DEVICES");
-  const size_t liveCount = recentSightings.count();
   const int deviceRowsBottom = topRowBottom - kCardBottomPad;  // don't overrun the box's height
+
+  int y = beginStatCard(renderer, deviceColX, devicesWidth, cardTop, "RECENT DEVICES");
+  const size_t liveCount = recentSightings.count();
   if (liveCount == 0) {
     renderer.drawText(FONT_SMALL_ID, deviceColX, y, "Nothing heard yet.");
   } else {
     // Tight, purpose-sized line spacing instead of GfxRenderer::getLineHeight() (~25px for
-    // FONT_SMALL_ID — that's the font's paragraph line-spacing, not a per-row stride, and was
-    // only fitting 3-4 entries here). This box is also wide enough in landscape to lay entries
-    // out in columns rather than one long single-file list — kEntryColWidth is sized for the
-    // worst case ("STA 12:34:56:78:9A:BC" at this font's fixed pitch) so a 2-column grid fits
-    // cleanly without truncating anything.
+    // FONT_SMALL_ID — that's the font's paragraph line-spacing, not a per-row stride). A single
+    // column now that the chart occupies the other half of this row — three lines each (type+MAC,
+    // signal bars + RSSI + time-ago, device name) so fewer entries fit, but each one carries the
+    // same detail Device Log's expanded view does, including a vendor-name fallback for entries
+    // with no advertised label.
     constexpr int kLineHeight = 13;
     constexpr int kLineGap = 2;
     constexpr int kEntryGap = 6;
-    constexpr int kEntryHeight = kLineHeight * 2 + kLineGap + kEntryGap;
-    constexpr int kEntryColWidth = 224;
+    constexpr int kEntryHeight = kLineHeight * 3 + kLineGap * 2 + kEntryGap;
     const int rowsPerColumn = std::max(1, (deviceRowsBottom - y) / kEntryHeight);
-    const int columnCount = std::max(1, deviceColWidth / (kEntryColWidth + kColumnGap));
-    const size_t maxVisible = std::min(liveCount, static_cast<size_t>(rowsPerColumn * columnCount));
+    const size_t maxVisible = std::min(liveCount, static_cast<size_t>(rowsPerColumn));
 
     for (size_t i = 0; i < maxVisible; i++) {
-      const size_t col = i / static_cast<size_t>(rowsPerColumn);
-      const size_t row = i % static_cast<size_t>(rowsPerColumn);
-      const int entryX = deviceColX + static_cast<int>(col) * (kEntryColWidth + kColumnGap);
-      const int entryY = y + static_cast<int>(row) * kEntryHeight;
+      const int entryY = y + static_cast<int>(i) * kEntryHeight;
 
       const auto& entry = recentSightings.at(i);
       char macBuf[18];
@@ -331,15 +363,28 @@ void DashboardActivity::renderFull() {
       formatAgo(entry.seenAtMs, agoBuf, sizeof(agoBuf));
       char line1[32];
       snprintf(line1, sizeof(line1), "%s %s", logRecordTypeCompactName(entry.type), macBuf);
-      renderer.drawText(FONT_SMALL_ID, entryX, entryY, line1);
+      renderer.drawText(FONT_SMALL_ID, deviceColX, entryY, line1);
       const int line2Y = entryY + kLineHeight + kLineGap;
-      Chrome::drawSignalBars(renderer, entryX, line2Y, entry.rssi);
+      Chrome::drawSignalBars(renderer, deviceColX, line2Y, entry.rssi);
       char line2[32];
       snprintf(line2, sizeof(line2), "%d dBm  %s", entry.rssi, agoBuf);
-      renderer.drawText(FONT_SMALL_ID, entryX + Chrome::kSignalBarsWidth + 4, line2Y, line2);
+      renderer.drawText(FONT_SMALL_ID, deviceColX + Chrome::kSignalBarsWidth + 4, line2Y, line2);
+
+      const char* label = entry.label;
+      char vendorBuf[32];
+      if (!label[0] && lookupVendorOui(entry.mac, vendorBuf, sizeof(vendorBuf))) {
+        label = vendorBuf;
+      }
+      const std::string line3 =
+          renderer.truncatedText(FONT_SMALL_ID, label[0] ? label : "(no name)", devicesWidth);
+      renderer.drawText(FONT_SMALL_ID, deviceColX, entryY + (kLineHeight + kLineGap) * 2, line3.c_str());
     }
   }
-  endStatCard(renderer, deviceColX, deviceColWidth, cardTop, deviceRowsBottom);
+  endStatCard(renderer, deviceColX, devicesWidth, cardTop, deviceRowsBottom);
+
+  const int chartTop = beginStatCard(renderer, chartX, chartWidth, cardTop, "SIGNAL HISTORY");
+  drawSignalHistoryChart(renderer, chartX, chartTop, chartWidth, deviceRowsBottom - chartTop);
+  endStatCard(renderer, chartX, chartWidth, cardTop, deviceRowsBottom);
 
   // Mood text sits under the box, centered within the box's own column (not the whole screen —
   // the box is left-aligned now, not centered). This used to show the auto-generated per-device
