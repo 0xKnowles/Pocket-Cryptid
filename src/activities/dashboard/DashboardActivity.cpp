@@ -257,8 +257,10 @@ void DashboardActivity::renderFull() {
   const int expBarX = headerLeftContentRight + kExpBarGap;
   drawExpBar(renderer, expBarX, 5, kExpBarWidth, kExpBarHeight, RUBY.expProgress());
 
-  // "<earned this level>/<still needed to level up> EXP" beside the bar — same vertical centering
-  // formula the battery badge above uses for its own percentage text.
+  // "<earned this level>/<total EXP this level spans> EXP" beside the bar — the second number is
+  // the fixed size of the current level's bracket (RubyConfig::kLevelThresholds delta), not a
+  // countdown, so it stays put while the first climbs toward it. Same vertical centering formula
+  // the battery badge above uses for its own percentage text.
   char expLabelBuf[24];
   uint32_t expInto = 0, expNeededForLevel = 0;
   RUBY.expIntoLevel(expInto, expNeededForLevel);
@@ -266,7 +268,7 @@ void DashboardActivity::renderFull() {
     snprintf(expLabelBuf, sizeof(expLabelBuf), "MAX");
   } else {
     snprintf(expLabelBuf, sizeof(expLabelBuf), "%lu/%lu EXP", static_cast<unsigned long>(expInto),
-             static_cast<unsigned long>(expNeededForLevel - expInto));
+             static_cast<unsigned long>(expNeededForLevel));
   }
   const int expLabelY = 5 + (kExpBarHeight - renderer.getLineHeight(FONT_SMALL_ID)) / 2;
   renderer.drawText(FONT_SMALL_ID, expBarX + kExpBarWidth + kExpBarGap, expLabelY, expLabelBuf);

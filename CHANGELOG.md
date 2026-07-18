@@ -24,7 +24,8 @@ All notable changes to this project are documented here. Format loosely follows
   badge's width. Deliberately long enough to read at a glance (260px) but far short of the full
   header row, so it doesn't compete with the battery badge for attention. A "`N/M EXP`" label
   (`RubyManager::expIntoLevel()`) sits just to the right of the bar itself — EXP earned so far
-  this level, and EXP still needed to cross into the next one — reading "MAX" once level 5 is hit.
+  this level, and the fixed total EXP the current level spans (not a countdown, so the second
+  number stays put while the first climbs toward it) — reading "MAX" once level 5 is hit.
 - **Dashboard always shows an "-- ACTIVE --"/"-- PAUSED --" tag under Ruby's mood**, not just
   "-- PAUSED --" while paused. The tag's row height feeds into the layout below it
   (`std::max(moodY, infoY)`), so showing it unconditionally means the SIGNALS/CAPTURE STATUS row
