@@ -76,6 +76,7 @@ int drawRecordCard(const GfxRenderer& renderer, int y, const LogRecordPlaintext&
 
 void LogViewerActivity::onEnter() {
   Activity::onEnter();
+  firstRenderSinceEnter = true;
   loadFileList();
   refreshRecordCountAndPage();
   requestUpdate();
@@ -158,6 +159,10 @@ void LogViewerActivity::loop() {
 }
 
 void LogViewerActivity::render(RenderLock&&) {
+  const HalDisplay::RefreshMode refreshMode =
+      firstRenderSinceEnter ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH;
+  firstRenderSinceEnter = false;
+
   renderer.clearScreen();
   Chrome::drawHeader(renderer, "LOG VIEWER");
 
@@ -166,7 +171,7 @@ void LogViewerActivity::render(RenderLock&&) {
   if (files.empty()) {
     renderer.drawCenteredText(FONT_UI_10_ID, renderer.getScreenHeight() / 2, "No log files on SD yet.");
     Chrome::drawFooterHints(renderer, "Home", nullptr, nullptr, nullptr);
-    renderer.displayBuffer();
+    renderer.displayBuffer(refreshMode);
     return;
   }
 
@@ -199,5 +204,5 @@ void LogViewerActivity::render(RenderLock&&) {
   }
 
   Chrome::drawFooterHints(renderer, "Home", nullptr, "Prev", "Next");
-  renderer.displayBuffer();
+  renderer.displayBuffer(refreshMode);
 }

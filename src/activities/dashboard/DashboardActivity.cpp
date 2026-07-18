@@ -10,6 +10,7 @@
 
 #include "BleScanner.h"
 #include "CaptureControl.h"
+#include "DeauthDetector.h"
 #include "EncryptedLog.h"
 #include "RecentSightings.h"
 #include "RubySettings.h"
@@ -187,6 +188,17 @@ void DashboardActivity::loop() {
     return;
   }
 
+  // DeauthDetector's own alertActive() is already time-windowed (see its class comment) — this
+  // just notices the on/off transition so a redraw actually happens at both ends, the same way
+  // the two consume-and-flag banners above do.
+  const bool deauthAlertNow = deauthDetector.alertActive();
+  if (deauthAlertNow != lastDeauthAlertState) {
+    lastDeauthAlertState = deauthAlertNow;
+    pendingRenderKind = RenderKind::Full;
+    requestUpdate();
+    return;
+  }
+
   const unsigned long now = millis();
   if (now - lastFullRenderMs >= kFullRedrawIntervalMs) {
     pendingRenderKind = RenderKind::Full;
@@ -300,8 +312,24 @@ void DashboardActivity::renderFull() {
   infoY = Chrome::drawStatRow(renderer, infoY, "Handshake Capture",
                               SETTINGS.rawHandshakeCaptureEnabled ? "ON" : "OFF", false,
                               deviceColX + deviceColWidth, deviceColX);
-  infoY = Chrome::drawStatRow(renderer, infoY, "DeAuth", SETTINGS.activeDeauthEnabled ? "ON" : "OFF", false,
-                              deviceColX + deviceColWidth, deviceColX);
+  // Replaces the old "DeAuth: ON/OFF" setting readout — active deauth's own transmit path is
+  // confirmed rejected by the WiFi driver on this hardware (see DeauthEngine's class comment), so
+  // that ON/OFF told you nothing useful about what's actually happening in the air. This instead
+  // surfaces DeauthDetector's passive count of deauth/disassoc frames from *anyone* nearby —
+  // information that's still real regardless of whether this device's own attempts transmit.
+  char deauthBuf[16];
+  if (deauthDetector.alertActive()) {
+    snprintf(deauthBuf, sizeof(deauthBuf), "ALERT");
+  } else {
+    const uint32_t deauthTotal = deauthDetector.totalDeauthFrames() + deauthDetector.totalDisassocFrames();
+    if (deauthTotal == 0) {
+      snprintf(deauthBuf, sizeof(deauthBuf), "none");
+    } else {
+      snprintf(deauthBuf, sizeof(deauthBuf), "%lu seen", static_cast<unsigned long>(deauthTotal));
+    }
+  }
+  infoY = Chrome::drawStatRow(renderer, infoY, "Nearby DeAuth", deauthBuf, false, deviceColX + deviceColWidth,
+                              deviceColX);
 
   // Bottom half: SIGNALS + CAPTURE STATUS. Landscape's 792x528 canvas has much less spare height
   // below the top row than the old portrait canvas did, but a lot more spare width — so these
@@ -363,13 +391,22 @@ void DashboardActivity::renderFull() {
 
   drawRubyPanel(true);
 
-  if (handshakeBannerActive) {
+  // At most one banner at a time — priority order is "most urgent to know about right now": a
+  // nearby deauth attack in progress, then Ruby's own (positive, less time-sensitive) handshake
+  // capture.
+  const char* bannerText = nullptr;
+  if (deauthDetector.alertActive()) {
+    bannerText = "DEAUTH ACTIVITY NEARBY";
+  } else if (handshakeBannerActive) {
+    bannerText = "HANDSHAKE CAPTURED";
+  }
+  if (bannerText) {
     constexpr int kBannerH = 28;
     const int bannerY = (renderer.getScreenHeight() - kBannerH) / 2;
     renderer.fillRect(0, bannerY, renderer.getScreenWidth(), kBannerH, true);
     const int textY = bannerY + (kBannerH - renderer.getLineHeight(FONT_UI_10_ID)) / 2;
     // Text drawn white-on-black by inverting: draw as non-ink over the filled band.
-    renderer.drawCenteredText(FONT_UI_10_ID, textY, "HANDSHAKE CAPTURED", false, EpdFontFamily::BOLD);
+    renderer.drawCenteredText(FONT_UI_10_ID, textY, bannerText, false, EpdFontFamily::BOLD);
   }
 
   Chrome::drawFooterHints(renderer, "Refresh", "Settings", captureIsPaused() ? "Resume" : "Pause", "Export");

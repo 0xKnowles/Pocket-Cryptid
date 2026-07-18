@@ -155,12 +155,15 @@ When the device is asleep, it shows a different, much larger piece of art instea
 ## Screens
 
 - **Dashboard** (home) — the creature, its current Mood (or "-- PAUSED --" while capture is
-  paused), whether handshake capture/deauth are switched on, unique AP/client/BLE/handshake
-  counts, capture status, log size, and session uptime. `Confirm` → Settings, `Left` → toggle
-  Pause (same button pauses and resumes WiFi/BLE capture — no screen change, and it stops
-  `DeauthEngine` too since that only ever fires from the observation stream capture produces),
-  `Right` → Export/Maintenance, `Up` → Recent Devices, `Down` → Log Viewer, `Back` → force a full
-  ghost-clearing refresh.
+  paused), whether handshake capture is switched on, a **Nearby DeAuth** row (`ALERT` during a
+  spike of deauth/disassoc frames from *any* source over the air, a running `N seen` count
+  otherwise, or `none` — see [Passive deauth/disassoc detection](#passive-deauthdisassoc-detection)),
+  unique AP/client/BLE/handshake counts, capture status, log size, and session uptime. A banner
+  briefly announces "DEAUTH ACTIVITY NEARBY" or "HANDSHAKE CAPTURED" when either happens.
+  `Confirm` → Settings, `Left` → toggle Pause (same button pauses and resumes WiFi/BLE capture —
+  no screen change, and it stops `DeauthEngine` too since that only ever fires from the observation
+  stream capture produces), `Right` → Export/Maintenance, `Up` → Recent Devices, `Down` → Log
+  Viewer, `Back` → force a full ghost-clearing refresh.
 - **Settings** — toggle WiFi/BLE capture (BLE off by default — see
   [Hardware](#hardware) for why), adjust WiFi channel dwell time, lock WiFi monitor to a single
   channel instead of hopping all 13 (see
@@ -232,6 +235,23 @@ channel lock while a handshake is in progress (see [How it works](#how-it-works)
 full exchange, but a real 4-way handshake completing on its own is still not guaranteed. **Active
 deauth** (below) is the opt-in answer to that gap — see its own section for the current status of
 its transmit capability.
+
+## Passive deauth/disassoc detection
+
+Always on, no setting to flip, costs a few hundred bytes: `DeauthDetector` watches the
+deauth/disassoc management frames `WifiSniffer` already classifies and flags when their rate
+spikes — 5 or more within a 5-second window triggers a 15-second alert. This is evidence that
+*something* is actively attacking a nearby network, not necessarily this device — it's a passive
+counter, transmits nothing, and never changes what gets captured.
+
+This is deliberately independent of [Active deauth](#active-deauth) below: a half-duplex radio
+can't hear its own transmission on the way out, so `DeauthEngine`'s own bursts (were they ever to
+actually reach the air — see the status below) would be physically invisible to this same
+receive path anyway. In practice today it's moot regardless, since those bursts are confirmed
+rejected by the WiFi driver before transmission.
+
+The Dashboard's **Nearby DeAuth** row and banner (see [Screens](#screens)) are this detector's only
+UI surface — there's no separate history or export for it, just a live indicator.
 
 ## Active deauth
 

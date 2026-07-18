@@ -34,6 +34,8 @@ enum class WifiFrameKind : uint8_t {
   ProbeRequest,
   ProbeResponse,
   EapolHandshake,
+  Deauth,     // someone's deauthentication frame — not necessarily this device's own DeauthEngine
+  Disassoc,   // same as above, disassociation subtype
   Other,
 };
 

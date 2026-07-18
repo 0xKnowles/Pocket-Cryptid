@@ -43,6 +43,9 @@ class SettingsActivity final : public Activity {
   unsigned long statsResetArmedUntilMs = 0;
   bool showingKey = false;
   char revealedKeyHex[65] = {};
+  // Set on onEnter(), cleared after the first render() — gives this screen one crisp FULL_REFRESH
+  // per visit, then FAST_REFRESH for the frequent Up/Down/Left/Right redraws that follow.
+  bool firstRenderSinceEnter = true;
 
   void adjustSelected(int direction);
   void activateSelected();

@@ -1,6 +1,7 @@
 #include "CrashActivity.h"
 
 #include <GfxRenderer.h>
+#include <HalDisplay.h>
 #include <HalSystem.h>
 
 #include "fontIds.h"
@@ -55,5 +56,5 @@ void CrashActivity::render(RenderLock&&) {
   }
 
   Chrome::drawFooterHints(renderer, "Continue", nullptr, nullptr, nullptr);
-  renderer.displayBuffer();
+  renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 }

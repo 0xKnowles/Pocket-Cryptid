@@ -32,6 +32,7 @@ void formatAgo(unsigned long seenAtMs, char* out, size_t outSize) {
 void DeviceListActivity::onEnter() {
   Activity::onEnter();
   lastRenderMs = 0;
+  firstRenderSinceEnter = true;
   requestUpdate();
 }
 
@@ -83,6 +84,7 @@ void DeviceListActivity::render(RenderLock&&) {
   }
 
   Chrome::drawFooterHints(renderer, "Home", nullptr, nullptr, nullptr);
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+  renderer.displayBuffer(firstRenderSinceEnter ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
+  firstRenderSinceEnter = false;
   lastRenderMs = millis();
 }

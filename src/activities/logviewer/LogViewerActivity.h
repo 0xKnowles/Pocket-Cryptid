@@ -42,4 +42,9 @@ class LogViewerActivity final : public Activity {
   LogRecordPlaintext page[kPageSize];
   size_t pageCount = 0;
   bool decryptFailed = false;
+
+  // Set on onEnter(), cleared after the first render() — gives this screen one crisp FULL_REFRESH
+  // per visit, then FAST_REFRESH for the paging redraws that follow (this screen redraws on every
+  // Left/Right/Up/Down press, so an unconditional FULL_REFRESH here would make paging sluggish).
+  bool firstRenderSinceEnter = true;
 };

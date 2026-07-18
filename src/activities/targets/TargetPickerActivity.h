@@ -23,4 +23,7 @@ class TargetPickerActivity final : public Activity {
   TargetListKind kind;
   size_t selected = 0;
   unsigned long lastRenderMs = 0;
+  // Set on onEnter(), cleared after the first render() — gives this screen one crisp FULL_REFRESH
+  // per visit, then FAST_REFRESH for cursor-movement redraws that follow.
+  bool firstRenderSinceEnter = true;
 };

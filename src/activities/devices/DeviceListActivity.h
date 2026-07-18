@@ -22,4 +22,8 @@ class DeviceListActivity final : public Activity {
 
  private:
   unsigned long lastRenderMs = 0;
+  // Set on onEnter(), cleared after the first render() — gives this screen one crisp FULL_REFRESH
+  // per visit, then FAST_REFRESH for the timer-driven live redraws that follow (an unconditional
+  // FULL_REFRESH here would make the live feed flash repeatedly while just watching it).
+  bool firstRenderSinceEnter = true;
 };

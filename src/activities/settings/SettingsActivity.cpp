@@ -1,6 +1,7 @@
 #include "SettingsActivity.h"
 
 #include <GfxRenderer.h>
+#include <HalDisplay.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -47,6 +48,7 @@ void SettingsActivity::onEnter() {
   wipeArmed = false;
   statsResetArmed = false;
   showingKey = false;
+  firstRenderSinceEnter = true;
   requestUpdate();
 }
 
@@ -417,5 +419,6 @@ void SettingsActivity::render(RenderLock&&) {
   }
 
   Chrome::drawFooterHints(renderer, "Home", "Select", "-", "+");
-  renderer.displayBuffer();
+  renderer.displayBuffer(firstRenderSinceEnter ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
+  firstRenderSinceEnter = false;
 }

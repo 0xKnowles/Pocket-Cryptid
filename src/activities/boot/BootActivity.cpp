@@ -2,6 +2,7 @@
 
 #include <BitmapSource.h>
 #include <GfxRenderer.h>
+#include <HalDisplay.h>
 #include <HalStorage.h>
 #include <Logging.h>
 
@@ -113,5 +114,5 @@ void BootActivity::onEnter() {
   renderer.drawCenteredText(FONT_SMALL_ID, titleBlockY, "Pocket RF Analyzer");
   renderer.drawCenteredText(FONT_SMALL_ID, titleBlockY + titleLineHeight, "listening...");
 
-  renderer.displayBuffer();
+  renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 }

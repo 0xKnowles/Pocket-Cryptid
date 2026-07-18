@@ -104,6 +104,18 @@ All notable changes to this project are documented here. Format loosely follows
   respects `RubySettings` rather than force-enabling both radios, so it won't turn on a radio the
   owner had off in Settings before pausing. A "-- PAUSED --" line shows under Ruby's mood while
   active, and the footer hint switches between "Pause"/"Resume".
+- **Passive deauth/disassoc detector reintroduced** (`DeauthDetector`) — see "Removed" further down
+  for why it left in the first place: it was never the RAM problem (`ApHistory`'s 256-entry table
+  was), so it's back on its own, unaccompanied by `TrackerDetector`/`ApHistory`. Counts
+  deauth/disassoc management frames from *any* source over the air (not just this device's own
+  `DeauthEngine`, whose bursts are both physically invisible to the same antenna during TX and, as
+  of the entry above, confirmed to never actually reach the air at all) and flags a 15-second alert
+  window after a 5-frame spike within 5 seconds. Dashboard's old "DeAuth: ON/OFF" stat row — which
+  only ever reflected `SETTINGS.activeDeauthEnabled`, a setting now known to be disconnected from
+  real-world radio behavior — is replaced with **"Nearby DeAuth"**, showing `ALERT` during a spike,
+  a running `N seen` count otherwise, or `none`. The dashboard banner that used to only ever announce
+  a captured handshake now also announces "DEAUTH ACTIVITY NEARBY" (taking priority over the
+  handshake banner if both are active at once).
 
 ### Fixed
 
@@ -191,6 +203,19 @@ All notable changes to this project are documented here. Format loosely follows
   hours, it's exactly the case that needs `FULL_REFRESH`'s complete waveform cycle instead, same
   as the existing manual Screen-Refresh action and the Dashboard's own ghost-clear interval both
   already use for the same reason.
+- **Most screens besides Dashboard/SleepActivity looked lower-contrast/"washed out" than intended.**
+  Same root cause as the Sleep screen fix above, just spread across nearly every other activity:
+  `BootActivity`, `CrashActivity`, `MaintenanceActivity` (Export), and `FullScreenMessageActivity`'s
+  default were all drawing their one-shot screens with a bare `displayBuffer()`/an explicit
+  `FAST_REFRESH` default — the lower-fidelity partial-update waveform — instead of the crisp,
+  higher-contrast `FULL_REFRESH` waveform a one-shot screen has no reason not to use. Changed all
+  four to `FULL_REFRESH` unconditionally. The frequently-interactive/live screens
+  (`LogViewerActivity`, `TargetPickerActivity`, `DeviceListActivity`, `SettingsActivity`) needed a
+  different fix, since forcing `FULL_REFRESH` on every redraw would make paging/navigation/the live
+  device feed flash repeatedly instead: each now tracks a `firstRenderSinceEnter` flag, set in
+  `onEnter()`, so the first render after entering the screen gets a crisp `FULL_REFRESH` and every
+  subsequent redraw (paging, cursor movement, the periodic live-feed tick) stays `FAST_REFRESH` as
+  before.
 
 ### Removed
 

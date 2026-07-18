@@ -1,6 +1,7 @@
 #include "MaintenanceActivity.h"
 
 #include <GfxRenderer.h>
+#include <HalDisplay.h>
 #include <HalStorage.h>
 
 #include <algorithm>
@@ -184,5 +185,5 @@ void MaintenanceActivity::render(RenderLock&&) {
                     "Firmware updates: pio run -e default -t upload over USB.");
 
   Chrome::drawFooterHints(renderer, "Home", "Home", nullptr, nullptr);
-  renderer.displayBuffer();
+  renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 }

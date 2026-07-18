@@ -33,6 +33,7 @@ void TargetPickerActivity::onEnter() {
   Activity::onEnter();
   selected = 0;
   lastRenderMs = 0;
+  firstRenderSinceEnter = true;
   requestUpdate();
 }
 
@@ -112,6 +113,7 @@ void TargetPickerActivity::render(RenderLock&&) {
   }
 
   Chrome::drawFooterHints(renderer, "Back", "Toggle", nullptr, nullptr);
-  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+  renderer.displayBuffer(firstRenderSinceEnter ? HalDisplay::FULL_REFRESH : HalDisplay::FAST_REFRESH);
+  firstRenderSinceEnter = false;
   lastRenderMs = millis();
 }

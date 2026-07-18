@@ -24,6 +24,7 @@
 #include "ApScanCache.h"
 #include "BleScanner.h"
 #include "CaptureControl.h"
+#include "DeauthDetector.h"
 #include "DeauthEngine.h"
 #include "EncryptedLog.h"
 #include "MappedInputManager.h"
@@ -331,6 +332,16 @@ void setup() {
   deauthEngine.begin();
 
   wifiSniffer.setObservationCallback([](const WifiObservation& obs) {
+    if (obs.kind == WifiFrameKind::Deauth || obs.kind == WifiFrameKind::Disassoc) {
+      // Not a device sighting — someone else's deauth/disassoc activity in the air (a
+      // half-duplex radio can't hear its own transmission, so this is never DeauthEngine's own
+      // burst — see DeauthDetector.h). Feeds DeauthDetector only: the encrypted log/Recent
+      // Devices/SignalCatalog paths don't have a meaningful record type or dedup bucket for "this
+      // BSSID was targeted by a deauth frame" and would otherwise show it mislabeled as an
+      // ordinary AP sighting via mapWifiKindToLogType()'s fallback.
+      deauthDetector.onObservation(obs);
+      return;
+    }
     const LogRecordType type = mapWifiKindToLogType(obs.kind);
     encryptedLog.appendWifi(obs, type);
     SIGNAL_CATALOG.observeWifi(obs);

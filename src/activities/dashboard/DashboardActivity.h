@@ -41,6 +41,9 @@ class DashboardActivity final : public Activity {
   uint8_t lastAnimFrameRendered = 0xFF;
   bool handshakeBannerActive = false;
   unsigned long handshakeBannerUntilMs = 0;
+  // DeauthDetector::alertActive() is itself already time-windowed, so no separate until-timestamp
+  // is needed here — just the last-known state, to notice the on/off transition and redraw.
+  bool lastDeauthAlertState = false;
 
   int rubyBoxX = 0;
   int rubyBoxY = 0;
