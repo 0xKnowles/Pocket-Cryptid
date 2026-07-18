@@ -175,7 +175,10 @@ All notable changes to this project are documented here. Format loosely follows
   vertical room: HANDSHAKES (top) is a plain "N ago" text list of recent captures, newest first,
   from a dedicated handshake-timestamp ring rather than `RecentSightings`' shared, AP/client/
   BLE-dominated 16-slot feed — handshakes are rare enough that ordinary traffic would push one out
-  of that shared feed within moments, the opposite of "historical" for an event this infrequent —
+  of that shared feed within moments, the opposite of "historical" for an event this infrequent.
+  This ring is now persisted (`RubyState::handshakeTimestamps`, real Unix timestamps rather than
+  `millis()`, which resets every reboot and can't tell "historical" apart from "since the last
+  power-on") so captures from previous sessions still show up here too, not just the current one —
   while SIGNAL (bottom) stays a recent-observations RSSI bar chart, oldest on the left, newest
   anchored to the right.
 - **Ruby thinks and talks now** (`RubyThoughts.h`, `Chrome::drawThoughtBubble()`/`drawSpeechBubble()`).
@@ -194,7 +197,8 @@ All notable changes to this project are documented here. Format loosely follows
   milliseconds, since a lifetime total can run well past the ~49-day point where a `uint32_t`
   millisecond count wraps. SIGNALS and CAPTURE STATUS's rows now use a smaller font/row height
   (`drawCompactStatRow()`, Dashboard-local) so this 5th row fits without clipping past the card's
-  bottom edge.
+  bottom edge. `Settings → Reset signal stats` now zeroes it too (alongside EXP and the handshake
+  history) — otherwise there was no way to reset it short of never running the device this long.
 
 ### Removed
 

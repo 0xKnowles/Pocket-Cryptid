@@ -48,12 +48,21 @@ class RubyManager : public PersistableStore<RubyManager> {
   // newLevel is only written when this returns true.
   bool consumeJustLeveledUp(uint8_t& newLevel);
 
-  // Zeroes totalExp (and any pending level-up flag) and persists immediately, same
-  // arm-then-confirm pattern as SignalCatalog::resetStats() — called alongside it from
-  // `Settings → Reset signal stats` so the two can't drift apart (previously, resetting the
-  // dashboard's dedup counters left totalExp untouched, so already-leveled-on MACs could
-  // re-award EXP once their dedup ring entry was cleared).
+  // Zeroes totalExp, any pending level-up flag, and the handshake-capture history (see
+  // handshakeTimestamps() below), and persists immediately — same arm-then-confirm pattern as
+  // SignalCatalog::resetStats() — called alongside it from `Settings → Reset signal stats` so
+  // the three can't drift apart (previously, resetting the dashboard's dedup counters left
+  // totalExp untouched, so already-leveled-on MACs could re-award EXP once their dedup ring entry
+  // was cleared; the handshake history would similarly go on showing "captures" the SIGNALS card
+  // no longer counts).
   void resetExp();
+
+  // Read-only view of the persisted handshake-capture history (Unix timestamps, oldest
+  // overwritten first) for Dashboard's HANDSHAKES list — see RubyState::handshakeTimestamps for
+  // the ring's exact semantics, including the 0-means-unused convention and how to walk it
+  // newest-first from handshakeHistoryNext().
+  const uint32_t* handshakeTimestamps() const { return state.handshakeTimestamps; }
+  uint8_t handshakeHistoryNext() const { return state.handshakeHistoryNext; }
 
   // deviceSleeping short-circuits straight to SLEEPING regardless of activity timers — used by
   // SleepActivity so the creature visibly "goes quiet" the instant the screen does.

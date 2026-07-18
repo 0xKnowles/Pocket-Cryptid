@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdio>
+#include <ctime>
 #include <string>
 
 #include "BleScanner.h"
@@ -180,31 +181,40 @@ void drawExpBar(const GfxRenderer& renderer, int x, int y, int width, int height
 }
 
 // Handshake-activity history — a plain "N ago" text list of the most recent captures, newest
-// first, fed from DashboardActivity's own dedicated handshake-timestamp ring (see
-// DashboardActivity.h) rather than RecentSightings' shared 16-slot feed, which mixes in every
-// AP/client/BLE sighting too and so pushes a handshake out of view again within moments in any
-// normal RF environment — the opposite of "historical" for an event this rare. Text rather than a
+// first, fed from RubyManager's persisted Unix-timestamp ring (see RubyState::handshakeTimestamps)
+// rather than RecentSightings' shared 16-slot feed, which mixes in every AP/client/BLE sighting
+// too and so pushes a handshake out of view again within moments in any normal RF environment —
+// the opposite of "historical" for an event this rare. Persisted (not session-only) so captures
+// from previous boots still show up here, not just this session's — real wall-clock time (unlike
+// millis()) is the only timestamp that still means anything across a reboot. Text rather than a
 // chart: handshakes are rare enough (and the list short enough) that raw ago-timestamps read more
-// clearly at this scale than bars would. `next` is the ring's next-write index, needed to walk the
-// buffer backwards from its most recently written slot.
+// clearly at this scale than bars would. 0 is this ring's "slot never used" sentinel (see
+// RubyState.h), so unused slots are simply skipped rather than counted as real captures; `next` is
+// the ring's next-write index, needed to walk the buffer backwards from its most recently written
+// slot regardless of whether it has wrapped yet.
 void drawHandshakeHistoryList(const GfxRenderer& renderer, int x, int y, int width, int height,
-                              const unsigned long* times, size_t count, size_t capacity, size_t next) {
+                              const uint32_t* times, size_t capacity, uint8_t next) {
   constexpr int kLineHeight = 13;
-  if (count == 0) {
-    renderer.drawText(FONT_SMALL_ID, x, y, "None yet.");
-    return;
-  }
-
   const int maxLines = std::max(1, height / kLineHeight);
-  const size_t linesToShow = std::min(count, static_cast<size_t>(maxLines));
-  for (size_t i = 0; i < linesToShow; i++) {
-    const size_t idx = (next + capacity - 1 - i) % capacity;
+  const time_t nowUnix = time(nullptr);
+
+  int drawn = 0;
+  for (size_t i = 0; i < capacity && drawn < maxLines; i++) {
+    const size_t idx = (static_cast<size_t>(next) + capacity - 1 - i) % capacity;
+    const uint32_t t = times[idx];
+    if (t == 0) continue;  // unused slot -- ring isn't full of real captures yet
+    const unsigned long agoSec =
+        nowUnix > static_cast<time_t>(t) ? static_cast<unsigned long>(nowUnix - static_cast<time_t>(t)) : 0UL;
     char agoBuf[24];
-    formatUptime((millis() - times[idx]) / 1000, agoBuf, sizeof(agoBuf));
+    formatUptime(agoSec, agoBuf, sizeof(agoBuf));
     char line[40];
     snprintf(line, sizeof(line), "%s ago", agoBuf);
-    renderer.drawText(FONT_SMALL_ID, x, y + static_cast<int>(i) * kLineHeight,
+    renderer.drawText(FONT_SMALL_ID, x, y + drawn * kLineHeight,
                       renderer.truncatedText(FONT_SMALL_ID, line, width).c_str());
+    drawn++;
+  }
+  if (drawn == 0) {
+    renderer.drawText(FONT_SMALL_ID, x, y, "None yet.");
   }
 }
 
@@ -306,9 +316,9 @@ void DashboardActivity::loop() {
     handshakeBannerActive = true;
     handshakeBannerUntilMs = millis() + kHandshakeBannerMs;
     armSpeechBubble(RubyThoughts::speechForHandshake(static_cast<uint8_t>(millis())));
-    handshakeHistoryTimes[handshakeHistoryNext] = millis();
-    handshakeHistoryNext = (handshakeHistoryNext + 1) % kHandshakeHistoryCapacity;
-    handshakeHistoryCount = std::min(handshakeHistoryCount + 1, kHandshakeHistoryCapacity);
+    // RubyManager::onSignalEvent() already records the persisted handshake-history timestamp
+    // itself (see RubyManager.cpp) — not duplicated here, and not reliant on this screen being the
+    // active one when a handshake actually lands.
     pendingRenderKind = RenderKind::Full;
     requestUpdate();
     return;
@@ -541,8 +551,7 @@ void DashboardActivity::renderFull() {
   drawBoldSmall(renderer, chartX, chartTop, "HANDSHAKES");
   const int handshakeGraphY = chartTop + subLabelHeight;
   drawHandshakeHistoryList(renderer, chartX, handshakeGraphY, chartWidth, trackHeight - subLabelHeight,
-                           handshakeHistoryTimes, handshakeHistoryCount, kHandshakeHistoryCapacity,
-                           handshakeHistoryNext);
+                           RUBY.handshakeTimestamps(), kHandshakeHistoryCapacity, RUBY.handshakeHistoryNext());
 
   const int signalLabelY = chartTop + trackHeight + kSubGap;
   drawBoldSmall(renderer, chartX, signalLabelY, "SIGNAL");

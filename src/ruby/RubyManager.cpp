@@ -50,6 +50,15 @@ void RubyManager::onSignalEvent(RfEventType type) {
     lastHandshakeMillis = millis();
     justCapturedHandshake = true;
     state.totalExp += RubyConfig::kExpPerHandshake;
+    // Recorded here (not by DashboardActivity polling consumeJustCapturedHandshake()) so a
+    // handshake captured while a different screen is active still lands in the persisted
+    // history — skipped entirely if the wall clock has never been set, since 0 is this ring's
+    // "slot never used" sentinel and a real capture must never be indistinguishable from one.
+    const uint32_t nowUnix = static_cast<uint32_t>(time(nullptr));
+    if (nowUnix != 0) {
+      state.handshakeTimestamps[state.handshakeHistoryNext] = nowUnix;
+      state.handshakeHistoryNext = static_cast<uint8_t>((state.handshakeHistoryNext + 1) % kHandshakeHistoryCapacity);
+    }
     LOG_INF("RUBY", "%s: handshake captured", state.designation);
   } else {
     state.totalExp += RubyConfig::kExpPerUniqueDevice;
@@ -120,12 +129,14 @@ bool RubyManager::consumeJustLeveledUp(uint8_t& newLevel) {
 void RubyManager::resetExp() {
   state.totalExp = 0;
   justLeveledUpTo = 0;
+  memset(state.handshakeTimestamps, 0, sizeof(state.handshakeTimestamps));
+  state.handshakeHistoryNext = 0;
   if (saveToFile()) {
     dirty = false;
     lastSaveMs = millis();
-    LOG_INF("RUBY", "%s: EXP reset", state.designation);
+    LOG_INF("RUBY", "%s: EXP and handshake history reset", state.designation);
   } else {
-    LOG_ERR("RUBY", "Failed to persist EXP reset");
+    LOG_ERR("RUBY", "Failed to persist EXP/handshake-history reset");
   }
 }
 
@@ -139,6 +150,9 @@ void RubyManager::toJson(JsonDocument& doc) const {
   doc["birthUnixTime"] = state.birthUnixTime;
   doc["designation"] = state.designation;
   doc["totalExp"] = state.totalExp;
+  JsonArray handshakeTimes = doc["handshakeTimestamps"].to<JsonArray>();
+  for (uint32_t t : state.handshakeTimestamps) handshakeTimes.add(t);
+  doc["handshakeHistoryNext"] = state.handshakeHistoryNext;
 }
 
 bool RubyManager::fromJson(JsonVariantConst doc) {
@@ -147,5 +161,15 @@ bool RubyManager::fromJson(JsonVariantConst doc) {
   const char* designation = doc["designation"] | "";
   strncpy(state.designation, designation, sizeof(state.designation) - 1);
   state.totalExp = doc["totalExp"] | 0;
+
+  // Missing entirely on a state file saved before this ring existed — an empty/absent array here
+  // just leaves every slot at its zero-initialized default, correctly read as "no captures yet".
+  JsonArrayConst handshakeTimes = doc["handshakeTimestamps"];
+  size_t i = 0;
+  for (JsonVariantConst v : handshakeTimes) {
+    if (i >= kHandshakeHistoryCapacity) break;
+    state.handshakeTimestamps[i++] = v.as<uint32_t>();
+  }
+  state.handshakeHistoryNext = doc["handshakeHistoryNext"] | 0;
   return true;
 }

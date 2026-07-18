@@ -64,16 +64,6 @@ class DashboardActivity final : public Activity {
   uint32_t lastUniqueWifiClients = 0;
   uint32_t lastUniqueBleDevices = 0;
 
-  // Dedicated, session-only ring of handshake-capture timestamps (millis() at capture) — separate
-  // from RecentSightings' shared 16-slot feed, which mixes in every AP/client/BLE sighting too and
-  // so pushes a handshake out of view again within moments in any normal RF environment. This ring
-  // is handshake-only, so it stays genuinely historical across the whole session instead of just
-  // the last few seconds — see drawHandshakeHistoryChart() in DashboardActivity.cpp.
-  static constexpr size_t kHandshakeHistoryCapacity = 24;
-  unsigned long handshakeHistoryTimes[kHandshakeHistoryCapacity] = {};
-  size_t handshakeHistoryCount = 0;
-  size_t handshakeHistoryNext = 0;
-
   int rubyBoxX = 0;
   int rubyBoxY = 0;
   int rubyBoxSize = 0;

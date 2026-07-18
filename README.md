@@ -185,10 +185,12 @@ When the device is asleep, it shows a different, much larger piece of art instea
   in full detail (type/MAC, signal bars + RSSI + time-ago, device name), and a **SIGNAL HISTORY**
   card next to it stacks two sections — both cards extend down the full height of the box + Mood
   column beside them, not just the box's own height. **HANDSHAKES** (top) is a plain "N ago" text
-  list of recent captures, newest first (handshakes are too rare to track meaningfully via the
-  live Recent Devices feed, which any ordinary AP/client/BLE traffic cycles through in moments), and
-  **SIGNAL** (bottom) is the same recent-observations feed's RSSI as a live bar chart. Below that,
-  **SIGNALS** (unique AP/client/BLE/handshake counts) and **CAPTURE STATUS** (WiFi monitor/BLE scan
+  list of recent captures, newest first, persisted across reboots (unlike Recent Devices' live,
+  RAM-only feed) so it stays genuinely historical rather than resetting to empty on every power-on
+  — handshakes are too rare to track meaningfully via a feed any ordinary AP/client/BLE traffic
+  cycles through in moments anyway. **SIGNAL** (bottom) is the same recent-observations feed's RSSI
+  as a live bar chart. Below that, **SIGNALS** (unique AP/client/BLE/handshake counts) and
+  **CAPTURE STATUS** (WiFi monitor/BLE scan
   state, log size, this session's uptime, and lifetime Total Uptime across every boot) sit side by
   side. A bubble along the bottom edge of Ruby's box, tailing up into her face, shows a quirky,
   hacker-flavored one-liner reflecting Ruby's current mood, briefly replaced by a speech bubble
@@ -209,7 +211,7 @@ When the device is asleep, it shows a different, much larger piece of art instea
   [active deauth](#active-deauth) (both off by default), manage the whitelist/blacklist (opens
   a live network scan to add/remove targets — see [Active deauth](#active-deauth)), reveal the
   log's AES key, wipe the log, or reset the Dashboard's SIGNALS counters (and Ruby's Level/EXP,
-  kept in sync with it) back to zero.
+  handshake-capture history, and lifetime Total Uptime, all kept in sync with it) back to zero.
 - **Export/Maintenance** — how to pull captures off the SD card, plus the current session's
   record count and (when any exist) raw-capture file stats, a PMKID-capable-capture count, and
   deauth burst/frame counters.

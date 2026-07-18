@@ -24,6 +24,11 @@ enum class RubyExpression : uint8_t {
   SLEEPING,  // device is on the sleep screen; not RF-driven
 };
 
+// Ring size for the persisted handshake-capture history below (Dashboard's HANDSHAKES list) —
+// declared ahead of RubyState so its array member can size off of it, ahead of the RubyConfig
+// namespace further down so it can't live there instead without a forward declaration.
+constexpr size_t kHandshakeHistoryCapacity = 24;
+
 // Persistent state, serialized via RubyManager (PersistableStore<RubyManager>) to
 // /.ruby/ruby_state.json. Still deliberately small — no stage, no currency, no shop; `totalExp`
 // is the one piece of lifetime progress tracked, purely to drive the Level badge.
@@ -32,6 +37,17 @@ struct RubyState {
   uint32_t birthUnixTime = 0;  // 0 if the wall clock had never been set at hatch time
   char designation[16] = {};   // cosmetic ID shown in the UI, derived from the chip's MAC
   uint32_t totalExp = 0;       // lifetime EXP total — see RubyConfig::levelForExp() below
+
+  // Persisted Unix-time (time(nullptr)) history of handshake captures, across every boot — plain
+  // uptime (millis()) resets every reboot, so it can't tell "historical" apart from "since the
+  // last power-on." A ring, oldest overwritten first, with 0 doubling as "slot never used" (same
+  // convention birthUnixTime above already relies on — the wall clock reads 0 until it's ever been
+  // set, so a real capture can never legitimately produce a 0 timestamp here either).
+  // handshakeHistoryNext is the index the *next* capture will write to; walking backwards from
+  // (handshakeHistoryNext - 1) visits every filled slot newest-first regardless of whether the
+  // ring has wrapped yet.
+  uint32_t handshakeTimestamps[kHandshakeHistoryCapacity] = {};
+  uint8_t handshakeHistoryNext = 0;
 
   bool exists() const { return initialized; }
 };

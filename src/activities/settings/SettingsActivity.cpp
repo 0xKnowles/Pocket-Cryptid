@@ -12,6 +12,7 @@
 #include "BleScanner.h"
 #include "DeauthEngine.h"
 #include "EncryptedLog.h"
+#include "RubyAppState.h"
 #include "RubySettings.h"
 #include "SignalCatalog.h"
 #include "TargetList.h"
@@ -189,7 +190,14 @@ void SettingsActivity::activateSelected() {
         // Reset alongside it, not independently — otherwise a MAC that already leveled Ruby up
         // could re-award EXP the moment its dedup ring entry is cleared and it's seen again,
         // silently overcounting the badge relative to what the dashboard's own counters now show.
+        // resetExp() also clears the persisted handshake-capture history, for the same reason —
+        // it'd otherwise go on listing "captures" the just-reset SIGNALS card no longer counts.
         RUBY.resetExp();
+        // Total Uptime is lifetime, not tied to signal stats at all, but reset here too since
+        // that's the only reset action this device has — otherwise there'd be no way to zero it
+        // short of never letting the device run this long in the first place.
+        APP_STATE.totalCaptureSeconds = 0;
+        APP_STATE.saveToFile();
         statsResetArmed = false;
       } else {
         statsResetArmed = true;
@@ -337,7 +345,7 @@ void SettingsActivity::render(RenderLock&&) {
                       "Press Confirm again to permanently erase the log and its key.", true, EpdFontFamily::BOLD);
   } else if (statsResetArmed) {
     renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y,
-                      "Press Confirm again to zero SIGNALS, forget seen devices, and reset Ruby's Level/EXP.", true,
+                      "Press Confirm again to zero SIGNALS, forget devices, and reset EXP and Total Uptime.", true,
                       EpdFontFamily::BOLD);
   } else if (selected == RowBleEnabled) {
     const auto lines = renderer.wrappedText(
