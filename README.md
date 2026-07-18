@@ -192,8 +192,8 @@ When the device is asleep, it shows a different, much larger piece of art instea
   as a live bar chart. Below that, **SIGNALS** (unique AP/client/BLE/handshake counts, plus a
   "Last Hand Shook:" row — slightly larger than the others — showing the BSSID of the most recent
   handshake capture, "none yet" until the first one) and
-  **CAPTURE STATUS** (WiFi monitor/BLE scan
-  state, log size, this session's uptime, and lifetime Total Uptime across every boot) sit side by
+  **CAPTURE STATUS** (a single "Capture" row naming whichever of WiFi monitor/BLE scan is actually
+  active, log size, this session's uptime, and lifetime Total Uptime across every boot) sit side by
   side. A bubble along the bottom edge of Ruby's box, tailing up into her face, shows a quirky,
   hacker-flavored one-liner reflecting Ruby's current mood, briefly replaced by a speech bubble
   reacting to a new device, a captured handshake, a level up, or a nearby deauth alert (see

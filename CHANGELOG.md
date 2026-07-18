@@ -215,6 +215,16 @@ All notable changes to this project are documented here. Format loosely follows
   rows (`Chrome::drawStatRow`'s original font, not the smaller `drawCompactStatRow` the rest of the
   card uses) in space that was otherwise sitting idle below the 4 counter rows.
 
+### Changed
+
+- **CAPTURE STATUS's separate "WiFi monitor"/"BLE scan" rows collapsed into a single "Capture"
+  row**, naming whichever capture path(s) are actually running ("WiFi ch`N`", "WiFi ch`N`, BLE",
+  "BLE", or "none") instead of two rows that each spelled out their own ON/OFF state. The card also
+  switches from vertically-centering its row block to top-anchoring it (`beginStatCard()`'s return
+  value used directly, same as SIGNALS) — it was originally centered on purpose when the row count
+  was smaller, but next to SIGNALS' already top-anchored rows that made CAPTURE STATUS read as
+  noticeably looser at the top; both cards now hug their title the same amount.
+
 ### Removed
 
 - **Dashboard's "CAPTURE SETTINGS" card** (Handshake Capture/Active DeAuth/Nearby DeAuth), added

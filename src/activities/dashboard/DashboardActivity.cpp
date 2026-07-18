@@ -614,25 +614,24 @@ void DashboardActivity::renderFull() {
                               leftColX);
   endStatCard(renderer, leftColX, colWidth, bottomY, columnBottom);
 
-  // CAPTURE STATUS's rows are vertically centered within the card instead of hugging the title the
-  // way SIGNALS' do — asked for explicitly, and it also reads better here since these rows
-  // (WiFi monitor/BLE scan/log size/uptime) are a much more varied mix of value lengths than
-  // SIGNALS' four numbers, so a centered block looks more deliberate than a top-anchored one.
-  constexpr int kCaptureStatusRowCount = 5;
-  constexpr int kStatRowHeight = 16;  // mirrors drawCompactStatRow's internal row height
-  const int captureRowsTop = beginStatCard(renderer, rightColX, colWidth, bottomY, "CAPTURE STATUS");
-  const int captureRowsBlockHeight = kCaptureStatusRowCount * kStatRowHeight;
-  const int captureRowsAvailable = columnBottom - captureRowsTop;
-  int rightY = captureRowsTop + std::max(0, (captureRowsAvailable - captureRowsBlockHeight) / 2);
-  if (wifiSniffer.isRunning()) {
-    char chbuf[16];
-    snprintf(chbuf, sizeof(chbuf), "ch %u", wifiSniffer.currentChannel());
-    rightY = drawCompactStatRow(renderer, rightY, "WiFi monitor", chbuf, rightColX + colWidth, rightColX);
+  // Top-anchored, hugging the title exactly like SIGNALS does — this card used to center its rows
+  // vertically instead, which left it visibly less tight to the top than SIGNALS beside it.
+  int rightY = beginStatCard(renderer, rightColX, colWidth, bottomY, "CAPTURE STATUS");
+
+  // One combined "Capture" row instead of separate WiFi monitor/BLE scan rows — names only
+  // whichever capture path(s) are actually active ("none" if both are off) rather than two rows
+  // that each spell out their own ON/OFF state.
+  char captureBuf[32];
+  if (wifiSniffer.isRunning() && bleScanner.isRunning()) {
+    snprintf(captureBuf, sizeof(captureBuf), "WiFi ch%u, BLE", wifiSniffer.currentChannel());
+  } else if (wifiSniffer.isRunning()) {
+    snprintf(captureBuf, sizeof(captureBuf), "WiFi ch%u", wifiSniffer.currentChannel());
+  } else if (bleScanner.isRunning()) {
+    snprintf(captureBuf, sizeof(captureBuf), "BLE");
   } else {
-    rightY = drawCompactStatRow(renderer, rightY, "WiFi monitor", "off", rightColX + colWidth, rightColX);
+    snprintf(captureBuf, sizeof(captureBuf), "none");
   }
-  rightY = drawCompactStatRow(renderer, rightY, "BLE scan", bleScanner.isRunning() ? "passive" : "off",
-                              rightColX + colWidth, rightColX);
+  rightY = drawCompactStatRow(renderer, rightY, "Capture", captureBuf, rightColX + colWidth, rightColX);
 
   char sizeBuf[24];
   formatBytes(encryptedLog.currentFileSizeBytes(), sizeBuf, sizeof(sizeBuf));
