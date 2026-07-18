@@ -27,6 +27,7 @@ namespace {
 constexpr unsigned long kFullRedrawIntervalMs = 5000;
 constexpr unsigned long kPetRedrawIntervalMs = 1200;
 constexpr unsigned long kHandshakeBannerMs = 4000;
+constexpr unsigned long kLevelUpBannerMs = 4000;
 
 void formatUptime(unsigned long ms, char* out, size_t outSize) {
   const unsigned long totalSec = ms / 1000;
@@ -202,6 +203,22 @@ void DashboardActivity::loop() {
   }
   if (handshakeBannerActive && millis() >= handshakeBannerUntilMs) {
     handshakeBannerActive = false;
+    pendingRenderKind = RenderKind::Full;
+    requestUpdate();
+    return;
+  }
+
+  uint8_t newLevel = 0;
+  if (RUBY.consumeJustLeveledUp(newLevel)) {
+    levelUpBannerActive = true;
+    levelUpBannerUntilMs = millis() + kLevelUpBannerMs;
+    levelUpBannerLevel = newLevel;
+    pendingRenderKind = RenderKind::Full;
+    requestUpdate();
+    return;
+  }
+  if (levelUpBannerActive && millis() >= levelUpBannerUntilMs) {
+    levelUpBannerActive = false;
     pendingRenderKind = RenderKind::Full;
     requestUpdate();
     return;
@@ -435,11 +452,19 @@ void DashboardActivity::renderFull() {
   drawRubyPanel(true);
 
   // At most one banner at a time — priority order is "most urgent to know about right now": a
-  // nearby deauth attack in progress, then Ruby's own (positive, less time-sensitive) handshake
-  // capture.
+  // nearby deauth attack in progress, then a level-up (bigger, rarer news than an ordinary
+  // handshake, and often triggered by the very same handshake — kExpPerHandshake is a round
+  // multiple of every level threshold's step, so the two frequently coincide), then Ruby's own
+  // handshake capture. A de-prioritized banner's own timer still runs out quietly in the
+  // background even while hidden behind a higher-priority one, rather than getting reset or
+  // extended — simplest to reason about, and nothing here depends on exactly when it expires.
+  char levelUpBannerBuf[24];
   const char* bannerText = nullptr;
   if (deauthDetector.alertActive()) {
     bannerText = "DEAUTH ACTIVITY NEARBY";
+  } else if (levelUpBannerActive) {
+    snprintf(levelUpBannerBuf, sizeof(levelUpBannerBuf), "LEVEL UP -> Lv.%u", levelUpBannerLevel);
+    bannerText = levelUpBannerBuf;
   } else if (handshakeBannerActive) {
     bannerText = "HANDSHAKE CAPTURED";
   }

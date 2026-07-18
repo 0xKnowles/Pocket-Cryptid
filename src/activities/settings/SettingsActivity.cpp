@@ -18,6 +18,7 @@
 #include "WifiSniffer.h"
 #include "activities/targets/TargetPickerActivity.h"
 #include "fontIds.h"
+#include "ruby/RubyManager.h"
 #include "ui/Chrome.h"
 
 namespace {
@@ -185,6 +186,10 @@ void SettingsActivity::activateSelected() {
     case RowResetStats:
       if (statsResetArmed && millis() < statsResetArmedUntilMs) {
         SIGNAL_CATALOG.resetStats();
+        // Reset alongside it, not independently — otherwise a MAC that already leveled Ruby up
+        // could re-award EXP the moment its dedup ring entry is cleared and it's seen again,
+        // silently overcounting the badge relative to what the dashboard's own counters now show.
+        RUBY.resetExp();
         statsResetArmed = false;
       } else {
         statsResetArmed = true;
@@ -332,7 +337,7 @@ void SettingsActivity::render(RenderLock&&) {
                       "Press Confirm again to permanently erase the log and its key.", true, EpdFontFamily::BOLD);
   } else if (statsResetArmed) {
     renderer.drawText(FONT_UI_10_ID, Chrome::contentLeft(), y,
-                      "Press Confirm again to zero the SIGNALS counts and forget every device seen so far.", true,
+                      "Press Confirm again to zero SIGNALS, forget seen devices, and reset Ruby's Level/EXP.", true,
                       EpdFontFamily::BOLD);
   } else if (selected == RowBleEnabled) {
     const auto lines = renderer.wrappedText(

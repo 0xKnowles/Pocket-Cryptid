@@ -44,6 +44,8 @@ void RubyManager::onSignalEvent(RfEventType type) {
   lastCaptureMillis = millis();
   recentEventTimes[recentEventNext] = lastCaptureMillis;
   recentEventNext = (recentEventNext + 1) % RubyConfig::kRecentEventCapacity;
+
+  const uint8_t levelBefore = level();
   if (type == RfEventType::HandshakeCaptured) {
     lastHandshakeMillis = millis();
     justCapturedHandshake = true;
@@ -51,6 +53,11 @@ void RubyManager::onSignalEvent(RfEventType type) {
     LOG_INF("RUBY", "%s: handshake captured", state.designation);
   } else {
     state.totalExp += RubyConfig::kExpPerUniqueDevice;
+  }
+  const uint8_t levelAfter = level();
+  if (levelAfter > levelBefore) {
+    justLeveledUpTo = levelAfter;
+    LOG_INF("RUBY", "%s: leveled up to %u", state.designation, levelAfter);
   }
   dirty = true;
 }
@@ -101,6 +108,25 @@ bool RubyManager::consumeJustCapturedHandshake() {
   const bool result = justCapturedHandshake;
   justCapturedHandshake = false;
   return result;
+}
+
+bool RubyManager::consumeJustLeveledUp(uint8_t& newLevel) {
+  if (justLeveledUpTo == 0) return false;
+  newLevel = justLeveledUpTo;
+  justLeveledUpTo = 0;
+  return true;
+}
+
+void RubyManager::resetExp() {
+  state.totalExp = 0;
+  justLeveledUpTo = 0;
+  if (saveToFile()) {
+    dirty = false;
+    lastSaveMs = millis();
+    LOG_INF("RUBY", "%s: EXP reset", state.designation);
+  } else {
+    LOG_ERR("RUBY", "Failed to persist EXP reset");
+  }
 }
 
 uint8_t RubyManager::animFrame() const {

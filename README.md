@@ -120,7 +120,8 @@ to leveling over a typical session instead of one drowning out the other. Leveli
 changes that badge's number, never the art above. A matching progress bar sits in the header, next
 to the battery badge, filling up toward the next level, with an "`N/M EXP`" label beside it —
 EXP earned so far this level and the fixed total that level spans (not a countdown; "MAX" once
-level 5 is hit).
+level 5 is hit). Crossing into a new level briefly shows a "LEVEL UP → Lv.N" banner (see
+[Screens](#screens)).
 CURIOUS specifically requires several new-unique sightings within a short window, not just one —
 a single new device reads as ordinary CONTENT instead, so CURIOUS stays meaningful ("something's
 actually picking up") even in a busy RF environment where new devices show up constantly. Pausing
@@ -176,7 +177,8 @@ When the device is asleep, it shows a different, much larger piece of art instea
   spike of deauth/disassoc frames from *any* source over the air, a running `N seen` count
   otherwise, or `none` — see [Passive deauth/disassoc detection](#passive-deauthdisassoc-detection)),
   unique AP/client/BLE/handshake counts, capture status, log size, and session uptime. A banner
-  briefly announces "DEAUTH ACTIVITY NEARBY" or "HANDSHAKE CAPTURED" when either happens.
+  briefly announces "DEAUTH ACTIVITY NEARBY", "LEVEL UP → Lv.N", or "HANDSHAKE CAPTURED" (in that
+  priority order) when any of them happens.
   `Confirm` → Settings, `Left` → toggle Pause (same button pauses and resumes WiFi/BLE capture —
   no screen change, and it stops `DeauthEngine` too since that only ever fires from the observation
   stream capture produces), `Right` → Export/Maintenance, `Up` → Recent Devices, `Down` → Log
@@ -190,7 +192,8 @@ When the device is asleep, it shows a different, much larger piece of art instea
   [raw handshake capture](#raw-handshake-capture-crackable-pcap-export) or
   [active deauth](#active-deauth) (both off by default), manage the whitelist/blacklist (opens
   a live network scan to add/remove targets — see [Active deauth](#active-deauth)), reveal the
-  log's AES key, wipe the log, or reset the Dashboard's SIGNALS counters back to zero.
+  log's AES key, wipe the log, or reset the Dashboard's SIGNALS counters (and Ruby's Level/EXP,
+  kept in sync with it) back to zero.
 - **Export/Maintenance** — how to pull captures off the SD card, plus the current session's
   record count and (when any exist) raw-capture file stats, a PMKID-capable-capture count, and
   deauth burst/frame counters.
@@ -334,9 +337,12 @@ already have an SSID or advertised name. This needs a user-supplied file at `/.r
 shipped with the firmware — one `AABBCC<TAB>Vendor Name` entry per line, the same format IEEE's
 public OUI registry export or Wireshark's `manuf` file already use. Without that file present,
 unlabeled entries just show "(no name)" as before. No database ships in firmware, so this costs
-nothing when the file isn't present — but a full ~50,000-entry registry gets scanned from scratch
-on every visible row on every redraw, so a curated subset (common consumer/IoT vendors, say) will
-feel a lot snappier than the full registry.
+nothing when the file isn't present. A cold lookup still scans the file from scratch (it can't
+assume the file is sorted), but a small 32-entry result cache means the *same* vendor, looked up
+repeatedly across redraws of the same handful of on-screen devices — the normal case, since Recent
+Devices/Device Log redraw the same ~16 entries every tick rather than a fresh batch each time —
+only ever touches the SD card once. A curated subset (common consumer/IoT vendors, say) will still
+feel snappier than a full ~50,000-entry registry on that first cold lookup.
 
 A passive deauth/disassoc detector, BLE tracker detector, and persistent AP history were all
 prototyped alongside this on real hardware and then pulled back out: the AP history table alone

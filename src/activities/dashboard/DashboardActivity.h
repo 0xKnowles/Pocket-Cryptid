@@ -41,6 +41,9 @@ class DashboardActivity final : public Activity {
   uint8_t lastAnimFrameRendered = 0xFF;
   bool handshakeBannerActive = false;
   unsigned long handshakeBannerUntilMs = 0;
+  bool levelUpBannerActive = false;
+  unsigned long levelUpBannerUntilMs = 0;
+  uint8_t levelUpBannerLevel = 0;  // level just reached, for the banner's "LEVEL UP -> Lv.N" text
   // DeauthDetector::alertActive() is itself already time-windowed, so no separate until-timestamp
   // is needed here — just the last-known state, to notice the on/off transition and redraw.
   bool lastDeauthAlertState = false;

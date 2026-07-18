@@ -26,6 +26,20 @@ All notable changes to this project are documented here. Format loosely follows
   (`RubyManager::expIntoLevel()`) sits just to the right of the bar itself — EXP earned so far
   this level, and the fixed total EXP the current level spans (not a countdown, so the second
   number stays put while the first climbs toward it) — reading "MAX" once level 5 is hit.
+- **"LEVEL UP → Lv.N" banner** (`RubyManager::consumeJustLeveledUp()`) — leveling up used to be
+  silent, visible only by noticing the header badge/bar had moved. Reuses the existing
+  HANDSHAKE CAPTURED/DEAUTH ACTIVITY NEARBY one-shot banner mechanism, and slots into the same
+  priority chain: a nearby deauth alert still wins if both are active, then a level-up (bigger,
+  rarer news, and often triggered by the very same handshake that also fires the handshake
+  banner — every level threshold is a round multiple of `kExpPerHandshake`), then the ordinary
+  handshake banner.
+- **Vendor OUI lookup result cache** (`lookupVendorOui()`, `lib/SignalCatalog/VendorOui.cpp`) — a
+  small 32-entry RAM-only cache keyed by OUI prefix, so the *same* vendor looked up repeatedly
+  across redraws of the same handful of on-screen devices (the normal case — Recent Devices/Device
+  Log redraw the same ~16 entries every tick, not a fresh batch each time) only ever touches the SD
+  card once. Caches misses too, since an unrecognized OUI previously re-scanned all the way to EOF
+  on every redraw — the worst case for a full ~50,000-entry registry. No behavior change for
+  callers; purely a latency fix.
 - **Dashboard always shows an "-- ACTIVE --"/"-- PAUSED --" tag under Ruby's mood**, not just
   "-- PAUSED --" while paused. The tag's row height feeds into the layout below it
   (`std::max(moodY, infoY)`), so showing it unconditionally means the SIGNALS/CAPTURE STATUS row
@@ -147,6 +161,12 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Fixed
 
+- **`Settings → Reset signal stats` didn't reset Ruby's Level/EXP**, only the dashboard's dedup
+  counters and hash rings. A MAC that had already contributed EXP could re-trigger a "new unique"
+  event (and re-award EXP) the moment its dedup ring entry was cleared by the reset and it was
+  seen again, silently inflating the Level badge relative to what the just-reset SIGNALS counters
+  now showed. `RUBY.resetExp()` is now called alongside `SIGNAL_CATALOG.resetStats()` so the two
+  can't drift apart; the confirmation prompt's wording now says so too.
 - **Boot screen's "listening..." overlapped the character's head** on real hardware — it sat on a
   second line stacked directly under "Pocket RF Analyzer", which the previous layout assumed was
   clear down to `y=40`, an assumption that didn't hold for every `boot.bmp`. "Pocket RF Analyzer"

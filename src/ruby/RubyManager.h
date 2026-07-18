@@ -42,6 +42,19 @@ class RubyManager : public PersistableStore<RubyManager> {
   // the current level's floor, and EXP needed to cross into the next one. Both 0 at max level.
   void expIntoLevel(uint32_t& intoLevel, uint32_t& neededForLevel) const;
 
+  // True exactly once, the first time this is polled after onSignalEvent() crossed a level
+  // threshold — mirrors consumeJustCapturedHandshake()'s one-shot pattern. Callers
+  // (DashboardActivity) use this to trigger a "LEVEL UP" banner instead of a silent badge update.
+  // newLevel is only written when this returns true.
+  bool consumeJustLeveledUp(uint8_t& newLevel);
+
+  // Zeroes totalExp (and any pending level-up flag) and persists immediately, same
+  // arm-then-confirm pattern as SignalCatalog::resetStats() — called alongside it from
+  // `Settings → Reset signal stats` so the two can't drift apart (previously, resetting the
+  // dashboard's dedup counters left totalExp untouched, so already-leveled-on MACs could
+  // re-award EXP once their dedup ring entry was cleared).
+  void resetExp();
+
   // deviceSleeping short-circuits straight to SLEEPING regardless of activity timers — used by
   // SleepActivity so the creature visibly "goes quiet" the instant the screen does.
   RubyExpression currentExpression(bool deviceSleeping) const;
@@ -68,6 +81,11 @@ class RubyManager : public PersistableStore<RubyManager> {
   bool dirty = false;
   bool justCapturedHandshake = false;
   unsigned long lastSaveMs = 0;
+
+  // 0 = no pending level-up event; otherwise the level just reached, awaiting one
+  // consumeJustLeveledUp() poll. 0 is never a real level (levels run 1-5), so it doubles as the
+  // "nothing pending" sentinel with no separate bool needed.
+  uint8_t justLeveledUpTo = 0;
 
   // Ring of recent new-unique-sighting timestamps (any type), used to tell a genuine burst of
   // activity (CURIOUS) apart from ordinary single sightings (CONTENT) — see RubyBehavior's class
