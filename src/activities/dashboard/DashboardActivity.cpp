@@ -15,6 +15,7 @@
 #include "EncryptedLog.h"
 #include "LogRecord.h"
 #include "RecentSightings.h"
+#include "RubyAppState.h"
 #include "RubySettings.h"
 #include "SignalCatalog.h"
 #include "VendorOui.h"
@@ -33,12 +34,17 @@ constexpr unsigned long kHandshakeBannerMs = 4000;
 constexpr unsigned long kLevelUpBannerMs = 4000;
 constexpr unsigned long kSpeechBubbleMs = 4000;
 
-void formatUptime(unsigned long ms, char* out, size_t outSize) {
-  const unsigned long totalSec = ms / 1000;
-  const unsigned long h = totalSec / 3600;
+// Takes whole seconds rather than ms — the lifetime "Total Uptime" figure (APP_STATE.totalCaptureSeconds
+// plus this session's own elapsed time) can run well past the ~49-day point where a uint32_t ms count
+// wraps, but seconds alone comfortably covers a device's realistic service life.
+void formatUptime(unsigned long totalSec, char* out, size_t outSize) {
+  const unsigned long d = totalSec / 86400;
+  const unsigned long h = (totalSec % 86400) / 3600;
   const unsigned long m = (totalSec % 3600) / 60;
   const unsigned long s = totalSec % 60;
-  if (h > 0) {
+  if (d > 0) {
+    snprintf(out, outSize, "%lud %luh", d, h);
+  } else if (h > 0) {
     snprintf(out, outSize, "%luh %lum", h, m);
   } else {
     snprintf(out, outSize, "%lum %lus", m, s);
@@ -149,26 +155,39 @@ void drawExpBar(const GfxRenderer& renderer, int x, int y, int width, int height
   }
 }
 
-// Handshake-activity visualizer sharing the exact same 16-slot timeline as drawSignalHistoryChart
-// below it (oldest on the left, newest anchored to the right), so the two read as one aligned
-// two-track strip rather than unrelated charts. This is about *whether* a slot's sighting was a
-// WifiHandshake frame, not a continuous quantity like RSSI, so a full-height spike marks a hit and
-// everything else is left blank — the rarest, biggest-deal observation this device makes gets the
-// most visually blunt treatment.
-void drawHandshakeVisualizer(const GfxRenderer& renderer, int x, int y, int width, int height) {
+// Handshake-activity history — a time-bucketed histogram spanning the *whole session so far*, fed
+// from DashboardActivity's own dedicated handshake-timestamp ring (see DashboardActivity.h) rather
+// than RecentSightings' shared 16-slot feed, which mixes in every AP/client/BLE sighting too and so
+// pushes a handshake out of view again within moments in any normal RF environment — the opposite
+// of "historical" for an event this rare. Bucket width scales with how long the session has been
+// running: early on, each bucket covers just a few minutes; after many hours, each covers
+// proportionally more — the whole history always fits on screen instead of only ever showing a
+// fixed recent window. Each handshake landing in a bucket adds a fixed height increment (capped at
+// the chart's full height), so a single handshake always reads the same height regardless of how
+// busy other buckets are.
+void drawHandshakeHistoryChart(const GfxRenderer& renderer, int x, int y, int width, int height,
+                               const unsigned long* times, size_t count, size_t capacity) {
+  constexpr size_t kBucketCount = 16;
   constexpr int kBarGap = 2;
-  const size_t capacity = RecentSightings::kCapacity;
-  const size_t liveCount = recentSightings.count();
-  const int barWidth =
-      std::max(1, (width - kBarGap * static_cast<int>(capacity - 1)) / static_cast<int>(capacity));
+  constexpr int kUnitHeight = 8;  // px added per handshake in a bucket, before capping at `height`
+  const int barWidth = std::max(
+      1, (width - kBarGap * static_cast<int>(kBucketCount - 1)) / static_cast<int>(kBucketCount));
 
-  for (size_t slot = 0; slot < capacity; slot++) {
-    const size_t indexFromNewest = capacity - 1 - slot;
-    if (indexFromNewest >= liveCount) continue;  // ring not full yet -- leave this slot blank
-    const auto& entry = recentSightings.at(indexFromNewest);
-    if (entry.type != LogRecordType::WifiHandshake) continue;  // only handshakes get a spike
+  const unsigned long sessionElapsedMs = millis();
+  const unsigned long bucketMs = std::max(1UL, sessionElapsedMs / kBucketCount);
+  int bucketCounts[kBucketCount] = {};
+  for (size_t i = 0; i < count && i < capacity; i++) {
+    size_t bucket = static_cast<size_t>(times[i] / bucketMs);
+    if (bucket >= kBucketCount) bucket = kBucketCount - 1;
+    bucketCounts[bucket]++;
+  }
+
+  const int baseline = y + height;
+  for (size_t slot = 0; slot < kBucketCount; slot++) {
+    if (bucketCounts[slot] == 0) continue;  // no handshake in this slice of the session -- blank
+    const int barHeight = std::min(height, bucketCounts[slot] * kUnitHeight);
     const int barX = x + static_cast<int>(slot) * (barWidth + kBarGap);
-    renderer.fillRect(barX, y, barWidth, height, true);
+    renderer.fillRect(barX, baseline - barHeight, barWidth, barHeight, true);
   }
 }
 
@@ -267,6 +286,9 @@ void DashboardActivity::loop() {
     handshakeBannerActive = true;
     handshakeBannerUntilMs = millis() + kHandshakeBannerMs;
     armSpeechBubble(RubyThoughts::speechForHandshake(static_cast<uint8_t>(millis())));
+    handshakeHistoryTimes[handshakeHistoryNext] = millis();
+    handshakeHistoryNext = (handshakeHistoryNext + 1) % kHandshakeHistoryCapacity;
+    handshakeHistoryCount = std::min(handshakeHistoryCount + 1, kHandshakeHistoryCapacity);
     pendingRenderKind = RenderKind::Full;
     requestUpdate();
     return;
@@ -460,18 +482,20 @@ void DashboardActivity::renderFull() {
   endStatCard(renderer, deviceColX, devicesWidth, cardTop, deviceRowsBottom);
 
   const int chartTop = beginStatCard(renderer, chartX, chartWidth, cardTop, "SIGNAL HISTORY");
-  // Two aligned tracks sharing the same 16-slot timeline, stacked rather than one chart alone in
-  // the card (RSSI by itself rarely needs the whole card's height to read clearly, leaving a lot
-  // of otherwise-idle space). Small captions tell the two apart since their shapes — a full-height
-  // spike vs. a variable-height bar — aren't self-explanatory the way SIGNAL HISTORY's single
-  // chart was.
+  // Two stacked tracks rather than one chart alone in the card (RSSI by itself rarely needs the
+  // whole card's height to read clearly, leaving a lot of otherwise-idle space). They deliberately
+  // don't share one timeline: HANDSHAKES buckets the *whole session so far* (handshakes are too
+  // rare to fit meaningfully into RecentSightings' shared, AP/client/BLE-dominated 16-slot feed),
+  // while SIGNAL stays a recent-observations strip, since RSSI is something every sighting has.
+  // Small captions tell the two apart since neither shape is self-explanatory on its own.
   constexpr int kSubGap = 4;
   const int subLabelHeight = renderer.getLineHeight(FONT_SMALL_ID);
   const int trackHeight = (deviceRowsBottom - chartTop - kSubGap) / 2;
 
   drawBoldSmall(renderer, chartX, chartTop, "HANDSHAKES");
   const int handshakeGraphY = chartTop + subLabelHeight;
-  drawHandshakeVisualizer(renderer, chartX, handshakeGraphY, chartWidth, trackHeight - subLabelHeight);
+  drawHandshakeHistoryChart(renderer, chartX, handshakeGraphY, chartWidth, trackHeight - subLabelHeight,
+                            handshakeHistoryTimes, handshakeHistoryCount, kHandshakeHistoryCapacity);
 
   const int signalLabelY = chartTop + trackHeight + kSubGap;
   drawBoldSmall(renderer, chartX, signalLabelY, "SIGNAL");
@@ -506,11 +530,16 @@ void DashboardActivity::renderFull() {
 
   // Same row, to the right of the mood block: this was dead whitespace before (the RECENT DEVICES
   // card above it ends at topRowBottom, and SIGNALS/CAPTURE STATUS don't start until bottomY) —
-  // put it to use surfacing the two opt-in capture settings that most change what this device is
-  // actually doing, so the owner doesn't have to go into Settings to check.
-  int infoY = topRowBottom + 6;
+  // now a proper bordered card (previously just two titleless stat rows floating in the gap,
+  // looking distinctly plainer than every other card on this screen) surfacing the capture-related
+  // settings/detectors that most change what this device is actually doing, so the owner doesn't
+  // have to go into Settings to check.
+  const int infoCardTop = topRowBottom + 6;
+  int infoY = beginStatCard(renderer, deviceColX, deviceColWidth, infoCardTop, "CAPTURE SETTINGS");
   infoY = Chrome::drawStatRow(renderer, infoY, "Handshake Capture",
                               SETTINGS.rawHandshakeCaptureEnabled ? "ON" : "OFF", false,
+                              deviceColX + deviceColWidth, deviceColX);
+  infoY = Chrome::drawStatRow(renderer, infoY, "Active DeAuth", SETTINGS.activeDeauthEnabled ? "ON" : "OFF", false,
                               deviceColX + deviceColWidth, deviceColX);
   // Replaces the old "DeAuth: ON/OFF" setting readout — active deauth's own transmit path is
   // confirmed rejected by the WiFi driver on this hardware (see DeauthEngine's class comment), so
@@ -530,6 +559,9 @@ void DashboardActivity::renderFull() {
   }
   infoY = Chrome::drawStatRow(renderer, infoY, "Nearby DeAuth", deauthBuf, false, deviceColX + deviceColWidth,
                               deviceColX);
+  // Bottom border matches whichever of this card or the mood column beside it is taller, so the
+  // two align visually instead of this card looking short next to a taller mood block.
+  endStatCard(renderer, deviceColX, deviceColWidth, infoCardTop, std::max(infoY, moodY));
 
   // Bottom half: SIGNALS + CAPTURE STATUS. Landscape's 792x528 canvas has much less spare height
   // below the top row than the old portrait canvas did, but a lot more spare width — so these
@@ -562,7 +594,7 @@ void DashboardActivity::renderFull() {
   // the way SIGNALS' do — asked for explicitly, and it also reads better here since these rows
   // (WiFi monitor/BLE scan/log size/uptime) are a much more varied mix of value lengths than
   // SIGNALS' four numbers, so a centered block looks more deliberate than a top-anchored one.
-  constexpr int kCaptureStatusRowCount = 4;
+  constexpr int kCaptureStatusRowCount = 5;
   constexpr int kStatRowHeight = 20;  // mirrors Chrome::drawStatRow's internal row height
   const int captureRowsTop = beginStatCard(renderer, rightColX, colWidth, bottomY, "CAPTURE STATUS");
   const int captureRowsBlockHeight = kCaptureStatusRowCount * kStatRowHeight;
@@ -584,8 +616,16 @@ void DashboardActivity::renderFull() {
                                rightColX);
 
   char uptimeBuf[24];
-  formatUptime(millis(), uptimeBuf, sizeof(uptimeBuf));
+  formatUptime(millis() / 1000, uptimeBuf, sizeof(uptimeBuf));
   rightY = Chrome::drawStatRow(renderer, rightY, "Uptime this session", uptimeBuf, false, rightColX + colWidth,
+                               rightColX);
+
+  // APP_STATE.totalCaptureSeconds only accumulates at each sleep entry (see enterDeepSleep() in
+  // main.cpp), so it doesn't yet include this still-running session's own time — added on here so
+  // the figure shown is always current, not stale as of the last time the device slept.
+  char totalUptimeBuf[24];
+  formatUptime(APP_STATE.totalCaptureSeconds + millis() / 1000, totalUptimeBuf, sizeof(totalUptimeBuf));
+  rightY = Chrome::drawStatRow(renderer, rightY, "Total Uptime", totalUptimeBuf, false, rightColX + colWidth,
                                rightColX);
   endStatCard(renderer, rightColX, colWidth, bottomY, columnBottom);
 

@@ -31,15 +31,19 @@ void SleepActivity::onEnter() {
   renderer.drawText(FONT_UI_10_ID, textLeft, y, fromTimeout ? "Auto-sleep - capture paused" : "Capture paused");
   y += 40;
 
+  // Truncated to the actual remaining width rather than drawn raw: at 2+ digits (any session with
+  // more than a handful of sightings) the untruncated string ran past the screen's right edge,
+  // since drawText has no wrapping and this layout's text column is narrower than the full screen.
+  const int maxTextWidth = pageWidth - textLeft - 20;
   const auto& stats = SIGNAL_CATALOG.getStats();
   char line[64];
   snprintf(line, sizeof(line), "%lu unique devices catalogued", static_cast<unsigned long>(stats.uniqueWifiAPs +
                                                                                             stats.uniqueWifiClients +
                                                                                             stats.uniqueBleDevices));
-  renderer.drawText(FONT_UI_10_ID, textLeft, y, line);
+  renderer.drawText(FONT_UI_10_ID, textLeft, y, renderer.truncatedText(FONT_UI_10_ID, line, maxTextWidth).c_str());
   y += 26;
   snprintf(line, sizeof(line), "%lu handshakes captured", static_cast<unsigned long>(stats.handshakesCaptured));
-  renderer.drawText(FONT_UI_10_ID, textLeft, y, line);
+  renderer.drawText(FONT_UI_10_ID, textLeft, y, renderer.truncatedText(FONT_UI_10_ID, line, maxTextWidth).c_str());
   y += 50;
 
   renderer.drawText(FONT_UI_10_ID, textLeft, y, "Hold power to wake", true, EpdFontFamily::BOLD);

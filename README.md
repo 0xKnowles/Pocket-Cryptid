@@ -179,17 +179,20 @@ When the device is asleep, it shows a different, much larger piece of art instea
 
 - **Dashboard** (home) — the creature, a Level 1-5 badge beside its "RUBY" name chip and a
   matching EXP progress bar in the header next to the battery badge (see
-  [Meet Ruby](#meet-ruby)), its current Mood, an "-- ACTIVE --"/"-- PAUSED --" tag
-  under it (always shown, not just while paused, so the layout below never shifts between the two
-  states), whether handshake capture is switched on, a **Nearby DeAuth** row (`ALERT` during a
-  spike of deauth/disassoc frames from *any* source over the air, a running `N seen` count
-  otherwise, or `none` — see [Passive deauth/disassoc detection](#passive-deauthdisassoc-detection)),
-  unique AP/client/BLE/handshake counts, capture status, log size, and session uptime. Beside the
-  creature's box, a narrow **RECENT DEVICES** card shows a handful of the latest observations in
-  full detail (type/MAC, signal bars + RSSI + time-ago, device name), and a **SIGNAL HISTORY** card
-  next to it stacks two aligned tracks sharing the same 16-slot timeline (oldest on the left, newest
-  always anchored to the right) — a HANDSHAKES track marking any slot whose sighting was a captured
-  handshake, and a SIGNAL track below it plotting the same feed's RSSI as a live bar chart. A
+  [Meet Ruby](#meet-ruby)), its current Mood, an "-- ACTIVE --"/"-- PAUSED --" tag under it
+  (always shown, not just while paused, so the layout below never shifts between the two states).
+  Beside the creature's box, a narrow **RECENT DEVICES** card shows a handful of the latest
+  observations in full detail (type/MAC, signal bars + RSSI + time-ago, device name), and a
+  **SIGNAL HISTORY** card next to it stacks two tracks: **HANDSHAKES** on top, a time-bucketed
+  histogram of the *whole session so far* (bucket width scales with session length, so the full
+  history always fits, rather than only ever showing the last few observations — handshakes are
+  too rare for that), and **SIGNAL** below it, the same recent-observations feed's RSSI as a live
+  bar chart. A **CAPTURE SETTINGS** card beside the Mood column shows whether handshake capture and
+  active deauth are switched on, and **Nearby DeAuth** (`ALERT` during a spike of deauth/disassoc
+  frames from *any* source over the air, a running `N seen` count otherwise, or `none` — see
+  [Passive deauth/disassoc detection](#passive-deauthdisassoc-detection)). Below that, **SIGNALS**
+  (unique AP/client/BLE/handshake counts) and **CAPTURE STATUS** (WiFi monitor/BLE scan state, log
+  size, this session's uptime, and lifetime Total Uptime across every boot) sit side by side. A
   bubble along the bottom edge of Ruby's box, tailing up into her face, shows a quirky,
   hacker-flavored one-liner reflecting Ruby's current mood, briefly replaced by a speech bubble
   reacting to a new device, a captured handshake, a level up, or a nearby deauth alert (see
