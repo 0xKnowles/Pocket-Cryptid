@@ -199,6 +199,15 @@ All notable changes to this project are documented here. Format loosely follows
   (`drawCompactStatRow()`, Dashboard-local) so this 5th row fits without clipping past the card's
   bottom edge. `Settings → Reset signal stats` now zeroes it too (alongside EXP and the handshake
   history) — otherwise there was no way to reset it short of never running the device this long.
+- **DEAUTH/HANDSHAKE banners now name the network involved**, not just the bare event —
+  "DEAUTH NEARBY: MyNetwork" and "HANDSHAKE CAPTURED: MyNetwork" instead of "DEAUTH ACTIVITY
+  NEARBY"/"HANDSHAKE CAPTURED" alone. Resolved from the frame's BSSID via `ApScanCache`'s existing
+  live network-scan cache (the same one `TargetPickerActivity`'s picker uses), falling back to the
+  raw MAC address if the network hasn't advertised a beacon recently enough to still be cached.
+  `DeauthDetector` now tracks the BSSID of the most recent deauth/disassoc frame (the *network*
+  under attack, not the spoofable source address sending the frames) and `SignalCatalog`'s
+  new-unique callback now passes along the MAC/BSSID behind every event, not just which kind of
+  event happened, so `RubyManager` can remember which network a captured handshake belonged to.
 
 ### Removed
 

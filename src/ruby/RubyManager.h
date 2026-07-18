@@ -12,7 +12,7 @@
 // handshake timers, animation clock) needed to render it. Wire it up once at boot:
 //
 //   RUBY.begin();
-//   SIGNAL_CATALOG.setNewUniqueCallback([](RfEventType t) { RUBY.onSignalEvent(t); });
+//   SIGNAL_CATALOG.setNewUniqueCallback([](RfEventType t, const MacAddress& mac) { RUBY.onSignalEvent(t, mac); });
 //
 // and call RUBY.tick() from the main loop alongside SIGNAL_CATALOG.tick().
 class RubyManager : public PersistableStore<RubyManager> {
@@ -22,8 +22,10 @@ class RubyManager : public PersistableStore<RubyManager> {
   void begin();
 
   // Registered as SignalCatalog's new-unique callback; refreshes the timers that drive
-  // currentExpression().
-  void onSignalEvent(RfEventType type);
+  // currentExpression(). mac is the BSSID/transmitter/address behind the event — see
+  // SignalCatalog::NewUniqueCallback's own comment for which field it is per event type; only
+  // HandshakeCaptured's is retained (see lastHandshakeBssid() below), for the Dashboard banner.
+  void onSignalEvent(RfEventType type, const MacAddress& mac);
 
   // Debounced persistence, call once per loop iteration.
   void tick();
@@ -64,6 +66,11 @@ class RubyManager : public PersistableStore<RubyManager> {
   const uint32_t* handshakeTimestamps() const { return state.handshakeTimestamps; }
   uint8_t handshakeHistoryNext() const { return state.handshakeHistoryNext; }
 
+  // BSSID of the most recently captured handshake — session-only (not persisted alongside the
+  // timestamp ring above; only ever read at the moment consumeJustCapturedHandshake() is true, for
+  // the Dashboard's one-shot "HANDSHAKE CAPTURED" banner, so it doesn't need to survive a reboot).
+  const MacAddress& lastHandshakeBssid() const { return lastHandshakeBssid_; }
+
   // deviceSleeping short-circuits straight to SLEEPING regardless of activity timers — used by
   // SleepActivity so the creature visibly "goes quiet" the instant the screen does.
   RubyExpression currentExpression(bool deviceSleeping) const;
@@ -90,6 +97,7 @@ class RubyManager : public PersistableStore<RubyManager> {
   bool dirty = false;
   bool justCapturedHandshake = false;
   unsigned long lastSaveMs = 0;
+  MacAddress lastHandshakeBssid_;
 
   // 0 = no pending level-up event; otherwise the level just reached, awaiting one
   // consumeJustLeveledUp() poll. 0 is never a real level (levels run 1-5), so it doubles as the

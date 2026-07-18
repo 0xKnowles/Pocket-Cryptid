@@ -10,6 +10,7 @@
 #include <ctime>
 #include <string>
 
+#include "ApScanCache.h"
 #include "BleScanner.h"
 #include "CaptureControl.h"
 #include "DeauthDetector.h"
@@ -73,6 +74,20 @@ void formatBytes(uint64_t bytes, char* out, size_t outSize) {
 void formatMac(const MacAddress& mac, char* out) {
   snprintf(out, 18, "%02X:%02X:%02X:%02X:%02X:%02X", mac.bytes[0], mac.bytes[1], mac.bytes[2], mac.bytes[3],
            mac.bytes[4], mac.bytes[5]);
+}
+
+// Resolves a BSSID to its cached SSID (ApScanCache — the same live network scan
+// TargetPickerActivity's picker uses), falling back to the raw MAC if the network hasn't been
+// seen recently enough to still be cached, or hasn't advertised a name — the DEAUTH/HANDSHAKE
+// banners should always have *something* concrete identifying the network, not just a bare
+// "something happened" message.
+void formatNetworkLabel(const MacAddress& bssid, char* out, size_t outSize) {
+  const ApScanCache::Entry* entry = apScanCache.findByBssid(bssid);
+  if (entry && entry->ssidLen > 0) {
+    snprintf(out, outSize, "%s", entry->ssid);
+  } else {
+    formatMac(bssid, out);
+  }
 }
 
 void formatAgo(unsigned long seenAtMs, char* out, size_t outSize) {
@@ -630,14 +645,24 @@ void DashboardActivity::renderFull() {
   // background even while hidden behind a higher-priority one, rather than getting reset or
   // extended — simplest to reason about, and nothing here depends on exactly when it expires.
   char levelUpBannerBuf[24];
+  char networkLabelBuf[40];
+  char deauthBannerBuf[64];
+  char handshakeBannerBuf[64];
   const char* bannerText = nullptr;
   if (deauthDetector.alertActive()) {
-    bannerText = "DEAUTH ACTIVITY NEARBY";
+    // The network being targeted, not who's sending the deauth frames — a spoofed deauth's
+    // source address is meaningless anyway, but the BSSID (addr3) says which network is actually
+    // under attack, which is the useful thing to know at a glance.
+    formatNetworkLabel(deauthDetector.lastTargetBssid(), networkLabelBuf, sizeof(networkLabelBuf));
+    snprintf(deauthBannerBuf, sizeof(deauthBannerBuf), "DEAUTH NEARBY: %s", networkLabelBuf);
+    bannerText = deauthBannerBuf;
   } else if (levelUpBannerActive) {
     snprintf(levelUpBannerBuf, sizeof(levelUpBannerBuf), "LEVEL UP -> Lv.%u", levelUpBannerLevel);
     bannerText = levelUpBannerBuf;
   } else if (handshakeBannerActive) {
-    bannerText = "HANDSHAKE CAPTURED";
+    formatNetworkLabel(RUBY.lastHandshakeBssid(), networkLabelBuf, sizeof(networkLabelBuf));
+    snprintf(handshakeBannerBuf, sizeof(handshakeBannerBuf), "HANDSHAKE CAPTURED: %s", networkLabelBuf);
+    bannerText = handshakeBannerBuf;
   }
   if (bannerText) {
     constexpr int kBannerH = 28;

@@ -7,6 +7,7 @@ DeauthDetector deauthDetector;
 void DeauthDetector::onObservation(const WifiObservation& obs) {
   if (obs.kind != WifiFrameKind::Deauth && obs.kind != WifiFrameKind::Disassoc) return;
 
+  lastBssid = obs.bssid;
   if (obs.kind == WifiFrameKind::Deauth) {
     totalDeauth++;
   } else {

@@ -195,8 +195,11 @@ When the device is asleep, it shows a different, much larger piece of art instea
   side. A bubble along the bottom edge of Ruby's box, tailing up into her face, shows a quirky,
   hacker-flavored one-liner reflecting Ruby's current mood, briefly replaced by a speech bubble
   reacting to a new device, a captured handshake, a level up, or a nearby deauth alert (see
-  [Meet Ruby](#meet-ruby)). A banner briefly announces "DEAUTH ACTIVITY NEARBY", "LEVEL UP → Lv.N",
-  or "HANDSHAKE CAPTURED" (in that priority order) when any of them happens.
+  [Meet Ruby](#meet-ruby)). A banner briefly announces "DEAUTH NEARBY: *network*", "LEVEL UP →
+  Lv.N", or "HANDSHAKE CAPTURED: *network*" (in that priority order) when any of them happens —
+  the network name resolved from the frame's BSSID via the same live scan cache
+  [Active deauth](#active-deauth)'s network picker uses, falling back to the raw MAC address if it
+  hasn't advertised a beacon recently enough to still be cached.
   `Confirm` → Settings, `Left` → toggle Pause (same button pauses and resumes WiFi/BLE capture —
   no screen change, and it stops `DeauthEngine` too since that only ever fires from the observation
   stream capture produces), `Right` → Export/Maintenance, `Up` → Recent Devices, `Down` → Log

@@ -39,7 +39,7 @@ bool SignalCatalog::observeWifi(const WifiObservation& obs) {
       const uint32_t hash = obs.bssid.fnv1a();
       if (apRing.insert(hash)) {
         stats.uniqueWifiAPs++;
-        if (onNewUnique) onNewUnique(RfEventType::NewWifiAP);
+        if (onNewUnique) onNewUnique(RfEventType::NewWifiAP, obs.bssid);
         return true;
       }
       return false;
@@ -48,7 +48,7 @@ bool SignalCatalog::observeWifi(const WifiObservation& obs) {
       const uint32_t hash = obs.transmitter.fnv1a();
       if (clientRing.insert(hash)) {
         stats.uniqueWifiClients++;
-        if (onNewUnique) onNewUnique(RfEventType::NewWifiClient);
+        if (onNewUnique) onNewUnique(RfEventType::NewWifiClient, obs.transmitter);
         return true;
       }
       return false;
@@ -68,7 +68,7 @@ bool SignalCatalog::observeWifi(const WifiObservation& obs) {
       if (!tracker.counted && (tracker.messageMask & kFirstHalf) && (tracker.messageMask & kSecondHalf)) {
         tracker.counted = true;
         stats.handshakesCaptured++;
-        if (onNewUnique) onNewUnique(RfEventType::HandshakeCaptured);
+        if (onNewUnique) onNewUnique(RfEventType::HandshakeCaptured, obs.bssid);
         return true;
       }
       return false;
@@ -86,7 +86,7 @@ bool SignalCatalog::observeBle(const BleObservation& obs) {
   const uint32_t hash = obs.address.fnv1a();
   if (bleRing.insert(hash)) {
     stats.uniqueBleDevices++;
-    if (onNewUnique) onNewUnique(RfEventType::NewBleDevice);
+    if (onNewUnique) onNewUnique(RfEventType::NewBleDevice, obs.address);
     return true;
   }
   return false;

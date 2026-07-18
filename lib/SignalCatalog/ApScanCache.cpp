@@ -52,3 +52,10 @@ void ApScanCache::observe(const WifiObservation& obs) {
 }
 
 const ApScanCache::Entry& ApScanCache::at(size_t index) const { return entries[index]; }
+
+const ApScanCache::Entry* ApScanCache::findByBssid(const MacAddress& bssid) const {
+  for (size_t i = 0; i < kCapacity; i++) {
+    if (entries[i].inUse && entries[i].bssid == bssid) return &entries[i];
+  }
+  return nullptr;
+}

@@ -26,6 +26,13 @@ class DeauthDetector {
   // permanently-lit indicator that would never turn off again after the first attack.
   bool alertActive() const;
 
+  // BSSID (addr3 — the network the frame belongs to, not who sent it) of the most recently
+  // observed deauth/disassoc frame, valid regardless of alertActive() — DashboardActivity only
+  // reads it while an alert is active, so it always reflects a frame from within that alert's own
+  // triggering window. Best-effort if multiple networks are under attack at once (this just shows
+  // whichever was heard most recently), matching this class's existing passive/best-effort ethos.
+  const MacAddress& lastTargetBssid() const { return lastBssid; }
+
  private:
   static constexpr uint32_t kSpikeWindowMs = 5000;
   static constexpr uint8_t kSpikeThreshold = 5;
@@ -37,6 +44,7 @@ class DeauthDetector {
   unsigned long windowStartMs = 0;
   uint8_t windowCount = 0;
   unsigned long alertUntilMs = 0;
+  MacAddress lastBssid;
 };
 
 extern DeauthDetector deauthDetector;  // singleton, defined in DeauthDetector.cpp

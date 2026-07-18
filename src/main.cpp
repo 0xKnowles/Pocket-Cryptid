@@ -356,7 +356,8 @@ void setup() {
     SIGNAL_CATALOG.observeBle(obs);
     recentSightings.recordBle(obs);
   });
-  SIGNAL_CATALOG.setNewUniqueCallback([](RfEventType type) { RUBY.onSignalEvent(type); });
+  SIGNAL_CATALOG.setNewUniqueCallback(
+      [](RfEventType type, const MacAddress& mac) { RUBY.onSignalEvent(type, mac); });
 
   startCaptureIfEnabled();
 

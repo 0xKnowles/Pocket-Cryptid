@@ -38,6 +38,12 @@ class ApScanCache {
   // single observation, which happens far more often than the picker screen is ever open.
   const Entry& at(size_t index) const;
 
+  // Linear scan for the entry matching a given BSSID, or nullptr if it hasn't been seen recently
+  // enough to still be cached — cheap for the same reason at()/count() already are (kCapacity is
+  // small). Used to resolve a bare BSSID (e.g. from DeauthDetector or a captured handshake) back
+  // to its human-readable SSID for display.
+  const Entry* findByBssid(const MacAddress& bssid) const;
+
  private:
   Entry entries[kCapacity] = {};
   size_t entryCount = 0;

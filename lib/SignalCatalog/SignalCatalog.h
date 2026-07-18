@@ -29,7 +29,11 @@ class SignalCatalog : public PersistableStore<SignalCatalog> {
   friend class PersistableStore<SignalCatalog>;
 
  public:
-  using NewUniqueCallback = std::function<void(RfEventType type)>;
+  // mac identifies the specific device/network behind the event — obs.bssid for NewWifiAP/
+  // HandshakeCaptured, obs.transmitter for NewWifiClient, obs.address for NewBleDevice. Lets
+  // listeners (e.g. RubyManager, for the Dashboard's "HANDSHAKE CAPTURED" banner) show which
+  // device the event was actually about, not just that the event type happened.
+  using NewUniqueCallback = std::function<void(RfEventType type, const MacAddress& mac)>;
 
   struct Stats {
     uint32_t uniqueWifiAPs = 0;

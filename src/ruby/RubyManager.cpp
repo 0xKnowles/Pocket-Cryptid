@@ -36,7 +36,7 @@ void RubyManager::begin() {
   lastHandshakeMillis = millis() - RubyConfig::kExcitedWindowMs - 1;
 }
 
-void RubyManager::onSignalEvent(RfEventType type) {
+void RubyManager::onSignalEvent(RfEventType type, const MacAddress& mac) {
   // lastCaptureMillis/lastHandshakeMillis/recentEventTimes below are session-only timers
   // RubyBehavior uses for the live expression, not saved to disk. state.totalExp is the one
   // persisted field this touches — see RubyState.h's class comment for why a handshake and a
@@ -49,6 +49,7 @@ void RubyManager::onSignalEvent(RfEventType type) {
   if (type == RfEventType::HandshakeCaptured) {
     lastHandshakeMillis = millis();
     justCapturedHandshake = true;
+    lastHandshakeBssid_ = mac;
     state.totalExp += RubyConfig::kExpPerHandshake;
     // Recorded here (not by DashboardActivity polling consumeJustCapturedHandshake()) so a
     // handshake captured while a different screen is active still lands in the persisted
