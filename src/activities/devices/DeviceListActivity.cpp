@@ -93,9 +93,11 @@ void DeviceListActivity::render(RenderLock&&) {
       snprintf(line1, sizeof(line1), "%s %s", logRecordTypeCompactName(entry.type), macBuf);
       renderer.drawText(FONT_SMALL_ID, entryX, entryY, line1);
 
+      const int line2Y = entryY + kLineHeight + kLineGap;
+      Chrome::drawSignalBars(renderer, entryX, line2Y, entry.rssi);
       char line2[32];
       snprintf(line2, sizeof(line2), "%d dBm  %s", entry.rssi, agoBuf);
-      renderer.drawText(FONT_SMALL_ID, entryX, entryY + kLineHeight + kLineGap, line2);
+      renderer.drawText(FONT_SMALL_ID, entryX + Chrome::kSignalBarsWidth + 4, line2Y, line2);
 
       // Fall back to a vendor-name lookup (see VendorOui.h — opt-in, needs /.ruby/oui.txt on the
       // SD card) when there's no advertised label at all, rather than just "(no name)".

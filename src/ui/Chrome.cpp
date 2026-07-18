@@ -155,6 +155,31 @@ void drawSelectionHighlight(const GfxRenderer& renderer, int x, int y, int width
   renderer.drawRoundedRect(x, y, width, height, 2, kCardRadius, true);
 }
 
+void drawSignalBars(const GfxRenderer& renderer, int x, int y, int8_t rssi) {
+  constexpr int kBarCount = 4;
+  constexpr int kBarWidth = 3;
+  constexpr int kBarGap = 1;
+  constexpr int kBarHeights[kBarCount] = {4, 7, 10, 13};  // shortest to tallest, all sharing one baseline
+
+  int filledBars;
+  if (rssi >= -50) {
+    filledBars = 4;  // excellent
+  } else if (rssi >= -60) {
+    filledBars = 3;  // good
+  } else if (rssi >= -70) {
+    filledBars = 2;  // fair
+  } else {
+    filledBars = 1;  // weak, but never 0 — see header comment
+  }
+
+  const int baseline = y + kBarHeights[kBarCount - 1];
+  for (int i = 0; i < filledBars; i++) {
+    const int barX = x + i * (kBarWidth + kBarGap);
+    const int barTop = baseline - kBarHeights[i];
+    renderer.fillRect(barX, barTop, kBarWidth, kBarHeights[i], true);
+  }
+}
+
 int contentTop() { return kHeaderHeight + 8; }
 
 int contentBottom(const GfxRenderer& renderer) {

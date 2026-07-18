@@ -2,6 +2,8 @@
 
 #include <GfxRenderer.h>
 
+#include <cstdint>
+
 // Shared dashboard chrome — header bar, footer tab bar, section dividers. Ruby has
 // exactly one visual theme (an analog-horror "instrument readout" look: monospace type, rounded
 // outline cards, pill-shaped tabs/badges), so unlike upstream CrossPlant's UITheme this is not a
@@ -54,6 +56,20 @@ int drawStatRow(const GfxRenderer& renderer, int y, const char* label, const cha
 // Settings) — an outlined pill rather than a solid inverted fill, so it reads as "this is a
 // button" without the harsh full-black flash a filled highlight causes on e-ink refresh.
 void drawSelectionHighlight(const GfxRenderer& renderer, int x, int y, int width, int height);
+
+// Compact 4-bar signal-strength icon (like a phone's WiFi/cell bars), drawn with plain fillRect
+// rather than a font glyph — Space Mono has no signal-bar character, and a hand-drawn icon
+// sidesteps needing to verify one exists in the font's Unicode intervals at all. Only filled bars
+// are drawn (unfilled ones are left blank, not outlined): at this icon's necessarily tiny scale,
+// an outlined bar only 2-3px wide has no visible hollow interior — it reads as solid, making
+// "filled" and "empty" indistinguishable. Floors at 1 bar rather than 0, since every call here
+// represents a frame Ruby actually heard — a real, if weak, reading, not "no signal." Thresholds
+// are tuned for typical WiFi/BLE RSSI ranges — this device only ever sees RSSI in that same dBm
+// scale either way, so one mapping serves both observation types. Occupies exactly
+// (kSignalBarsWidth, kSignalBarsHeight) starting at (x, y), regardless of how many bars are lit.
+constexpr int kSignalBarsWidth = 15;
+constexpr int kSignalBarsHeight = 13;
+void drawSignalBars(const GfxRenderer& renderer, int x, int y, int8_t rssi);
 
 int contentTop();     // y just below the header
 int contentBottom(const GfxRenderer& renderer);  // y just above the footer

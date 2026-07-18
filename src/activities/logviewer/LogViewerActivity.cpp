@@ -76,9 +76,11 @@ void drawRecordEntry(const GfxRenderer& renderer, int x, int y, const LogRecordP
   } else {
     snprintf(extraBuf, sizeof(extraBuf), "ch %u", rec.extra);
   }
+  const int line2Y = y + kLineHeight + kLineGap;
+  Chrome::drawSignalBars(renderer, x, line2Y, rec.rssi);
   char line2[40];
   snprintf(line2, sizeof(line2), "%s  %d dBm  %s", timeBuf, rec.rssi, extraBuf);
-  renderer.drawText(FONT_SMALL_ID, x, y + kLineHeight + kLineGap, line2);
+  renderer.drawText(FONT_SMALL_ID, x + Chrome::kSignalBarsWidth + 4, line2Y, line2);
 
   char labelBuf[25] = {};
   const uint8_t len = rec.labelLen > sizeof(labelBuf) - 1 ? sizeof(labelBuf) - 1 : rec.labelLen;

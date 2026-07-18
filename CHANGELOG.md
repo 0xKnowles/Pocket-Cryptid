@@ -158,6 +158,11 @@ All notable changes to this project are documented here. Format loosely follows
   RECENT DEVICES card already used, promoted from a copy local to `DashboardActivity.cpp` into a
   shared sibling of `logRecordTypeShortName()` now that Device Log and Log Viewer need the same
   compact codes for their own dense grids (see "Fixed", below).
+- **RSSI signal-strength bars** (`Chrome::drawSignalBars()`) — a small 4-bar icon, like a phone's
+  signal indicator, next to the RSSI reading on every entry in Dashboard's RECENT DEVICES card,
+  Device Log, and Log Viewer. 4 bars at -50 dBm or stronger, down to 1 bar (never 0 — every entry
+  here is a frame Ruby actually heard) below -70 dBm. Hand-drawn with plain filled rectangles
+  rather than a font glyph, since Space Mono has no signal-bar character.
 
 ### Fixed
 

@@ -200,7 +200,9 @@ When the device is asleep, it shows a different, much larger piece of art instea
 - **Recent Devices** — a live, RAM-only feed of the last 16 WiFi/BLE observations (type, MAC,
   RSSI, SSID/name, time since seen), newest first, read-only, falling back to a vendor-name
   lookup (see [Vendor OUI lookup](#vendor-oui-lookup)) for entries with no SSID/name of their
-  own. Laid out as the same dense multi-column grid as Dashboard's RECENT DEVICES card, so all 16
+  own. Each entry's RSSI reading is paired with a small 4-bar signal-strength icon (like a phone's
+  signal indicator) for an at-a-glance read on how strong the observation was, without parsing the
+  dBm number. Laid out as the same dense multi-column grid as Dashboard's RECENT DEVICES card, so all 16
   entries always fit on screen at once. This is separate from both `SignalCatalog` (which
   deliberately never retains which specific MACs it has seen — only dedup counts) and the
   encrypted log (which retains everything, but only ever encrypted at rest). Nothing shown here is
