@@ -48,6 +48,14 @@ All notable changes to this project are documented here. Format loosely follows
     transmitted yet. `handleGet()` now calls `logSerial.flush()` once the whole file (or its
     zero-padded short-read tail) has been handed to `writeAll()`, blocking until the driver's TX
     buffer is actually drained before this request is considered done.
+  - Fixed post-hardware-testing (round 5): even with `flush()`, a repeat transfer still came up
+    short at the tail by yet another different amount — flush() only proves the *device's* USB CDC
+    driver drained its buffer, not that the host has actually received the bytes before this
+    screen moves on to something else (its own `render()`, which can block on the e-ink bus long
+    enough to lose data still genuinely in flight over USB). Added a `kOpGetAck` — the host sends
+    it back only once it has fully read a `kOpGetOk` payload — and `handleGet()` now blocks
+    (bounded, `kGetAckTimeoutMs`) waiting for it before considering the transfer done, instead of
+    assuming completion once the device's own side believes it's finished.
 - **Level 1-5 badge, tracking lifetime EXP** (`RubyState::totalExp`, `RubyConfig::levelForExp()`).
   Shown next to the existing "RUBY" name chip on the dashboard — no changes to the creature's
   art/expressions, just a small "Lv.N" badge beside it. EXP comes from two very differently-sized

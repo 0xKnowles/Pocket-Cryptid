@@ -56,6 +56,27 @@ void writeAll(const uint8_t* data, size_t len) {
     written += n;
   }
 }
+
+// Blocks (up to kGetAckTimeoutMs) for the host's kOpGetAck frame after a kOpGetOk exchange.
+// Confirmed necessary on real hardware even after writeAll() + flush(): a successful write/flush
+// only proves the device's own USB CDC driver drained its TX buffer, not that the host actually
+// received the tail before this screen moved on (e.g. into its own render(), which can block long
+// enough on the e-ink bus to lose bytes still genuinely in flight over USB). Like the rest of this
+// screen's parsing (see serviceProtocol()'s comment), this trusts a cooperating host client to send
+// exactly one kOpGetAck frame here and nothing else, so it's safe to consume the one frame header
+// that arrives without needing to hand anything back to serviceProtocol().
+bool waitForGetAck(uint32_t timeoutMs) {
+  const uint32_t deadline = millis() + timeoutMs;
+  while (static_cast<int32_t>(deadline - millis()) > 0) {
+    if (logSerial.available() >= static_cast<int>(kHeaderSize)) {
+      uint8_t header[kHeaderSize];
+      if (!readExact(header, sizeof(header))) return false;
+      return memcmp(header, kMagic, sizeof(kMagic)) == 0 && header[4] == kOpGetAck;
+    }
+    yield();
+  }
+  return false;
+}
 }  // namespace
 
 void UsbTransferActivity::onEnter() {
@@ -248,6 +269,7 @@ void UsbTransferActivity::handleGet(uint32_t filenameLen) {
   }
   f.close();
 
+  std::string statusPrefix;
   if (shortRead) {
     // The header already promised the host exactly fileSize bytes for this frame's payload --
     // there's no way to signal an error mid-payload without leaving every request after this one
@@ -265,10 +287,10 @@ void UsbTransferActivity::handleGet(uint32_t filenameLen) {
       remaining -= static_cast<uint32_t>(toWrite);
       yield();
     }
-    lastStatus =
+    statusPrefix =
         "SD read failed at " + std::to_string(shortAt) + "/" + std::to_string(fileSize) + " for " + std::string(name);
   } else {
-    lastStatus = "Sent " + std::string(name) + " (" + std::to_string(fileSize) + " bytes)";
+    statusPrefix = "Sent " + std::string(name) + " (" + std::to_string(fileSize) + " bytes)";
   }
 
   // writeAll() only guarantees every byte was handed to the USB CDC driver's own buffer -- not
@@ -279,6 +301,12 @@ void UsbTransferActivity::handleGet(uint32_t filenameLen) {
   // flush() blocks until the driver's TX buffer is actually drained, which writeAll() alone does
   // not.
   logSerial.flush();
+
+  // Even flush() only proves the device's own side is clear -- not that the host has the bytes
+  // yet. This is the actual fix confirmed against real hardware: block for the host's explicit
+  // acknowledgement instead of just assuming completion once the device believes it's done.
+  const bool acked = waitForGetAck(kGetAckTimeoutMs);
+  lastStatus = statusPrefix + (acked ? "" : " (no host ack)");
 }
 
 void UsbTransferActivity::handleKey() {

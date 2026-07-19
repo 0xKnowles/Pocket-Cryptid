@@ -36,6 +36,15 @@
 //                            screen. Only reachable by a host already having a live connection to
 //                            this screen, i.e. the same physical-possession bar as reading it off
 //                            the display.
+//   kOpGetAck              — no payload. Sent only after a kOpGetOk exchange: confirms the host has
+//                            actually received every byte of the file body, not just that the
+//                            device finished writing it. Necessary because a successful write()/
+//                            flush() on the device only proves the USB CDC driver accepted and
+//                            drained its own TX buffer -- not that the bytes reached the host
+//                            before this screen moves on to something else (e.g. its own render,
+//                            which can block long enough on the e-ink bus to lose the tail of a
+//                            large transfer that was still in flight). handleGet() blocks waiting
+//                            for this (bounded -- see kGetAckTimeoutMs) before it's done.
 //
 // Responses (device -> host):
 //   kOpPong, kOpListOk, kOpGetOk, kOpKeyOk — as above.
@@ -50,6 +59,7 @@ enum Opcode : uint8_t {
   kOpList = 0x02,
   kOpGet = 0x03,
   kOpKey = 0x04,
+  kOpGetAck = 0x05,
 
   kOpPong = 0x81,
   kOpListOk = 0x82,
@@ -57,6 +67,11 @@ enum Opcode : uint8_t {
   kOpKeyOk = 0x84,
   kOpErr = 0x8F,
 };
+
+// How long handleGet() waits for the host's kOpGetAck before giving up and moving on anyway (an
+// unacked transfer already told the host everything it needs via its own read failure/timeout;
+// this bound just keeps a gone host from wedging this screen forever).
+inline constexpr uint32_t kGetAckTimeoutMs = 10000;
 
 // Longest filename UsbTransferActivity will accept in a kOpGet request. Real log filenames are
 // "YYYYMMDD.pclog" (14 bytes) — this just needs enough headroom that a genuine filename never
