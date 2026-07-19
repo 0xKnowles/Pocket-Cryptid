@@ -7,6 +7,16 @@ All notable changes to this project are documented here. Format loosely follows
 
 ### Added
 
+- **USB Transfer screen** (Maintenance -> Down) — pulls `.pclog` files off the SD card over the
+  existing USB-CDC port without removing the card, for use with a host-side client (e.g.
+  RubySift). Speaks a small framed protocol (`src/activities/usbtransfer/UsbTransferProtocol.h`):
+  list files, fetch one by name, or reveal the decryption key — the last gated behind already
+  having a live connection to this screen, the same physical-possession bar as reading the key off
+  Settings. Only active while this screen is open (no background listener during normal capture);
+  while it is, ordinary debug log lines are muted on the wire (`Logging::setSerialLogMuted()`) so
+  they can't corrupt frames a host is mid-parse on. This is a deliberate trade against the
+  project's earlier stealth-first stance documented in `MaintenanceActivity.h` — see that file for
+  the updated rationale.
 - **Level 1-5 badge, tracking lifetime EXP** (`RubyState::totalExp`, `RubyConfig::levelForExp()`).
   Shown next to the existing "RUBY" name chip on the dashboard — no changes to the creature's
   art/expressions, just a small "Lv.N" badge beside it. EXP comes from two very differently-sized

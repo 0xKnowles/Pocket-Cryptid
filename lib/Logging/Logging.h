@@ -63,6 +63,15 @@ void clearLastLogs();
 // this returns true so getLastLogs() does not dump corrupt data into crash reports.
 bool sanitizeLogHead();
 
+// Suppresses logPrintf's write to the physical serial line (the RTC ring buffer used for crash
+// reports is unaffected — see addToLogRingBuffer() in Logging.cpp). UsbTransferActivity sets this
+// while its framed binary protocol owns the USB-CDC wire, so ordinary debug log lines from other
+// subsystems (WifiSniffer, EncryptedLog, etc. all still ticking in the background) can't corrupt
+// the byte stream a host is parsing as protocol frames. Always restored to false on exit from that
+// screen, including via Activity::onExit(), so a bug there can't permanently silence logging.
+void setSerialLogMuted(bool muted);
+bool isSerialLogMuted();
+
 class MySerialImpl : public Print {
  public:
   void begin(unsigned long baud) { logSerial.begin(baud); }

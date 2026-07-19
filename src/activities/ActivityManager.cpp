@@ -11,6 +11,7 @@
 #include "logviewer/LogViewerActivity.h"
 #include "maintenance/MaintenanceActivity.h"
 #include "settings/SettingsActivity.h"
+#include "usbtransfer/UsbTransferActivity.h"
 #include "util/CrashActivity.h"
 #include "util/FullScreenMessageActivity.h"
 
@@ -176,6 +177,10 @@ void ActivityManager::goToDeviceList() {
 
 void ActivityManager::goToLogViewer() {
   replaceActivity(std::make_unique<LogViewerActivity>(renderer, mappedInput));
+}
+
+void ActivityManager::goToUsbTransfer() {
+  replaceActivity(std::make_unique<UsbTransferActivity>(renderer, mappedInput));
 }
 
 void ActivityManager::goToSleep(bool fromTimeout) {
