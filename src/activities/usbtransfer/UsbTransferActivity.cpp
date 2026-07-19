@@ -215,17 +215,42 @@ void UsbTransferActivity::handleGet(uint32_t filenameLen) {
   // device had already rebooted back to normal logging).
   uint8_t buf[512];
   uint32_t remaining = fileSize;
+  bool shortRead = false;
   while (remaining > 0) {
     const size_t toRead = remaining < sizeof(buf) ? remaining : sizeof(buf);
     const int n = f.read(buf, toRead);
-    if (n <= 0) break;
+    if (n <= 0) {
+      shortRead = true;
+      break;
+    }
     logSerial.write(buf, static_cast<size_t>(n));
     remaining -= static_cast<uint32_t>(n);
     yield();
   }
   f.close();
 
-  lastStatus = "Sent " + std::string(name) + " (" + std::to_string(fileSize) + " bytes)";
+  if (shortRead) {
+    // The header already promised the host exactly fileSize bytes for this frame's payload --
+    // there's no way to signal an error mid-payload without leaving every request after this one
+    // reading out of sync (the host has no framing cue to know a short payload means "abort" vs.
+    // "here is the whole file"). Padding with zeros keeps the wire in sync: the corrupted tail
+    // just fails the host's GCM auth check on that record instead of a truncated file or a
+    // connection stuck desynced for good. Real-hardware testing hit this on a ~35MB file: a
+    // Storage.readFileToStream()-free chunked copy loop (see above) got as far as 93% before a
+    // read stopped returning data, with nothing on this screen or in the (muted) logs to say why.
+    const uint32_t shortAt = fileSize - remaining;
+    uint8_t zero[512] = {0};
+    while (remaining > 0) {
+      const size_t toWrite = remaining < sizeof(zero) ? remaining : sizeof(zero);
+      logSerial.write(zero, toWrite);
+      remaining -= static_cast<uint32_t>(toWrite);
+      yield();
+    }
+    lastStatus =
+        "SD read failed at " + std::to_string(shortAt) + "/" + std::to_string(fileSize) + " for " + std::string(name);
+  } else {
+    lastStatus = "Sent " + std::string(name) + " (" + std::to_string(fileSize) + " bytes)";
+  }
 }
 
 void UsbTransferActivity::handleKey() {
