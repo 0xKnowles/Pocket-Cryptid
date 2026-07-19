@@ -56,6 +56,27 @@ void writeAll(const uint8_t* data, size_t len) {
     written += n;
   }
 }
+
+// Blocks (up to kGetAckTimeoutMs) for the host's kOpGetAck frame after a kOpGetOk exchange.
+// Confirmed necessary on real hardware even after writeAll() + flush(): a successful write/flush
+// only proves the device's own USB CDC driver drained its TX buffer, not that the host actually
+// received the tail before this screen moved on (e.g. into its own render(), which can block long
+// enough on the e-ink bus to lose bytes still genuinely in flight over USB). Like the rest of this
+// screen's parsing (see serviceProtocol()'s comment), this trusts a cooperating host client to send
+// exactly one kOpGetAck frame here and nothing else, so it's safe to consume the one frame header
+// that arrives without needing to hand anything back to serviceProtocol().
+bool waitForGetAck(uint32_t timeoutMs) {
+  const uint32_t deadline = millis() + timeoutMs;
+  while (static_cast<int32_t>(deadline - millis()) > 0) {
+    if (logSerial.available() >= static_cast<int>(kHeaderSize)) {
+      uint8_t header[kHeaderSize];
+      if (!readExact(header, sizeof(header))) return false;
+      return memcmp(header, kMagic, sizeof(kMagic)) == 0 && header[4] == kOpGetAck;
+    }
+    yield();
+  }
+  return false;
+}
 }  // namespace
 
 void UsbTransferActivity::onEnter() {
@@ -201,12 +222,28 @@ void UsbTransferActivity::handleList() {
   lastStatus = "Listed " + std::to_string(fileCount) + " file(s)";
 }
 
-void UsbTransferActivity::handleGet(uint32_t filenameLen) {
-  if (filenameLen == 0 || filenameLen > kMaxFilenameLen) {
-    sendError("bad filename length");
+void UsbTransferActivity::handleGet(uint32_t payloadLen) {
+  // payload = [4B offset LE][4B length LE][filename bytes] -- see UsbTransferProtocol.h for why
+  // this is a bounded chunk request rather than "send me the whole file": real .pclog files can be
+  // tens of MB, and streaming one as a single giant burst reliably lost a growing tail of it well
+  // before EOF on real hardware, no matter how many stronger guarantees (write-retry, flush, host
+  // ack) got added around that one exchange -- see CHANGELOG for that whole saga. Bounding each
+  // exchange to kMaxChunkSize keeps any one write small enough that this stopped reproducing, and
+  // confines a lost chunk to one retry instead of losing the last mile of a huge transfer.
+  if (payloadLen <= kGetRequestPrefixSize || payloadLen - kGetRequestPrefixSize > kMaxFilenameLen) {
+    sendError("bad request size");
     return;
   }
 
+  uint8_t prefix[kGetRequestPrefixSize];
+  if (!readExact(prefix, sizeof(prefix))) {
+    sendError("short request");
+    return;
+  }
+  const uint32_t offset = decodeLE32(prefix);
+  const uint32_t requestedLen = decodeLE32(prefix + 4);
+
+  const uint32_t filenameLen = payloadLen - kGetRequestPrefixSize;
   char name[kMaxFilenameLen + 1];
   if (!readExact(reinterpret_cast<uint8_t*>(name), filenameLen)) {
     sendError("short filename");
@@ -221,19 +258,29 @@ void UsbTransferActivity::handleGet(uint32_t filenameLen) {
     return;
   }
   const uint32_t fileSize = static_cast<uint32_t>(f.fileSize64());
+  if (offset > fileSize) {
+    f.close();
+    sendError("offset past end of file");
+    return;
+  }
+  if (!f.seek(offset)) {
+    f.close();
+    sendError("seek failed");
+    return;
+  }
 
-  sendHeader(kOpGetOk, fileSize);
+  uint32_t chunkLen = requestedLen;
+  if (chunkLen > kMaxChunkSize) chunkLen = kMaxChunkSize;
+  if (chunkLen > fileSize - offset) chunkLen = fileSize - offset;
+
+  sendHeader(kOpGetOk, chunkLen);
 
   // Deliberately not Storage.readFileToStream(), whose internal copy loop has no yield() between
   // chunks: GfxRenderer.cpp documents the same failure mode for a tight loop of blocking ~115200
   // baud serial writes (there, repeated LOG_ERR calls) -- enough of them back-to-back starves the
-  // idle task long enough to trip the watchdog. A multi-megabyte .pclog streamed 512 bytes at a
-  // time from here made that a certainty rather than an edge case: real-hardware testing hit a
-  // mid-transfer reboot every time (visible on the host as garbage where a protocol frame should
-  // be -- either leftover ciphertext from the abandoned transfer, or literal log text once the
-  // device had already rebooted back to normal logging).
+  // idle task long enough to trip the watchdog.
   uint8_t buf[512];
-  uint32_t remaining = fileSize;
+  uint32_t remaining = chunkLen;
   bool shortRead = false;
   while (remaining > 0) {
     const size_t toRead = remaining < sizeof(buf) ? remaining : sizeof(buf);
@@ -248,16 +295,14 @@ void UsbTransferActivity::handleGet(uint32_t filenameLen) {
   }
   f.close();
 
+  std::string statusPrefix;
   if (shortRead) {
-    // The header already promised the host exactly fileSize bytes for this frame's payload --
+    // The header already promised the host exactly chunkLen bytes for this frame's payload --
     // there's no way to signal an error mid-payload without leaving every request after this one
-    // reading out of sync (the host has no framing cue to know a short payload means "abort" vs.
-    // "here is the whole file"). Padding with zeros keeps the wire in sync: the corrupted tail
-    // just fails the host's GCM auth check on that record instead of a truncated file or a
-    // connection stuck desynced for good. Real-hardware testing hit this on a ~35MB file: a
-    // Storage.readFileToStream()-free chunked copy loop (see above) got as far as 93% before a
-    // read stopped returning data, with nothing on this screen or in the (muted) logs to say why.
-    const uint32_t shortAt = fileSize - remaining;
+    // reading out of sync. Padding with zeros keeps the wire in sync: the corrupted tail just
+    // fails the host's GCM auth check on whichever record it lands in instead of a truncated
+    // chunk or a connection stuck desynced for good.
+    const uint32_t shortAt = offset + (chunkLen - remaining);
     uint8_t zero[512] = {0};
     while (remaining > 0) {
       const size_t toWrite = remaining < sizeof(zero) ? remaining : sizeof(zero);
@@ -265,11 +310,24 @@ void UsbTransferActivity::handleGet(uint32_t filenameLen) {
       remaining -= static_cast<uint32_t>(toWrite);
       yield();
     }
-    lastStatus =
+    statusPrefix =
         "SD read failed at " + std::to_string(shortAt) + "/" + std::to_string(fileSize) + " for " + std::string(name);
   } else {
-    lastStatus = "Sent " + std::string(name) + " (" + std::to_string(fileSize) + " bytes)";
+    statusPrefix = "Sent " + std::string(name) + " [" + std::to_string(offset) + "+" + std::to_string(chunkLen) +
+                    "/" + std::to_string(fileSize) + "]";
   }
+
+  // writeAll() only guarantees every byte was handed to the USB CDC driver's own buffer -- not
+  // that it actually went out over the wire yet. flush() blocks until the driver's TX buffer is
+  // actually drained, which writeAll() alone does not.
+  logSerial.flush();
+
+  // Even flush() only proves the device's own side is clear -- not that the host has the bytes
+  // yet. Block for the host's explicit acknowledgement instead of just assuming completion once
+  // the device believes it's done, so a chunk the host never actually received can be retried by
+  // the host requesting the same offset again rather than silently moving on.
+  const bool acked = waitForGetAck(kGetAckTimeoutMs);
+  lastStatus = statusPrefix + (acked ? "" : " (no host ack)");
 }
 
 void UsbTransferActivity::handleKey() {

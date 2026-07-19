@@ -28,14 +28,15 @@ class UsbTransferActivity final : public Activity {
 
  private:
   // Services at most one incoming frame per call — loop() calls this every iteration, same as
-  // every other Activity's non-blocking loop(). A kOpGet's file body is streamed synchronously
-  // once the header is parsed (see .cpp), so that single call can take longer than the others, but
-  // still bounded by file size rather than blocking on network conditions.
+  // every other Activity's non-blocking loop(). A kOpGet's chunk is streamed synchronously once
+  // the header is parsed (see .cpp), so that single call can take longer than the others, but it's
+  // bounded by kMaxChunkSize rather than a whole file's size -- see UsbTransferProtocol.h for why
+  // kOpGet is chunked instead of streaming an entire file in one exchange.
   void serviceProtocol();
 
   void handlePing();
   void handleList();
-  void handleGet(uint32_t filenameLen);
+  void handleGet(uint32_t payloadLen);
   void handleKey();
 
   void sendHeader(uint8_t opcode, uint32_t payloadLen);

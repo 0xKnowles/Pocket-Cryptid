@@ -41,6 +41,32 @@ All notable changes to this project are documented here. Format loosely follows
     assumed every chunk it handed to `write()` went out whole. Every write in this file now goes
     through a small `writeAll()` that retries (with a `yield()` between attempts) until every byte
     is actually accounted for, instead of a bare `logSerial.write()` call.
+  - Fixed post-hardware-testing (round 4): with `writeAll()` in place, a repeat transfer still came
+    up short at the tail end — a different amount than round 3's shortfall, consistent with a
+    timing-dependent drain race rather than a fixed-size loss. `write()` returning success only
+    means the bytes were accepted into the USB CDC driver's own buffer, not that they were actually
+    transmitted yet. `handleGet()` now calls `logSerial.flush()` once the whole file (or its
+    zero-padded short-read tail) has been handed to `writeAll()`, blocking until the driver's TX
+    buffer is actually drained before this request is considered done.
+  - Fixed post-hardware-testing (round 5): even with `flush()`, a repeat transfer still came up
+    short at the tail by yet another different amount — flush() only proves the *device's* USB CDC
+    driver drained its buffer, not that the host has actually received the bytes before this
+    screen moves on to something else (its own `render()`, which can block on the e-ink bus long
+    enough to lose data still genuinely in flight over USB). Added a `kOpGetAck` — the host sends
+    it back only once it has fully read a `kOpGetOk` payload — and `handleGet()` now blocks
+    (bounded, `kGetAckTimeoutMs`) waiting for it before considering the transfer done, instead of
+    assuming completion once the device's own side believes it's finished.
+  - Fixed post-hardware-testing (round 6): even with the ack, a repeat transfer still lost its last
+    ~45KB — smaller than every prior round's shortfall, but still not zero, and the ack correctly
+    reported it this time (rather than falsely claiming success) since the host genuinely never
+    received those bytes. Rather than continue adding stronger guarantees around one giant
+    single-burst exchange, `kOpGet` is now a bounded chunk request instead of "send the whole
+    file": payload is `[4B offset][4B length][filename]`, and the device replies with up to
+    `kMaxChunkSize` (64KB) bytes starting at that offset, still write-retried/flushed/acked per
+    chunk. The host pulls a file by requesting successive chunks (advancing by however many bytes
+    the previous response actually held) until a response comes back shorter than requested. Small
+    per-exchange bursts stopped reproducing the tail-loss in testing, and a lost chunk now costs
+    one retry of 64KB instead of the last mile of tens of MB.
 - **Level 1-5 badge, tracking lifetime EXP** (`RubyState::totalExp`, `RubyConfig::levelForExp()`).
   Shown next to the existing "RUBY" name chip on the dashboard — no changes to the creature's
   art/expressions, just a small "Lv.N" badge beside it. EXP comes from two very differently-sized
