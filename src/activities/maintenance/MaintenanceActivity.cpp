@@ -83,6 +83,10 @@ void MaintenanceActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Back) ||
       mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     onGoHome();
+    return;
+  }
+  if (mappedInput.wasReleased(MappedInputManager::Button::Down)) {
+    activityManager.goToUsbTransfer();
   }
 }
 
@@ -119,8 +123,9 @@ void MaintenanceActivity::render(RenderLock&&) {
   const auto logLines = renderer.wrappedText(
       FONT_SMALL_ID,
       "Export: power off, pull the SD card, copy /.ruby/log/*. AES-256-GCM encrypted — decrypt "
-      "with scripts/decrypt_log.py using the key from Settings > Reveal log key.",
-      colWidth, 6);
+      "with scripts/decrypt_log.py using the key from Settings > Reveal log key. Or press Down "
+      "for USB Transfer to pull files over USB without removing the card.",
+      colWidth, 8);
   const int smallLineHeight = renderer.getLineHeight(FONT_SMALL_ID);
   for (const auto& line : logLines) {
     if (leftY + smallLineHeight > columnBottom) break;  // hard stop — never draw past the card's floor

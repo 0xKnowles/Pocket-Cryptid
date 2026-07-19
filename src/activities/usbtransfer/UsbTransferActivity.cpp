@@ -1,0 +1,227 @@
+#include "UsbTransferActivity.h"
+
+#include <GfxRenderer.h>
+#include <HalDisplay.h>
+#include <HalStorage.h>
+#include <Logging.h>
+
+#include <cstring>
+
+#include "EncryptedLog.h"
+#include "UsbTransferProtocol.h"
+#include "fontIds.h"
+#include "ui/Chrome.h"
+
+using namespace UsbTransferProtocol;
+
+namespace {
+// Reads exactly `len` bytes with a short overall timeout, matching Arduino Stream::readBytes'
+// existing default timeout (1000ms) — plenty for a host on the other end of a live USB-CDC link;
+// a genuinely gone host just leaves this screen sitting at "Waiting for host..." next loop().
+bool readExact(uint8_t* buf, size_t len) { return logSerial.readBytes(buf, len) == len; }
+
+uint32_t decodeLE32(const uint8_t* b) {
+  return static_cast<uint32_t>(b[0]) | (static_cast<uint32_t>(b[1]) << 8) | (static_cast<uint32_t>(b[2]) << 16) |
+         (static_cast<uint32_t>(b[3]) << 24);
+}
+
+void encodeLE32(uint32_t v, uint8_t* out) {
+  out[0] = static_cast<uint8_t>(v);
+  out[1] = static_cast<uint8_t>(v >> 8);
+  out[2] = static_cast<uint8_t>(v >> 16);
+  out[3] = static_cast<uint8_t>(v >> 24);
+}
+
+void encodeLE16(uint16_t v, uint8_t* out) {
+  out[0] = static_cast<uint8_t>(v);
+  out[1] = static_cast<uint8_t>(v >> 8);
+}
+}  // namespace
+
+void UsbTransferActivity::onEnter() {
+  Activity::onEnter();
+  // Muted for the entire lifetime of this screen, not just around individual frame reads — every
+  // other subsystem's tick() (WifiSniffer, EncryptedLog, ...) keeps running in the background and
+  // can log at any point in between our own reads/writes.
+  setSerialLogMuted(true);
+  lastStatus = "Waiting for host...";
+  framesServed = 0;
+  requestUpdate();
+}
+
+void UsbTransferActivity::onExit() {
+  setSerialLogMuted(false);
+  Activity::onExit();
+}
+
+void UsbTransferActivity::loop() {
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    onGoHome();
+    return;
+  }
+  serviceProtocol();
+}
+
+void UsbTransferActivity::serviceProtocol() {
+  if (logSerial.available() <= 0) return;
+
+  uint8_t header[kHeaderSize];
+  if (!readExact(header, sizeof(header))) {
+    lastStatus = "Short read (dropped)";
+    requestUpdate();
+    return;
+  }
+  if (memcmp(header, kMagic, sizeof(kMagic)) != 0) {
+    // Not a resync-capable parser — a malformed frame just gets dropped here rather than hunted
+    // for the next magic sequence. Acceptable because logging is muted for this screen's whole
+    // lifetime (see onEnter()), so the only bytes that ever arrive on this wire are ones a
+    // cooperating host client sent on purpose.
+    lastStatus = "Bad magic (dropped)";
+    requestUpdate();
+    return;
+  }
+
+  const uint8_t opcode = header[4];
+  const uint32_t length = decodeLE32(header + 5);
+
+  switch (opcode) {
+    case kOpPing:
+      handlePing();
+      break;
+    case kOpList:
+      handleList();
+      break;
+    case kOpGet:
+      handleGet(length);
+      break;
+    case kOpKey:
+      handleKey();
+      break;
+    default:
+      sendError("unknown opcode");
+      break;
+  }
+  framesServed++;
+  requestUpdate();
+}
+
+void UsbTransferActivity::sendHeader(uint8_t opcode, uint32_t payloadLen) {
+  uint8_t header[kHeaderSize];
+  memcpy(header, kMagic, sizeof(kMagic));
+  header[4] = opcode;
+  encodeLE32(payloadLen, header + 5);
+  logSerial.write(header, sizeof(header));
+}
+
+void UsbTransferActivity::sendFrame(uint8_t opcode, const uint8_t* payload, uint32_t payloadLen) {
+  sendHeader(opcode, payloadLen);
+  if (payload && payloadLen > 0) {
+    logSerial.write(payload, payloadLen);
+  }
+}
+
+void UsbTransferActivity::sendError(const char* message) {
+  const size_t len = strnlen(message, 200);
+  sendFrame(kOpErr, reinterpret_cast<const uint8_t*>(message), static_cast<uint32_t>(len));
+  lastStatus = std::string("Error: ") + message;
+}
+
+void UsbTransferActivity::handlePing() {
+  sendFrame(kOpPong, nullptr, 0);
+  lastStatus = "Ping";
+}
+
+void UsbTransferActivity::handleList() {
+  const char* dir = EncryptedLog::logDirectory();
+  HalFile root = Storage.open(dir);
+  if (!root || !root.isDirectory()) {
+    sendFrame(kOpListOk, nullptr, 0);
+    lastStatus = "Listed 0 files";
+    return;
+  }
+
+  std::string payload;
+  char name[128];
+  uint32_t fileCount = 0;
+  for (HalFile f = root.openNextFile(); f; f = root.openNextFile()) {
+    if (!f.isDirectory()) {
+      const size_t nameLen = f.getName(name, sizeof(name));
+      const uint16_t clampedLen = static_cast<uint16_t>(nameLen > 255 ? 255 : nameLen);
+      const uint32_t fileSize = static_cast<uint32_t>(f.fileSize64());
+
+      uint8_t lenBuf[2];
+      encodeLE16(clampedLen, lenBuf);
+      payload.append(reinterpret_cast<const char*>(lenBuf), sizeof(lenBuf));
+      payload.append(name, clampedLen);
+
+      uint8_t sizeBuf[4];
+      encodeLE32(fileSize, sizeBuf);
+      payload.append(reinterpret_cast<const char*>(sizeBuf), sizeof(sizeBuf));
+      fileCount++;
+    }
+    f.close();
+  }
+  root.close();
+
+  sendFrame(kOpListOk, reinterpret_cast<const uint8_t*>(payload.data()), static_cast<uint32_t>(payload.size()));
+  lastStatus = "Listed " + std::to_string(fileCount) + " file(s)";
+}
+
+void UsbTransferActivity::handleGet(uint32_t filenameLen) {
+  if (filenameLen == 0 || filenameLen > kMaxFilenameLen) {
+    sendError("bad filename length");
+    return;
+  }
+
+  char name[kMaxFilenameLen + 1];
+  if (!readExact(reinterpret_cast<uint8_t*>(name), filenameLen)) {
+    sendError("short filename");
+    return;
+  }
+  name[filenameLen] = '\0';
+
+  const std::string fullPath = std::string(EncryptedLog::logDirectory()) + "/" + name;
+  HalFile f = Storage.open(fullPath.c_str());
+  if (!f) {
+    sendError("file not found");
+    return;
+  }
+  const uint32_t fileSize = static_cast<uint32_t>(f.fileSize64());
+  f.close();
+
+  sendHeader(kOpGetOk, fileSize);
+  Storage.readFileToStream(fullPath.c_str(), logSerial, 512);
+  lastStatus = "Sent " + std::string(name) + " (" + std::to_string(fileSize) + " bytes)";
+}
+
+void UsbTransferActivity::handleKey() {
+  char hex[65];
+  if (!encryptedLog.revealDecryptionKeyHex(hex, sizeof(hex))) {
+    sendError("key unavailable");
+    return;
+  }
+  const size_t len = strnlen(hex, sizeof(hex));
+  sendFrame(kOpKeyOk, reinterpret_cast<const uint8_t*>(hex), static_cast<uint32_t>(len));
+  lastStatus = "Key revealed to host";
+}
+
+void UsbTransferActivity::render(RenderLock&&) {
+  renderer.clearScreen();
+  Chrome::drawHeader(renderer, "USB TRANSFER");
+
+  const int top = Chrome::contentTop();
+  const int lineHeight = renderer.getLineHeight(FONT_SMALL_ID);
+  int y = top;
+
+  renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Connect over USB and pull .pclog files with RubySift.");
+  y += lineHeight + 8;
+
+  renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, lastStatus.c_str());
+  y += lineHeight + 8;
+
+  const std::string countLine = "Requests served this session: " + std::to_string(framesServed);
+  renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, countLine.c_str());
+
+  Chrome::drawFooterHints(renderer, "Exit", nullptr, nullptr, nullptr);
+  renderer.displayBuffer(HalDisplay::FAST_REFRESH);
+}

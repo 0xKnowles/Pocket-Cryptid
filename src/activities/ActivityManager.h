@@ -86,6 +86,7 @@ class ActivityManager {
   void goToMaintenance();
   void goToDeviceList();
   void goToLogViewer();
+  void goToUsbTransfer();
   void goToSleep(bool fromTimeout = false);
   void goToBoot();
   void goToFullScreenMessage(std::string message, EpdFontFamily::Style style = EpdFontFamily::REGULAR);

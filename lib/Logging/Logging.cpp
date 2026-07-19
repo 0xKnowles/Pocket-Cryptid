@@ -40,6 +40,11 @@ void addToLogRingBuffer(const char* message) {
   logHead = (logHead + 1) % MAX_LOG_LINES;
 }
 
+static bool g_serialLogMuted = false;
+
+void setSerialLogMuted(bool muted) { g_serialLogMuted = muted; }
+bool isSerialLogMuted() { return g_serialLogMuted; }
+
 // Since logging can take a large amount of flash, we want to make the format string as short as possible.
 // This logPrintf prepend the timestamp, level and origin to the user-provided message, so that the user only needs to
 // provide the format string for the message itself.
@@ -69,7 +74,7 @@ void logPrintf(const char* level, const char* origin, const char* format, ...) {
     }
   }
   va_end(args);
-  if (logSerial) {
+  if (!g_serialLogMuted && logSerial) {
     logSerial.print(buf);
   }
   addToLogRingBuffer(buf);
