@@ -41,6 +41,13 @@ All notable changes to this project are documented here. Format loosely follows
     assumed every chunk it handed to `write()` went out whole. Every write in this file now goes
     through a small `writeAll()` that retries (with a `yield()` between attempts) until every byte
     is actually accounted for, instead of a bare `logSerial.write()` call.
+  - Fixed post-hardware-testing (round 4): with `writeAll()` in place, a repeat transfer still came
+    up short at the tail end — a different amount than round 3's shortfall, consistent with a
+    timing-dependent drain race rather than a fixed-size loss. `write()` returning success only
+    means the bytes were accepted into the USB CDC driver's own buffer, not that they were actually
+    transmitted yet. `handleGet()` now calls `logSerial.flush()` once the whole file (or its
+    zero-padded short-read tail) has been handed to `writeAll()`, blocking until the driver's TX
+    buffer is actually drained before this request is considered done.
 - **Level 1-5 badge, tracking lifetime EXP** (`RubyState::totalExp`, `RubyConfig::levelForExp()`).
   Shown next to the existing "RUBY" name chip on the dashboard — no changes to the creature's
   art/expressions, just a small "Lv.N" badge beside it. EXP comes from two very differently-sized

@@ -270,6 +270,15 @@ void UsbTransferActivity::handleGet(uint32_t filenameLen) {
   } else {
     lastStatus = "Sent " + std::string(name) + " (" + std::to_string(fileSize) + " bytes)";
   }
+
+  // writeAll() only guarantees every byte was handed to the USB CDC driver's own buffer -- not
+  // that it actually went out over the wire yet. Confirmed on real hardware: writeAll() alone
+  // still left the tail of a ~35MB transfer undelivered by a few hundred KB (a different amount
+  // each attempt, consistent with a timing-dependent drain race rather than a fixed-size loss),
+  // with the device still reporting success since every write() call had returned its full count.
+  // flush() blocks until the driver's TX buffer is actually drained, which writeAll() alone does
+  // not.
+  logSerial.flush();
 }
 
 void UsbTransferActivity::handleKey() {
