@@ -14,9 +14,25 @@ All notable changes to this project are documented here. Format loosely follows
   having a live connection to this screen, the same physical-possession bar as reading the key off
   Settings. Only active while this screen is open (no background listener during normal capture);
   while it is, ordinary debug log lines are muted on the wire (`Logging::setSerialLogMuted()`) so
-  they can't corrupt frames a host is mid-parse on. This is a deliberate trade against the
-  project's earlier stealth-first stance documented in `MaintenanceActivity.h` — see that file for
-  the updated rationale.
+  they can't corrupt frames a host is mid-parse on. Also pauses WiFi/BLE capture for the screen's
+  duration (same mechanism as Dashboard's own Pause), so the file being read isn't growing
+  mid-transfer and nothing else competes with it for the SD card or CPU. This is a deliberate
+  trade against the project's earlier stealth-first stance documented in `MaintenanceActivity.h`
+  — see that file for the updated rationale.
+  - Fixed post-hardware-testing: a `.pclog` fetch streamed its entire body (multi-megabyte for a
+    real capture session) via `Storage.readFileToStream()`'s tight blocking-write loop, with no
+    `yield()` between chunks. `GfxRenderer.cpp` already documents this exact failure mode for
+    repeated blocking ~115200 baud serial writes (there, log lines) starving the idle task long
+    enough to trip the watchdog — real-hardware testing hit a mid-transfer reboot every time.
+    `handleGet()` now copies the file itself in 512-byte chunks with a `yield()` after each one.
+  - Fixed post-hardware-testing (round 2): once the watchdog reboot above was fixed, a real ~35MB
+    file transfer got to 93% at a steady rate and then went silent for good — an SD read stopping
+    partway through with nothing said about why, since the envelope header already promised the
+    host an exact byte count for this payload and there was no way to signal failure mid-payload
+    without leaving the connection desynced for every request after it. `handleGet()` now pads any
+    shortfall with zeros to keep the promised length intact (the corrupted tail just fails the
+    host's GCM auth check on that record) and reports the failing byte offset in this screen's own
+    status line instead of leaving the host to guess.
 - **Level 1-5 badge, tracking lifetime EXP** (`RubyState::totalExp`, `RubyConfig::levelForExp()`).
   Shown next to the existing "RUBY" name chip on the dashboard — no changes to the creature's
   art/expressions, just a small "Lv.N" badge beside it. EXP comes from two very differently-sized

@@ -8,7 +8,9 @@
 // USB pull for .pclog files without removing the SD card. Reachable from Maintenance (Down).
 // Speaks the framed protocol in UsbTransferProtocol.h over the same USB-CDC port normal debug
 // logging already uses — see onEnter()/onExit() for how it keeps that logging from corrupting the
-// wire while this screen owns it.
+// wire while this screen owns it, and for how it pauses WiFi/BLE capture (same mechanism as
+// Dashboard's own Pause) so the log file isn't growing mid-transfer and nothing else is competing
+// for the SD card or CPU with it.
 //
 // The device never initiates anything here; it only ever responds to a host that already sent a
 // well-formed request, and the whole channel only exists while a user has physically navigated
@@ -42,4 +44,10 @@ class UsbTransferActivity final : public Activity {
 
   std::string lastStatus = "Waiting for host...";
   uint32_t framesServed = 0;
+
+  // Whether onEnter() is the one that paused capture (vs. it already being paused when this
+  // screen was opened) — onExit() only resumes it in the former case, so a capture the owner had
+  // already manually paused before coming here stays paused afterward too, same as
+  // toggleCapturePause()'s own resume behavior respecting prior settings rather than forcing state.
+  bool pausedCaptureOnEnter = false;
 };
