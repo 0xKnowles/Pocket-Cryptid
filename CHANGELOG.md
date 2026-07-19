@@ -33,6 +33,14 @@ All notable changes to this project are documented here. Format loosely follows
     shortfall with zeros to keep the promised length intact (the corrupted tail just fails the
     host's GCM auth check on that record) and reports the failing byte offset in this screen's own
     status line instead of leaving the host to guess.
+  - Fixed post-hardware-testing (round 3): with that fixed, the same file made it to 99% and
+    stalled again — but this time the device's own screen reported success ("Sent ... 36672720
+    bytes"), while the host only ever received 36393159. Nothing anywhere checked
+    `logSerial.write()`'s return value, so a short write near the end of a long transfer (the USB
+    CDC TX buffer momentarily full) went completely unnoticed — the device's copy loop just
+    assumed every chunk it handed to `write()` went out whole. Every write in this file now goes
+    through a small `writeAll()` that retries (with a `yield()` between attempts) until every byte
+    is actually accounted for, instead of a bare `logSerial.write()` call.
 - **Level 1-5 badge, tracking lifetime EXP** (`RubyState::totalExp`, `RubyConfig::levelForExp()`).
   Shown next to the existing "RUBY" name chip on the dashboard — no changes to the creature's
   art/expressions, just a small "Lv.N" badge beside it. EXP comes from two very differently-sized
