@@ -43,6 +43,12 @@ class UsbTransferActivity final : public Activity {
   void sendFrame(uint8_t opcode, const uint8_t* payload, uint32_t payloadLen);
   void sendError(const char* message);
 
+  // Bumped by hand on every change to this screen's protocol handling. Shown on screen so a photo
+  // of the device immediately says which build produced it -- this saga has repeatedly needed to
+  // rule out "the fix isn't actually flashed yet" as a cause before treating a repeat symptom as a
+  // new bug. Not a version of anything else in the firmware, just this file.
+  static constexpr const char* kBuildTag = "usbxfer build 8";
+
   std::string lastStatus = "Waiting for host...";
   uint32_t framesServed = 0;
 

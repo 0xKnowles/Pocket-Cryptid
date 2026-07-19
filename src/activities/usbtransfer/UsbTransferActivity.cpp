@@ -323,8 +323,13 @@ void UsbTransferActivity::handleGet(uint32_t payloadLen) {
     statusPrefix =
         "SD read failed at " + std::to_string(shortAt) + "/" + std::to_string(fileSize) + " for " + std::string(name);
   } else {
+    // requestedLen (what this build actually decoded from the wire, pre-clamp) is included here
+    // purely as a diagnostic: the host always asks for exactly kMaxChunkSize, so requestedLen
+    // should equal that every time. If it doesn't, this build isn't decoding the request the way
+    // this source expects to -- e.g. a stale/mismatched flash -- and this line is the fastest way
+    // to tell that apart from a fresh bug in a build that IS current.
     statusPrefix = "Sent " + std::string(name) + " [" + std::to_string(offset) + "+" + std::to_string(chunkLen) +
-                    "/" + std::to_string(fileSize) + "]";
+                    "/" + std::to_string(fileSize) + "] (req=" + std::to_string(requestedLen) + ")";
   }
 
   // writeAll() only guarantees every byte was handed to the USB CDC driver's own buffer -- not
@@ -372,6 +377,9 @@ void UsbTransferActivity::render(RenderLock&&) {
 
   const std::string countLine = "Requests served this session: " + std::to_string(framesServed);
   renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, countLine.c_str());
+  y += lineHeight + 8;
+
+  renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, kBuildTag);
 
   Chrome::drawFooterHints(renderer, "Exit", nullptr, nullptr, nullptr);
   renderer.displayBuffer(HalDisplay::FAST_REFRESH);

@@ -75,6 +75,15 @@ All notable changes to this project are documented here. Format loosely follows
     rounds fixed. `kOpGet` responses now throttle to at most one render per
     `kGetRenderThrottleMs` (500ms); `kOpPing`/`kOpList`/`kOpKey` are rare enough to always render
     immediately.
+  - Diagnostic (round 8): a test against round 7's build reproduced what looked like the very first
+    chunk-loss symptom again, but with one detail that doesn't add up against this source: the
+    on-screen chunk length was larger than `kMaxChunkSize`, which the host can never cause since it
+    always requests exactly `kMaxChunkSize` and the device's clamp can only shrink that, never grow
+    it. That's only possible if the build actually flashed wasn't this source. Rather than guess
+    blind, this screen's status line now also prints the raw `requestedLen` it decoded off the wire
+    for a `kOpGet` (should always read the host's chunk size verbatim), and the screen now shows a
+    small hand-bumped build tag (`UsbTransferActivity::kBuildTag`) so a photo of the device settles
+    "is this actually the latest build" on sight instead of by inference.
 - **Level 1-5 badge, tracking lifetime EXP** (`RubyState::totalExp`, `RubyConfig::levelForExp()`).
   Shown next to the existing "RUBY" name chip on the dashboard — no changes to the creature's
   art/expressions, just a small "Lv.N" badge beside it. EXP comes from two very differently-sized
