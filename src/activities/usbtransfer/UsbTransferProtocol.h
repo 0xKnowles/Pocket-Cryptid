@@ -26,25 +26,34 @@
 //   kOpList               — no payload. Device replies kOpListOk with, for each file in the log
 //                            directory: [2B name length LE][name bytes][4B file size LE], repeated
 //                            back-to-back until the payload is exhausted (0 files = 0-length payload).
-//   kOpGet                — payload = filename only (no directory prefix), UTF-8, no NUL
-//                            terminator, at most kMaxFilenameLen bytes. Device replies kOpGetOk with
-//                            payload length set to the file's exact size, immediately followed by
-//                            the raw file bytes (streamed straight off the SD card) — not chunked
-//                            into further frames. Unknown or unreadable file -> kOpErr instead.
+//   kOpGet                — payload = [4B offset LE][4B length LE][filename bytes] -- filename is
+//                            UTF-8, no NUL terminator, at most kMaxFilenameLen bytes. Requests up
+//                            to `length` bytes of the named file starting at `offset`, clamped to
+//                            kMaxChunkSize and to what's actually left in the file. Device replies
+//                            kOpGetOk with payload = exactly the bytes returned (which may be
+//                            shorter than requested, at EOF) — the host reads a whole file by
+//                            issuing successive kOpGet requests advancing offset by however many
+//                            bytes the previous response actually contained, acking each one (see
+//                            kOpGetAck) before requesting the next. Unknown/unreadable file, or a
+//                            seek past its own reported size -> kOpErr instead. Real .pclog files
+//                            can be tens of MB; streaming that as one giant burst turned out to
+//                            reliably lose a growing tail of it well before EOF regardless of
+//                            write-retry/flush/ack guarantees added around it (see CHANGELOG) --
+//                            bounding each exchange to kMaxChunkSize keeps any one write small
+//                            enough that this stopped reproducing in testing, and confines a lost
+//                            chunk to one retry instead of losing the last mile of a huge transfer.
 //   kOpKey                 — no payload. Device replies kOpKeyOk with the 64-hex-char AES-256 key as
 //                            ASCII, the same value MaintenanceActivity's "Reveal log key" shows on
 //                            screen. Only reachable by a host already having a live connection to
 //                            this screen, i.e. the same physical-possession bar as reading it off
 //                            the display.
 //   kOpGetAck              — no payload. Sent only after a kOpGetOk exchange: confirms the host has
-//                            actually received every byte of the file body, not just that the
-//                            device finished writing it. Necessary because a successful write()/
-//                            flush() on the device only proves the USB CDC driver accepted and
-//                            drained its own TX buffer -- not that the bytes reached the host
-//                            before this screen moves on to something else (e.g. its own render,
-//                            which can block long enough on the e-ink bus to lose the tail of a
-//                            large transfer that was still in flight). handleGet() blocks waiting
-//                            for this (bounded -- see kGetAckTimeoutMs) before it's done.
+//                            actually received every byte of that chunk, not just that the device
+//                            finished writing it. Necessary because a successful write()/flush() on
+//                            the device only proves the USB CDC driver accepted and drained its own
+//                            TX buffer -- not that the bytes reached the host yet. handleGet()
+//                            blocks waiting for this (bounded -- see kGetAckTimeoutMs) before it's
+//                            done with that chunk.
 //
 // Responses (device -> host):
 //   kOpPong, kOpListOk, kOpGetOk, kOpKeyOk — as above.
@@ -69,13 +78,20 @@ enum Opcode : uint8_t {
 };
 
 // How long handleGet() waits for the host's kOpGetAck before giving up and moving on anyway (an
-// unacked transfer already told the host everything it needs via its own read failure/timeout;
-// this bound just keeps a gone host from wedging this screen forever).
+// unacked chunk already told the host everything it needs via its own read failure/timeout; this
+// bound just keeps a gone host from wedging this screen forever).
 inline constexpr uint32_t kGetAckTimeoutMs = 10000;
 
 // Longest filename UsbTransferActivity will accept in a kOpGet request. Real log filenames are
 // "YYYYMMDD.pclog" (14 bytes) — this just needs enough headroom that a genuine filename never
 // gets rejected, not to accommodate arbitrary length.
 inline constexpr size_t kMaxFilenameLen = 127;
+
+// Largest single kOpGetOk payload the device will ever send, regardless of what a kOpGet request
+// asks for. See kOpGet's doc above for why chunking exists at all.
+inline constexpr uint32_t kMaxChunkSize = 65536;
+
+// Fixed part of a kOpGet request payload before the filename: 4B offset + 4B length.
+inline constexpr size_t kGetRequestPrefixSize = 8;
 
 }  // namespace UsbTransferProtocol
