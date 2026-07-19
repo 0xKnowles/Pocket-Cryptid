@@ -91,6 +91,14 @@ inline constexpr size_t kMaxFilenameLen = 127;
 // asks for. See kOpGet's doc above for why chunking exists at all.
 inline constexpr uint32_t kMaxChunkSize = 65536;
 
+// Minimum gap between screen re-renders while chunked kOpGet traffic is flowing. A render here
+// means a real e-ink refresh (RenderLock/displayBuffer), slow enough that doing one after every
+// single 64KB chunk of a large file (hundreds of them) both drags the whole transfer out and
+// introduces exactly the kind of long blocking stall between exchanges that correlates with
+// desync/timeout symptoms elsewhere in this saga -- see CHANGELOG. Ping/List/Key aren't chunked
+// and always render promptly regardless of this.
+inline constexpr uint32_t kGetRenderThrottleMs = 500;
+
 // Fixed part of a kOpGet request payload before the filename: 4B offset + 4B length.
 inline constexpr size_t kGetRequestPrefixSize = 8;
 

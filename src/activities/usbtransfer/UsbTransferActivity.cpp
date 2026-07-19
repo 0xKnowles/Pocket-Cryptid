@@ -157,7 +157,17 @@ void UsbTransferActivity::serviceProtocol() {
       break;
   }
   framesServed++;
-  requestUpdate();
+
+  // Throttled for kOpGet specifically: a render here is a real e-ink refresh, and a large file's
+  // chunk sequence can run to hundreds of these in one pull -- see kGetRenderThrottleMs's comment.
+  // Ping/List/Key are rare enough (one per screen visit, typically) that they always render
+  // immediately; skipping their update here would make this screen feel unresponsive to them for
+  // no benefit, since there's no chunk storm to protect against.
+  const uint32_t now = millis();
+  if (opcode != kOpGet || static_cast<int32_t>(now - lastRenderMs) >= static_cast<int32_t>(kGetRenderThrottleMs)) {
+    lastRenderMs = now;
+    requestUpdate();
+  }
 }
 
 void UsbTransferActivity::sendHeader(uint8_t opcode, uint32_t payloadLen) {

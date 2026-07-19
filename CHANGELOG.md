@@ -67,6 +67,14 @@ All notable changes to this project are documented here. Format loosely follows
     the previous response actually held) until a response comes back shorter than requested. Small
     per-exchange bursts stopped reproducing the tail-loss in testing, and a lost chunk now costs
     one retry of 64KB instead of the last mile of tens of MB.
+  - Fixed post-hardware-testing (round 7): the chunked redesign above introduced its own
+    regression -- `serviceProtocol()` calls `requestUpdate()` (a real e-ink refresh) after every
+    single frame, which was fine for one request per file but meant hundreds of refreshes
+    back-to-back for one large file's chunk sequence. That both dragged transfers out and
+    reintroduced long blocking stalls between exchanges resembling the desync symptoms earlier
+    rounds fixed. `kOpGet` responses now throttle to at most one render per
+    `kGetRenderThrottleMs` (500ms); `kOpPing`/`kOpList`/`kOpKey` are rare enough to always render
+    immediately.
 - **Level 1-5 badge, tracking lifetime EXP** (`RubyState::totalExp`, `RubyConfig::levelForExp()`).
   Shown next to the existing "RUBY" name chip on the dashboard — no changes to the creature's
   art/expressions, just a small "Lv.N" badge beside it. EXP comes from two very differently-sized

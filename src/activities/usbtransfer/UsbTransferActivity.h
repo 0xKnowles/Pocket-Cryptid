@@ -46,6 +46,10 @@ class UsbTransferActivity final : public Activity {
   std::string lastStatus = "Waiting for host...";
   uint32_t framesServed = 0;
 
+  // Last millis() a render was actually requested — see serviceProtocol()'s comment on why kOpGet
+  // throttles how often it triggers one instead of doing it after every chunk.
+  uint32_t lastRenderMs = 0;
+
   // Whether onEnter() is the one that paused capture (vs. it already being paused when this
   // screen was opened) — onExit() only resumes it in the former case, so a capture the owner had
   // already manually paused before coming here stays paused afterward too, same as
