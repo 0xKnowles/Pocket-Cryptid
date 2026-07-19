@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ruby — Passive WiFi/BLE Signal Analyzer Firmware</title>
+<meta name="description" content="Ruby is open-source custom firmware for the Xteink X3/X4 e-ink readers — a stealthy, long-battery-life passive WiFi &amp; BLE signal analyzer with a reactive digital companion.">
+<link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<div class="scanlines" aria-hidden="true"></div>
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header" id="top">
+  <div class="wrap header-inner">
+    <a class="brand" href="#top">
+      <img src="assets/img/favicon.svg" alt="" class="brand-mark" width="22" height="22">
+      <span>RUBY</span>
+    </a>
+    <button class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="primaryNav" aria-label="Toggle navigation">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="primary-nav" id="primaryNav">
+      <a href="#glance">Overview</a>
+      <a href="#install">Install</a>
+      <a href="#meet-ruby">Meet Ruby</a>
+      <a href="#how-it-works">How it Works</a>
+      <a href="#screens">Screens</a>
+      <a href="#hardware">Hardware</a>
+      <a href="#faq">More</a>
+      <a class="nav-cta" href="https://github.com/0xKnowles/Ruby" target="_blank" rel="noopener">GitHub ↗</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap hero-inner">
+      <div class="hero-copy">
+        <p class="eyebrow">Open-source e-ink firmware</p>
+        <h1>Ruby listens to the<br><span class="accent">air around you.</span></h1>
+        <p class="lede">
+          Custom firmware for the <strong>Xteink X3 &amp; X4</strong> e-ink readers that turns the
+          hardware into something else entirely: a stealthy, long-battery-life passive RF signal
+          analyzer with a small digital companion living in the corner of the screen.
+        </p>
+        <div class="hero-badges">
+          <a href="https://github.com/0xKnowles/Ruby/actions/workflows/ci.yml" target="_blank" rel="noopener">
+            <img src="https://github.com/0xKnowles/Ruby/actions/workflows/ci.yml/badge.svg" alt="CI (build) status">
+          </a>
+          <a href="../LICENSE">
+            <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License">
+          </a>
+        </div>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#install">Install Ruby</a>
+          <a class="btn btn-ghost" href="https://github.com/0xKnowles/Ruby" target="_blank" rel="noopener">View Source</a>
+        </div>
+      </div>
+      <div class="hero-art">
+        <div class="device">
+          <div class="device-cam"></div>
+          <div class="device-screen">
+            <picture>
+              <source srcset="assets/img/boot.webp" type="image/webp">
+              <img src="assets/img/boot.png" alt="Ruby's boot splash art, shown on first power-on" loading="eager" width="792" height="528">
+            </picture>
+          </div>
+          <div class="device-label">XTEINK X3 / X4 · 792×528 E-INK</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WARNING -->
+  <section class="warning-band" aria-label="Important legal and safety warning">
+    <div class="wrap warning-inner">
+      <div class="warning-icon" aria-hidden="true">⚠</div>
+      <div>
+        <p class="warning-title">Educational and authorized-testing use only.</p>
+        <p>
+          Ruby passively captures WiFi and Bluetooth traffic from <em>everything in range</em>, not
+          just your own devices — and can optionally transmit real 802.11 deauthentication frames
+          (see <a href="#active-deauth">Active deauth</a> — off by default, gated behind an explicit
+          target list). <strong>Only point it at networks and devices you own, or have explicit
+          written authorization to test.</strong> Capturing traffic from networks you don't control,
+          and especially transmitting deauthentication frames at them, is illegal in most
+          jurisdictions (wiretapping/interception and RF-interference statutes both apply) regardless
+          of how small or "hobbyist" the device is. This project is published for security research
+          and education. You are solely responsible for how you use it and for knowing the laws that
+          apply where you use it.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHAT IT IS -->
+  <section class="section">
+    <div class="wrap prose">
+      <p>
+        It is <strong>not</strong> a book reader. It does not read EPUBs, sync with KOReader, or talk
+        to OPDS catalogs. It listens — passively, receive-only, by default — to the WiFi and
+        Bluetooth Low Energy traffic already in the air around it, catalogs what it hears into an
+        encrypted on-device log, and Ruby reacts with a changing expression as a visual front-end for
+        that catalog — closer to Pwnagotchi's mood faces than to a pet whose appearance grows or
+        evolves. A separate Level 1-5 badge does track lifetime EXP (see
+        <a href="#meet-ruby">Meet Ruby</a>), but leveling only ever changes that badge's number,
+        never the creature's art.
+      </p>
+    </div>
+  </section>
+
+  <!-- AT A GLANCE -->
+  <section class="section alt" id="glance">
+    <div class="wrap">
+      <h2 class="section-title"><span class="tag">01</span>At a glance</h2>
+      <div class="grid grid-3">
+        <div class="card">
+          <h3>Hardware</h3>
+          <p>Xteink X3 or X4, ESP32-C3 (single-core RISC-V, no PSRAM), 792×528 e-ink panel, runs in
+          landscape. One firmware binary for both; hardware is detected at runtime, not chosen at
+          build time.</p>
+        </div>
+        <div class="card">
+          <h3>Capture</h3>
+          <p>802.11 monitor-mode WiFi sniffing across all channels (beacons, probe
+          requests/responses, WPA 4-way-handshake detection) plus passive BLE advertisement
+          scanning — neither path associates, pairs, or connects to anything by default.</p>
+        </div>
+        <div class="card">
+          <h3>Log</h3>
+          <p>Every observation is deduplicated for on-screen stats and independently written to an
+          AES-256-GCM encrypted daily log on the SD card, decryptable on-device or via a bundled
+          Python script.</p>
+        </div>
+        <div class="card">
+          <h3>Opt-in, off by default</h3>
+          <p>Raw plaintext <code>.pcap</code> handshake export for offline auditing with
+          hashcat/<code>hcxpcapngtool</code>, and an active-deauth capability gated by a two-list
+          whitelist/blacklist system — see <a href="#active-deauth">why it's currently non-functional</a>
+          on this hardware.</p>
+        </div>
+        <div class="card">
+          <h3>On-device management</h3>
+          <p>A live network-scan picker to build the whitelist/blacklist without a PC, a Power-button
+          action you can set to Screenshot/Pause/Refresh, and a Settings screen for every capture
+          toggle.</p>
+        </div>
+        <div class="card">
+          <h3>Vendor lookup</h3>
+          <p>Always on, no setting to flip: Recent Devices falls back to an optional vendor-name
+          lookup by MAC OUI for entries with no advertised SSID/name — see
+          <a href="#vendor-oui">Vendor OUI lookup</a>.</p>
+        </div>
+        <div class="card">
+          <h3>Level 1-5 badge</h3>
+          <p>Tracks lifetime EXP (handshakes worth far more than routine unique-device sightings)
+          beside Ruby's name chip, with a matching progress bar next to the battery badge. Cosmetic
+          only — the creature's art never changes.</p>
+        </div>
+        <div class="card">
+          <h3>License</h3>
+          <p>MIT. Single PlatformIO environment (<code>default</code>), built and static-analyzed on
+          every push via GitHub Actions.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSTALL -->
+  <section class="section" id="install">
+    <div class="wrap">
+      <h2 class="section-title"><span class="tag">02</span>Installing Ruby</h2>
+      <p class="section-intro">
+        The easiest way to get Ruby onto real hardware is to flash a prebuilt release straight from
+        your browser — no toolchain install required.
+      </p>
+      <ol class="steps">
+        <li>
+          <span class="step-num">1</span>
+          <div>Grab the latest <code>firmware-default-v*.bin</code> from the
+            <a href="https://github.com/0xKnowles/Ruby/releases/latest" target="_blank" rel="noopener">Releases page</a>.</div>
+        </li>
+        <li>
+          <span class="step-num">2</span>
+          <div>Plug the X3/X4 into your computer with a USB-C cable.</div>
+        </li>
+        <li>
+          <span class="step-num">3</span>
+          <div>Open <a href="https://crosspointreader.com/#flash-tools" target="_blank" rel="noopener">CrossPoint Reader's flash tool</a>
+            in a Chromium-based browser (Chrome, Edge, or Opera — it uses the Web Serial API, which
+            Firefox and Safari don't support).</div>
+        </li>
+        <li>
+          <span class="step-num">4</span>
+          <div>Select the device's serial port when prompted, point the tool at the <code>.bin</code>
+            you downloaded, and follow its on-screen flashing steps. It writes directly over USB;
+            nothing leaves your machine.</div>
+        </li>
+        <li>
+          <span class="step-num">5</span>
+          <div>Power-cycle the device. It should boot straight to the splash art and land on the
+            dashboard.</div>
+        </li>
+      </ol>
+      <p class="section-note">
+        This is the same web-based flashing tool used for CrossPlant/CrossInk-family firmware on
+        this hardware, since Ruby shares its low-level display/power/storage bring-up with that
+        project (see <a href="#origin">Where this comes from</a>). Prefer to build it yourself,
+        audit the source first, or you're developing against it? See
+        <a href="#building">Building from source</a> below.
+      </p>
+    </div>
+  </section>
+
+  <!-- MEET RUBY -->
+  <section class="section alt" id="meet-ruby">
+    <div class="wrap">
+      <h2 class="section-title"><span class="tag">03</span>Meet Ruby</h2>
+      <p class="section-intro">
+        The creature's <em>shape</em> doesn't change — it's one fixed form, already fully itself.
+        What changes frame to frame is its <strong>expression</strong>, redrawn in a small fixed
+        corner box on the dashboard as a live reaction to what's been heard most recently over the
+        air.
+      </p>
+
+      <div class="mood-grid">
+        <figure class="mood-card">
+          <picture><source srcset="assets/img/excited.webp" type="image/webp"><img src="assets/img/excited.png" alt="Ruby, EXCITED" loading="lazy" width="143" height="200"></picture>
+          <figcaption><b>EXCITED</b><span>A handshake was just captured — rare, the biggest find.</span></figcaption>
+        </figure>
+        <figure class="mood-card">
+          <picture><source srcset="assets/img/curious.webp" type="image/webp"><img src="assets/img/curious.png" alt="Ruby, CURIOUS" loading="lazy" width="200" height="200"></picture>
+          <figcaption><b>CURIOUS</b><span>A real burst of new unique devices, not just one.</span></figcaption>
+        </figure>
+        <figure class="mood-card">
+          <picture><source srcset="assets/img/content.webp" type="image/webp"><img src="assets/img/content.png" alt="Ruby, CONTENT" loading="lazy" width="143" height="200"></picture>
+          <figcaption><b>CONTENT</b><span>Steady recent RF activity — the everyday baseline.</span></figcaption>
+        </figure>
+        <figure class="mood-card">
+          <picture><source srcset="assets/img/bored.webp" type="image/webp"><img src="assets/img/bored.png" alt="Ruby, BORED" loading="lazy" width="143" height="200"></picture>
+          <figcaption><b>BORED</b><span>Quiet for a while.</span></figcaption>
+        </figure>
+        <figure class="mood-card">
+          <picture><source srcset="assets/img/lonely.webp" type="image/webp"><img src="assets/img/lonely.png" alt="Ruby, LONELY" loading="lazy" width="143" height="200"></picture>
+          <figcaption><b>LONELY</b><span>Quiet for a long while.</span></figcaption>
+        </figure>
+      </div>
+
+      <div class="prose">
+        <p>
+          There's no stage, nothing to "feed" — just a mood, the same idea as Pwnagotchi's faces,
+          driven entirely by <code>SignalCatalog</code>'s counts rather than anything cosmetic.
+          Separately, a small <strong>Level 1-5</strong> badge sits next to the "RUBY" name chip,
+          tracking lifetime EXP: a captured handshake is worth 2000 EXP, a newly-seen unique device
+          (AP/client/BLE) worth 1 — weighted that unevenly because a handshake is roughly 2000x rarer
+          in practice, so the two end up contributing comparably to leveling over a typical session
+          instead of one drowning out the other. Leveling only ever changes that badge's number,
+          never the art above. A matching progress bar sits in the header, next to the battery badge,
+          filling up toward the next level, with an "<code>N/M EXP</code>" label beside it. Crossing
+          into a new level briefly shows a "LEVEL UP → Lv.N" banner.
+        </p>
+        <p>
+          CURIOUS specifically requires several new-unique sightings within a short window, not just
+          one — a single new device reads as ordinary CONTENT instead, so CURIOUS stays meaningful
+          even in a busy RF environment where new devices show up constantly. Pausing capture shows
+          BORED immediately, since nothing's being observed anymore, rather than freezing whatever
+          mood was showing right before Pause.
+        </p>
+        <p>
+          Ruby also has something to say about it. A thought bubble running along the bottom edge of
+          her box (<code>RubyThoughts.h</code>), tailing up into her face, shows a quirky,
+          hacker-flavored one-liner tied to whichever mood is currently showing — "ooh, what's this
+          OUI?" while CURIOUS, "netstat -a: empty :(" while LONELY — updating on the same ~1.2s
+          cadence as the art itself. It's briefly replaced by a pointed speech bubble reacting to
+          something that just happened — a new AP/client/BLE device, a captured handshake, a level
+          up, a nearby deauth alert — each with 9 possible lines to pick from, before fading back to
+          the ambient thought bubble.
+        </p>
+      </div>
+
+      <figure class="sleep-figure">
+        <picture><source srcset="assets/img/sleep.webp" type="image/webp"><img src="assets/img/sleep.png" alt="Ruby, asleep" loading="lazy" width="400" height="400"></picture>
+        <figcaption>When the device is asleep, it shows a different, much larger piece of art instead.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="section" id="how-it-works">
+    <div class="wrap">
+      <h2 class="section-title"><span class="tag">04</span>How it works</h2>
+      <ol class="timeline">
+        <li>
+          <h3>1. Capture</h3>
+          <p><code>WifiSniffer</code> puts the ESP32-C3's radio into 802.11 monitor mode and hops
+          across channels, extracting beacon/probe-request SSIDs, MAC addresses, and — when it hears
+          one — the presence of a WPA 4-way handshake and which message number it is. The radio holds
+          its current channel for a few seconds whenever it sees part of a handshake, instead of
+          hopping away mid-exchange. <code>BleScanner</code> runs a <strong>passive</strong> BLE scan
+          (it never sends a SCAN_REQ) and records advertised MACs, names, and manufacturer-data
+          length. Neither path associates, pairs, or connects to anything, and BLE scanning never
+          transmits.</p>
+        </li>
+        <li>
+          <h3>2. Catalog</h3>
+          <p>Every observation is deduplicated by <code>SignalCatalog</code> against a bounded
+          in-RAM hash set. The first time a given MAC/role is seen, that's a "unique" event: it
+          increments a lifetime counter and nudges the creature's expression.</p>
+        </li>
+        <li>
+          <h3>3. Log</h3>
+          <p>Independently of deduplication, <em>every</em> observation is encrypted (AES-256-GCM via
+          mbedtls, one record per packet) and appended to a daily log file on the SD card. The AES
+          key is derived from a random seed generated on first boot plus this chip's eFuse MAC
+          address and lives only in internal NVS flash — pulling the SD card gets you ciphertext with
+          no key beside it.</p>
+        </li>
+        <li>
+          <h3>4. React</h3>
+          <p>The creature's <em>shape</em> (<code>RubyManager</code>) never changes — see
+          <a href="#meet-ruby">Meet Ruby</a> for what each expression means and how the separate
+          Level 1-5 badge tracks lifetime EXP alongside it without touching the art.</p>
+        </li>
+        <li>
+          <h3>5. Display</h3>
+          <p>The dashboard is mostly static: a header, Ruby's box with its live Mood readout, boxed
+          RF stat panels, a footer. The creature lives in a fixed corner box that redraws on its own
+          ~1.2s cadence using <code>HalDisplay::FAST_REFRESH</code> without ever touching any pixel
+          outside that box — a genuine partial refresh on hardware with no windowed-update API.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- SCREENS -->
+  <section class="section alt" id="screens">
+    <div class="wrap">
+      <h2 class="section-title"><span class="tag">05</span>Screens</h2>
+      <div class="grid grid-2">
+        <div class="card">
+          <h3>Dashboard <span class="pill">home</span></h3>
+          <p>The creature, a Level 1-5 badge and EXP progress bar, current Mood, and an
+          ACTIVE/PAUSED tag. A <strong>RECENT DEVICES</strong> card shows the latest observations in
+          detail; a <strong>SIGNAL HISTORY</strong> card stacks <strong>HANDSHAKES</strong> (a
+          persisted "N ago" list, newest first) over a live RSSI bar chart. Below that,
+          <strong>SIGNALS</strong> (unique AP/client/BLE/handshake counts plus "Last Hand Shook:")
+          and <strong>CAPTURE STATUS</strong> (active capture mode, log size, uptime) sit side by
+          side. A thought/speech bubble along the bottom edge reacts to mood and events, and a banner
+          announces deauth alerts, level-ups, or handshake captures.</p>
+          <p class="key-hints">
+            <kbd>Confirm</kbd> Settings &nbsp;·&nbsp; <kbd>Left</kbd> Pause/Resume &nbsp;·&nbsp;
+            <kbd>Right</kbd> Export &nbsp;·&nbsp; <kbd>Up</kbd> Recent Devices &nbsp;·&nbsp;
+            <kbd>Down</kbd> Log Viewer &nbsp;·&nbsp; <kbd>Back</kbd> Full refresh
+          </p>
+        </div>
+        <div class="card">
+          <h3>Settings</h3>
+          <p>Toggle WiFi/BLE capture (BLE off by default), adjust WiFi channel dwell time, lock WiFi
+          monitor to a single channel, set the ghost-clear refresh interval, choose the Power-button
+          tap action, turn on raw handshake capture or active deauth (both off by default), manage
+          the whitelist/blacklist, reveal the log's AES key, wipe the log, or reset counters back to
+          zero.</p>
+        </div>
+        <div class="card">
+          <h3>Export / Maintenance</h3>
+          <p>How to pull captures off the SD card, plus the current session's record count,
+          raw-capture file stats, a PMKID-capable-capture count, and deauth burst/frame counters.</p>
+        </div>
+        <div class="card">
+          <h3>Recent Devices</h3>
+          <p>A live, RAM-only feed of the last 16 WiFi/BLE observations (type, MAC, RSSI,
+          SSID/name, time since seen), newest first, read-only, with vendor-name fallback. Laid out
+          as a dense multi-column grid so all 16 entries fit on screen at once. Nothing shown here is
+          persisted — it's lost on reboot along with the rest of RAM.</p>
+        </div>
+        <div class="card">
+          <h3>Log Viewer</h3>
+          <p>Browses the encrypted capture log <em>on the device itself</em>, no PC required.
+          <kbd>Left</kbd>/<kbd>Right</kbd> switch between daily log files, <kbd>Up</kbd>/<kbd>Down</kbd>
+          page through records — around 27 at a time, newest first.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RAW HANDSHAKE CAPTURE -->
+  <section class="section" id="raw-capture">
+    <div class="wrap prose">
+      <h2 class="section-title"><span class="tag">06</span>Raw handshake capture <span class="subtle">(crackable .pcap export)</span></h2>
+      <p>
+        Everything above is deliberately metadata-only: the encrypted log records <em>that</em> a
+        handshake happened and which message numbers were seen, never the key material itself.
+        <strong>Raw handshake capture</strong> is a separate, opt-in capability for a different
+        purpose — auditing the password strength of networks you own, offline, with tools like
+        <a href="https://hashcat.net/hashcat/" target="_blank" rel="noopener">hashcat</a> or
+        <a href="https://github.com/ZerBea/hcxtools" target="_blank" rel="noopener">hcxpcapngtool</a>.
+      </p>
+      <ul>
+        <li><strong>Off by default.</strong> Turn it on at <code>Settings → Raw handshake capture</code>. The Settings screen shows a warning explaining the tradeoff before you flip it on.</li>
+        <li>When enabled, it captures the WPA 4-way-handshake frames verbatim (ANonce/SNonce/MIC included) plus the SSID-bearing beacon for each network involved, written to a standard libpcap file at <code>/.ruby/pcap/YYYYMMDD.pcap</code> — feed it straight into hashcat/hcxpcapngtool.</li>
+        <li><strong>These files are plaintext</strong>, unlike everything else Ruby writes to SD — a cracking tool needs the exact bytes that went over the air, so this path can't be routed through the AES-256-GCM encrypted log.</li>
+        <li>The Export screen also shows a <strong>PMKID-capable</strong> count — message-1 frames that carry the PMKID key-data element, independently crackable via hashcat's <code>-m 22000</code> PMKID mode.</li>
+        <li>Turn it back off when you're not actively auditing — it's meant to be run deliberately, not left on as a background default.</li>
+      </ul>
+      <div class="callout">
+        <p><strong>Realistic capture rates are low — 0-2 handshakes/hour of passive listening is normal, not broken.</strong>
+        WiFi monitor mode hops all 13 channels by default, spending 300ms on each, so any single
+        channel is only actually being listened to roughly 1/13th of the time. Two real levers to
+        improve it: locking <code>WiFi channel scope</code> to one known channel, and
+        <a href="#active-deauth">Active deauth</a>, which forces a handshake to happen now instead of
+        waiting on one by chance.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PASSIVE DEAUTH -->
+  <section class="section alt" id="passive-deauth">
+    <div class="wrap prose">
+      <h2 class="section-title"><span class="tag">07</span>Passive deauth/disassoc detection</h2>
+      <p>
+        Always on, no setting to flip, costs a few hundred bytes: <code>DeauthDetector</code> watches
+        the deauth/disassoc management frames <code>WifiSniffer</code> already classifies and flags
+        when their rate spikes — 5 or more within a 5-second window triggers a 15-second alert. This
+        is evidence that <em>something</em> is actively attacking a nearby network, not necessarily
+        this device — it's a passive counter, transmits nothing, and never changes what gets
+        captured. The Dashboard's <strong>Nearby DeAuth</strong> row and banner are this detector's
+        only UI surface.
+      </p>
+    </div>
+  </section>
+
+  <!-- ACTIVE DEAUTH -->
+  <section class="section" id="active-deauth">
+    <div class="wrap prose">
+      <h2 class="section-title"><span class="tag">08</span>Active deauth</h2>
+      <div class="callout callout-danger">
+        <p><strong>Status: confirmed NOT functional on this hardware, via real-hardware testing.</strong>
+        The transient-<code>WIFI_MODE_STA</code> approach did fix the earlier crash-loop. But every
+        burst's <code>esp_wifi_80211_tx()</code> call was rejected by the WiFi driver itself — it
+        logs <code>wifi: unsupport frame type: 0c0</code> once per rejected frame — matching
+        ESP-IDF's own documented behavior: its raw-TX allowlist hard-codes out deauth specifically,
+        at the driver level. Bursts still get attempted, counted, and logged, but nothing actually
+        reaches the air. The only known way past this — patching ESP-IDF's precompiled
+        <code>libnet80211.a</code> — targets classic ESP32/S2/S3 (Xtensa); this device is an
+        <strong>ESP32-C3 (RISC-V)</strong>, with no confirmed working precedent. Not attempted here as
+        a result — passive capture, optionally with WiFi channel scope locked to a known target's
+        channel, is the only capture path confirmed to actually work on this firmware.</p>
+      </div>
+      <p>
+        Passive capture alone often isn't enough to actually catch a handshake — a real 4-way
+        handshake completes in well under a second, and the radio has to already be parked on the
+        right channel when it happens. <strong>Active deauth</strong> is meant to close that gap by
+        transmitting real 802.11 deauthentication frames at a target network, forcing a client to
+        reconnect so the resulting handshake lands in raw capture instead of waiting for one to
+        happen on its own. On this hardware, per the status above, it doesn't currently manage to
+        transmit anything.
+      </p>
+      <ul>
+        <li><strong>Off by default</strong>, and requires raw handshake capture to also be on.</li>
+        <li>Every target is gated by two genuinely independent lists (<code>TargetList</code>, backed by <code>/.ruby/targets.txt</code>):
+          <ul>
+            <li><strong>Whitelist non-empty</strong> — only the BSSIDs on it are attacked.</li>
+            <li><strong>Whitelist empty, blacklist non-empty</strong> — every BSSID seen is attacked <em>except</em> the ones on the blacklist.</li>
+            <li><strong>Both empty (the default)</strong> — <em>nothing</em> is attacked, even with the feature switched on.</li>
+          </ul>
+        </li>
+        <li>Each targeted BSSID gets a short burst of deauth frames, then a 30-second cooldown, and attacks stop entirely for a BSSID once its handshake has been captured.</li>
+      </ul>
+      <div class="callout">
+        <p><strong>Treat this as real RF interference against whatever it targets, should the
+        underlying driver restriction ever get lifted.</strong> Transmitting deauthentication frames
+        at a network you don't own or don't have explicit authorization to test is illegal in most
+        jurisdictions, regardless of how small the transmitting device is. Only enable this against
+        networks you own or are explicitly authorized to audit — the both-lists-empty default exists
+        so that flipping the setting on can never itself put you outside that boundary.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- VENDOR OUI -->
+  <section class="section alt" id="vendor-oui">
+    <div class="wrap prose">
+      <h2 class="section-title"><span class="tag">09</span>Vendor OUI lookup</h2>
+      <p>
+        Recent Devices falls back to a vendor-name lookup, by MAC address prefix, for entries that
+        don't already have an SSID or advertised name. This needs a user-supplied file at
+        <code>/.ruby/oui.txt</code> — not shipped with the firmware — one
+        <code>AABBCC&lt;TAB&gt;Vendor Name</code> entry per line, the same format IEEE's public OUI
+        registry export or Wireshark's <code>manuf</code> file already use. Without that file
+        present, unlabeled entries just show "(no name)". No database ships in firmware, so this
+        costs nothing when the file isn't present. A small 32-entry result cache means the
+        <em>same</em> vendor, looked up repeatedly across redraws of the same handful of on-screen
+        devices, only ever touches the SD card once.
+      </p>
+      <p>
+        A passive deauth/disassoc detector, BLE tracker detector, and persistent AP history were all
+        prototyped alongside this on real hardware and then pulled back out: the AP history table
+        alone added a fixed ~14 KB of permanent RAM use, and this chip has only ~380 KB total with no
+        PSRAM to absorb it — enough to reliably starve NimBLE's controller init of memory it needs.
+        Reliable BLE capture won out.
+      </p>
+    </div>
+  </section>
+
+  <!-- HARDWARE -->
+  <section class="section" id="hardware">
+    <div class="wrap">
+      <h2 class="section-title"><span class="tag">10</span>Hardware</h2>
+      <p class="section-intro">
+        Same target as upstream CrossPlant/CrossInk: <strong>Xteink X3 or X4</strong>, ESP32-C3
+        (single-core RISC-V, ~380 KB usable RAM, no PSRAM), 792×528 e-ink panel. The dashboard runs
+        in <strong>landscape</strong> — the panel's own native orientation, needing no rotation math
+        to draw into.
+      </p>
+      <div class="spec-table">
+        <div class="spec-row"><span>MCU</span><span>ESP32-C3, single-core RISC-V, 160 MHz</span></div>
+        <div class="spec-row"><span>Radio</span><span>Integrated WiFi 802.11 b/g/n + Bluetooth 5 (LE only), shared with book downloads/OTA on the original firmware</span></div>
+        <div class="spec-row"><span>Display</span><span>792×528 e-ink panel, landscape native orientation</span></div>
+        <div class="spec-row"><span>RAM</span><span>~380 KB usable, no PSRAM</span></div>
+        <div class="spec-row"><span>Storage</span><span>SD card via SdFat</span></div>
+        <div class="spec-row"><span>Input</span><span>Back / Confirm / Left / Right / Up / Down / Power</span></div>
+      </div>
+      <div class="grid grid-2" style="margin-top:2rem">
+        <div class="card">
+          <h3>BLE passive scan — off by default</h3>
+          <p>Real-hardware testing found that starting it fragments the same DMA-capable memory pool
+          <code>EncryptedLog</code>'s hardware AES needs, tripping a proactive safety restart every
+          boot. A crash-loop guard forces BLE (and raw handshake capture / active deauth) back off
+          automatically after 3 restarts in a row, so a stuck device recovers on its own.</p>
+        </div>
+        <div class="card">
+          <h3>BLE + raw handshake capture: mutually exclusive</h3>
+          <p>BLE alone settles at ~63 KB heap once running — fine on its own — but turning raw
+          handshake capture on while BLE is already running (or vice versa) tips the DMA-capable pool
+          into fragmenting badly enough to crash-loop. Settings now refuses to enable either one while
+          the other is already active.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LOOK AND FEEL -->
+  <section class="section alt" id="look-and-feel">
+    <div class="wrap prose">
+      <h2 class="section-title"><span class="tag">11</span>Look and feel</h2>
+      <p>
+        The UI font is <a href="https://github.com/googlefonts/spacemono" target="_blank" rel="noopener">Space Mono</a>
+        (SIL OFL 1.1) — a monospace face chosen to read as "instrument readout" rather than "app UI,"
+        which fits a device whose whole job is displaying raw RF telemetry. Boxed elements (the
+        footer's button tabs, the battery badge, Ruby's box, Settings' selected row) use a shared
+        rounded-outline style instead of solid filled highlights — outlines read as "buttons" without
+        being the heaviest, most ghost-prone thing on the screen after a fast refresh.
+      </p>
+      <p>
+        All of Ruby's art (splash, mood faces, sleep art) is source BMP under
+        <a href="https://github.com/0xKnowles/Ruby/tree/main/bmp" target="_blank" rel="noopener"><code>bmp/</code></a>,
+        baked into the firmware image at build time so a freshly flashed device shows it immediately
+        with no SD card setup required. It can still be overridden per-file at
+        <code>/bmp/&lt;name&gt;.bmp</code> on the SD card without recompiling — see
+        <a href="https://github.com/0xKnowles/Ruby/tree/main/bmp/README.md" target="_blank" rel="noopener"><code>bmp/README.md</code></a>
+        for the full format/size table and how to swap in your own art.
+      </p>
+    </div>
+  </section>
+
+  <!-- WHERE THIS COMES FROM -->
+  <section class="section" id="origin">
+    <div class="wrap">
+      <h2 class="section-title"><span class="tag">12</span>Where this comes from</h2>
+      <p class="section-intro">
+        Ruby is built on <a href="https://github.com/0xKnowles/CrossPlant" target="_blank" rel="noopener">CrossPlant</a>'s
+        hardware foundation — the same e-ink display driver, input handling, power management, SD
+        storage, font rendering, and activity/screen framework that make CrossPlant (and its own
+        ancestor, CrossInk) boot and draw on real Xteink hardware. Everything above that foundation —
+        the RF capture layer, the encrypted log, the creature, every screen — is new.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Layer</th><th>What it is</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>freeink-sdk/</code>, <code>lib/hal</code>, <code>lib/GfxRenderer</code>, <code>lib/EpdFont</code></td>
+              <td>Hardware bring-up: display driver, buttons, power, SD card, fonts, graphics primitives. Carried over from CrossPlant/CrossInk largely unmodified.</td>
+            </tr>
+            <tr>
+              <td><code>lib/RfCapture</code> <span class="pill pill-new">new</span></td>
+              <td>802.11 monitor-mode WiFi sniffing, passive BLE advertisement scanning, the opt-in raw-frame <code>.pcap</code> export path, and the opt-in <code>DeauthEngine</code>/<code>TargetList</code> capability.</td>
+            </tr>
+            <tr>
+              <td><code>lib/SignalCatalog</code> <span class="pill pill-new">new</span></td>
+              <td>Deduplicates observations into lifetime unique-device counters, a RAM-only ring of recent sightings, and a live dedup-by-BSSID scan cache for the network-picker screens.</td>
+            </tr>
+            <tr>
+              <td><code>lib/RubyLog</code> <span class="pill pill-new">new</span></td>
+              <td>AES-256-GCM encrypted append-only capture log.</td>
+            </tr>
+            <tr>
+              <td><code>src/ruby</code> <span class="pill pill-new">new</span></td>
+              <td>The creature: procedurally-rendered, fed by <code>SignalCatalog</code>.</td>
+            </tr>
+            <tr>
+              <td><code>src/activities/*</code> <span class="pill pill-new">new</span></td>
+              <td>Dashboard, Settings, device list, log viewer, network picker, Export/Maintenance screens replace CrossPlant's reader/browser/pet activities entirely.</td>
+            </tr>
+            <tr>
+              <td><code>src/CaptureControl</code>, <code>src/Screenshot</code> <span class="pill pill-new">new</span></td>
+              <td>Session-only capture pause and framebuffer-to-BMP screenshot, both reachable from the Power button.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="section-note">
+        Reading-specific subsystems (EPUB/TXT/XTC rendering, the file browser, OPDS, KOReader sync,
+        WiFi-connected file transfer, the Lexend Deca/Bitter/Charein reading fonts, i18n) were
+        removed, not disabled — there is no code path for them left in this repo.
+      </p>
+    </div>
+  </section>
+
+  <!-- BUILDING -->
+  <section class="section alt" id="building">
+    <div class="wrap">
+      <h2 class="section-title"><span class="tag">13</span>Building from source</h2>
+      <pre class="code-block" data-lang="sh"><button class="copy-btn" type="button">Copy</button><code>pio run -e default          # compile
+pio run -e default -t upload  # flash over USB</code></pre>
+      <p class="section-note">
+        There is a single PlatformIO environment (<code>default</code>). Unlike upstream CrossPlant's
+        <code>tiny</code>/<code>xlarge</code> split, Ruby ships one fixed, small UI font set, so
+        there's no equivalent tradeoff to build variants around. The same binary supports both X3 and
+        X4: hardware is detected at runtime (<code>HalGPIO::deviceIsX3()</code>), not at build time.
+        <a href="https://github.com/0xKnowles/Ruby/blob/main/.github/workflows/ci.yml" target="_blank" rel="noopener"><code>.github/workflows/ci.yml</code></a>
+        builds this env and runs <code>pio check</code> static analysis on every push/PR.
+      </p>
+    </div>
+  </section>
+
+  <!-- LOG DECRYPTION -->
+  <section class="section" id="faq">
+    <div class="wrap prose">
+      <h2 class="section-title"><span class="tag">14</span>On-device log decryption</h2>
+      <p>
+        The <strong>Log Viewer</strong> screen (Dashboard → <kbd>Down</kbd>) decrypts and browses the
+        log right on the device, with no key ever typed in. This works because the AES-256 key that
+        encrypted a given file never actually left the device that wrote it:
+        <code>EncryptedLog</code> derives it once at boot (hardware TRNG seed + eFuse MAC) and keeps
+        it resident in RAM for as long as the firmware is running. Reading a record back is just
+        <code>mbedtls_gcm_auth_decrypt</code> with that same in-memory key, plus GCM's built-in
+        authentication tag check, which doubles as corruption/tamper detection for free.
+      </p>
+      <p>
+        Random access to record N is O(1) rather than a scan from the start of the file: every record
+        is encrypted from a fixed-size 39-byte <code>LogRecordPlaintext</code>, so every on-disk
+        envelope is exactly the same 70 bytes, and record N always starts at byte <code>N * 70</code>.
+      </p>
+      <p>The PC-side path still exists and is still the only way to get the <em>plaintext</em> off the device entirely:</p>
+      <pre class="code-block" data-lang="sh"><button class="copy-btn" type="button">Copy</button><code>pip install -r scripts/requirements.txt
+python3 scripts/decrypt_log.py --key &lt;64 hex chars&gt; 20260717.pclog</code></pre>
+
+      <h2 class="section-title" style="margin-top:3rem"><span class="tag">15</span>Exporting captures</h2>
+      <p>There is no USB/WiFi transfer protocol — power the device off, pull the SD card, and copy files to a computer:</p>
+      <ul>
+        <li><strong>Encrypted log</strong> — <code>/.ruby/log/*.pclog</code>. Decrypt with the command above and the key from <strong>Settings → Reveal log key</strong>.</li>
+        <li><strong>Raw handshake captures</strong> (only if turned on) — <code>/.ruby/pcap/*.pcap</code>, already plaintext. Load directly into hashcat or hcxpcapngtool.</li>
+        <li><strong>Screenshots</strong> (only if used) — <code>/.ruby/screenshots/*.bmp</code>, plain uncompressed 1-bit bitmaps.</li>
+      </ul>
+      <p><code>/.ruby/oui.txt</code> (vendor OUI lookup) goes the other direction — it's a file you supply yourself, not one Ruby writes.</p>
+
+      <h2 class="section-title" style="margin-top:3rem"><span class="tag">16</span>What "encrypted" means here</h2>
+      <p>
+        The log is AES-256-GCM encrypted at rest so that a lost or stolen SD card doesn't hand over a
+        plaintext capture history. It is <strong>not</strong> anonymized — record contents are the
+        same MAC addresses, SSIDs, and RSSI values a passive analyzer would see over the air,
+        deliberately, so the log is actually useful for its purpose. Treat it and the device itself
+        the same way you'd treat any other RF capture tool: know the rules that apply where you use
+        it, and don't point it at networks or people without a reason you'd stand behind. This does
+        <strong>not</strong> apply to raw handshake capture: those <code>.pcap</code> files are
+        plaintext by necessity and are off by default specifically because they don't get this
+        protection.
+      </p>
+
+      <h2 class="section-title" style="margin-top:3rem"><span class="tag">17</span>What was removed, and why</h2>
+      <p>Book-reading, remote sync, and WiFi-client features made no sense for a device whose entire value proposition is that it never associates with a network:</p>
+      <ul>
+        <li><strong>Epub/Txt/Xtc readers, file browser, OPDS, KOReader sync</strong> — no reading surface exists.</li>
+        <li><strong>WiFi station mode / "join network" / web server / WebDAV / OTA-over-HTTP</strong> — dropped entirely. The device's WiFi radio only ever runs in monitor mode; it never has an IP address.</li>
+        <li><strong>Multi-language reading fonts and i18n</strong> — the UI is English-only dashboard chrome, not paragraphs of book text.</li>
+        <li><strong>Auto-sleep on inactivity</strong> — a passive analyzer's entire job is to sit still and listen with no buttons pressed; auto-sleeping on that basis would defeat the point.</li>
+        <li><strong>A "Lore" progression screen</strong> — read as a pet-sim feature bolted onto a recon tool rather than something that earned its screen real estate.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- LICENSE -->
+  <section class="section alt" id="license">
+    <div class="wrap prose center">
+      <h2 class="section-title" style="justify-content:center">License</h2>
+      <p>MIT, same as upstream CrossPlant/CrossInk. <code>freeink-sdk/</code> carries its own MIT
+      license and third-party attribution — see
+      <a href="https://github.com/0xKnowles/Ruby/blob/main/freeink-sdk/NOTICE" target="_blank" rel="noopener"><code>freeink-sdk/NOTICE</code></a>.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <div class="brand">
+      <img src="assets/img/favicon.svg" alt="" width="18" height="18">
+      <span>RUBY</span>
+    </div>
+    <p>Educational and authorized-testing use only. Published for security research and education.</p>
+    <div class="footer-links">
+      <a href="https://github.com/0xKnowles/Ruby" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/0xKnowles/Ruby/releases/latest" target="_blank" rel="noopener">Releases</a>
+      <a href="https://github.com/0xKnowles/Ruby/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+      <a href="#top">Back to top ↑</a>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/script.js"></script>
+</body>
+</html>

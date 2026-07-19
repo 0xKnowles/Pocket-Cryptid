@@ -1,5 +1,10 @@
 # Ruby
 
+> **A full project website (with the same content as this README, in a browsable format) lives in
+> [`docs/`](docs/) — open [`docs/index.html`](docs/index.html) locally, or enable GitHub Pages on
+> this repo (Settings → Pages → Deploy from branch → `/docs`) to serve it at
+> `https://0xknowles.github.io/Ruby/`.**
+
 > [!WARNING]
 > **Educational and authorized-testing use only.** Ruby passively captures WiFi and Bluetooth
 > traffic from *everything in range*, not just your own devices — and can optionally transmit
