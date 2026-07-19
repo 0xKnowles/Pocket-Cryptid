@@ -7,6 +7,7 @@
 
 #include <cstring>
 
+#include "CaptureControl.h"
 #include "EncryptedLog.h"
 #include "UsbTransferProtocol.h"
 #include "fontIds.h"
@@ -44,12 +45,26 @@ void UsbTransferActivity::onEnter() {
   // other subsystem's tick() (WifiSniffer, EncryptedLog, ...) keeps running in the background and
   // can log at any point in between our own reads/writes.
   setSerialLogMuted(true);
+
+  // Pausing capture (same mechanism as Dashboard's own Pause) stops all WiFi/BLE scanning and SD
+  // writes for as long as this screen is open: one less thing competing for the SD card's shared
+  // SPI bus and CPU time with the file transfer itself, and it keeps the log file this screen is
+  // reading from static instead of growing mid-read. Only resumed on exit if this screen is the
+  // one that paused it — see the header comment on pausedCaptureOnEnter.
+  pausedCaptureOnEnter = !captureIsPaused();
+  if (pausedCaptureOnEnter) {
+    toggleCapturePause();
+  }
+
   lastStatus = "Waiting for host...";
   framesServed = 0;
   requestUpdate();
 }
 
 void UsbTransferActivity::onExit() {
+  if (pausedCaptureOnEnter) {
+    toggleCapturePause();
+  }
   setSerialLogMuted(false);
   Activity::onExit();
 }
@@ -187,10 +202,29 @@ void UsbTransferActivity::handleGet(uint32_t filenameLen) {
     return;
   }
   const uint32_t fileSize = static_cast<uint32_t>(f.fileSize64());
-  f.close();
 
   sendHeader(kOpGetOk, fileSize);
-  Storage.readFileToStream(fullPath.c_str(), logSerial, 512);
+
+  // Deliberately not Storage.readFileToStream(), whose internal copy loop has no yield() between
+  // chunks: GfxRenderer.cpp documents the same failure mode for a tight loop of blocking ~115200
+  // baud serial writes (there, repeated LOG_ERR calls) -- enough of them back-to-back starves the
+  // idle task long enough to trip the watchdog. A multi-megabyte .pclog streamed 512 bytes at a
+  // time from here made that a certainty rather than an edge case: real-hardware testing hit a
+  // mid-transfer reboot every time (visible on the host as garbage where a protocol frame should
+  // be -- either leftover ciphertext from the abandoned transfer, or literal log text once the
+  // device had already rebooted back to normal logging).
+  uint8_t buf[512];
+  uint32_t remaining = fileSize;
+  while (remaining > 0) {
+    const size_t toRead = remaining < sizeof(buf) ? remaining : sizeof(buf);
+    const int n = f.read(buf, toRead);
+    if (n <= 0) break;
+    logSerial.write(buf, static_cast<size_t>(n));
+    remaining -= static_cast<uint32_t>(n);
+    yield();
+  }
+  f.close();
+
   lastStatus = "Sent " + std::string(name) + " (" + std::to_string(fileSize) + " bytes)";
 }
 
@@ -215,6 +249,11 @@ void UsbTransferActivity::render(RenderLock&&) {
 
   renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Connect over USB and pull .pclog files with RubySift.");
   y += lineHeight + 8;
+
+  if (pausedCaptureOnEnter) {
+    renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, "Capture paused for the duration of this screen.");
+    y += lineHeight + 8;
+  }
 
   renderer.drawText(FONT_SMALL_ID, Chrome::contentLeft(), y, lastStatus.c_str());
   y += lineHeight + 8;
