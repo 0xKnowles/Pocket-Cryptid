@@ -37,6 +37,25 @@ void encodeLE16(uint16_t v, uint8_t* out) {
   out[0] = static_cast<uint8_t>(v);
   out[1] = static_cast<uint8_t>(v >> 8);
 }
+
+// logSerial.write() can return fewer bytes than requested when the USB CDC TX buffer is full --
+// confirmed on real hardware: a ~35MB transfer's device-side status read "Sent ... (36672720
+// bytes)" (its write loop believed every chunk went out in full, since nothing checked the return
+// value) while the host only ever received 36393159 -- ~280KB silently dropped near the very end,
+// with no error on either side. Every write in this file goes through here now instead of a bare
+// logSerial.write(), retrying (with a yield() so the USB stack gets a chance to drain) until every
+// byte is actually accounted for.
+void writeAll(const uint8_t* data, size_t len) {
+  size_t written = 0;
+  while (written < len) {
+    const size_t n = logSerial.write(data + written, len - written);
+    if (n == 0) {
+      yield();
+      continue;
+    }
+    written += n;
+  }
+}
 }  // namespace
 
 void UsbTransferActivity::onEnter() {
@@ -125,13 +144,13 @@ void UsbTransferActivity::sendHeader(uint8_t opcode, uint32_t payloadLen) {
   memcpy(header, kMagic, sizeof(kMagic));
   header[4] = opcode;
   encodeLE32(payloadLen, header + 5);
-  logSerial.write(header, sizeof(header));
+  writeAll(header, sizeof(header));
 }
 
 void UsbTransferActivity::sendFrame(uint8_t opcode, const uint8_t* payload, uint32_t payloadLen) {
   sendHeader(opcode, payloadLen);
   if (payload && payloadLen > 0) {
-    logSerial.write(payload, payloadLen);
+    writeAll(payload, payloadLen);
   }
 }
 
@@ -223,7 +242,7 @@ void UsbTransferActivity::handleGet(uint32_t filenameLen) {
       shortRead = true;
       break;
     }
-    logSerial.write(buf, static_cast<size_t>(n));
+    writeAll(buf, static_cast<size_t>(n));
     remaining -= static_cast<uint32_t>(n);
     yield();
   }
@@ -242,7 +261,7 @@ void UsbTransferActivity::handleGet(uint32_t filenameLen) {
     uint8_t zero[512] = {0};
     while (remaining > 0) {
       const size_t toWrite = remaining < sizeof(zero) ? remaining : sizeof(zero);
-      logSerial.write(zero, toWrite);
+      writeAll(zero, toWrite);
       remaining -= static_cast<uint32_t>(toWrite);
       yield();
     }
